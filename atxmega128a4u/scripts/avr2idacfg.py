@@ -61,6 +61,8 @@ if len(flist) >= 1:
             tree = et.parse(fname)
             root = tree.getroot()
 
+            all_addrs = dict()
+
             hdr = open(out_name, "wt")
 
             hdr.write(".%s\n" % os.path.splitext(os.path.basename(fname))[0])
@@ -75,7 +77,7 @@ if len(flist) >= 1:
             hdr.write("ROM=%s\n" % rom_size)
 
             ram_size=int(root.find(".//address-space[@id='data']").attrib['size'], 0)
-            hdr.write("ROM=%s\n" % ram_size)
+            hdr.write("RAM=%s\n" % ram_size)
 
             eeprom_size=int(root.find(".//address-space[@id='eeprom']").attrib['size'], 0)
             hdr.write("EEPROM=%s\n" % eeprom_size)
@@ -85,7 +87,13 @@ if len(flist) >= 1:
             for memory_segment in root.findall(".//address-space[@id='data']/memory-segment"):
                 start = int(memory_segment.attrib['start'], 0)
                 end = start + int(memory_segment.attrib['size'], 0)
-                hdr.write("area DATA %s %s:%s\n" % (memory_segment.attrib['name'], hex(start), hex(end)))
+                name = memory_segment.attrib['name']
+                if name == 'IO':
+                    name = 'FSR_'
+                else:
+                    name = name + '_'
+
+                hdr.write("area DATA\t%s\t0x%04x:0x%04x %s\n" % (name, start, end, name))
 
             hdr.write("\n")
 
@@ -113,15 +121,17 @@ if len(flist) >= 1:
                     offset = int(register.attrib['offset'], 0)
                     caption = register.attrib['caption']
 
-                    hdr.write("%s_%s\t0x%04x\t%s\n" % (base_name, name, base + offset, caption))
+                    if all_addrs.get(hex(base + offset)) is None:
+                        hdr.write("%s_%s\t0x%04x\t%s\n" % (base_name, name, base + offset, caption))
+                        all_addrs.update({hex(base + offset): register})
 
-                    for bitfield in root.findall(".//modules/module/register-group[@name='%s']/register[@name='%s']/bitfield" % (name_in_module, name)):
-                        bitfield_name = bitfield.attrib['name']
-                        bitfield_caption = bitfield.attrib['caption']
-                        mask = int(bitfield.attrib['mask'], 0)
-                        for bit in range(0, 8):
-                            if 1 << bit == mask:
-                                hdr.write("%s_%s.%s\t%s\t%s\n" % (base_name, name, bitfield_name, bit, bitfield_caption))
+                        for bitfield in root.findall(".//modules/module/register-group[@name='%s']/register[@name='%s']/bitfield" % (name_in_module, name)):
+                            bitfield_name = bitfield.attrib['name']
+                            bitfield_caption = bitfield.attrib['caption']
+                            mask = int(bitfield.attrib['mask'], 0)
+                            for bit in range(0, 8):
+                                if 1 << bit == mask:
+                                    hdr.write("%s_%s.%s\t%s\t%s\n" % (base_name, name, bitfield_name, bit, bitfield_caption))
 
                 hdr.write("\n")
             hdr.close()
