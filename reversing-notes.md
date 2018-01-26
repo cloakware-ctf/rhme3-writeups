@@ -204,3 +204,106 @@ RAM:0060 DFLLRC32M_CTRL: .byte 1                 ; Control Register
 ```
 
 * with these two facts it would seem that the layout of this image is still incorrect (somehow) in IDA Pro.
+
+* comparing the contents of ROM as viewed by radare2, it would seem that the 0x2324 address is correct and contains the strings of interest no less
+
+```
+- offset -   0 1  2 3  4 5  6 7  8 9  A B  C D  E F  0123456789ABCDEF  comment
+0x00002324  feca a008 4006 0408 0220 b009 6006 4080  ....@.... ..`.@.
+0x00002334  0a20 2530 3258 000a 0a59 6f75 7220 6361  . %02X...Your ca
+0x00002344  7220 6973 2074 616b 656e 2068 6f73 7461  r is taken hosta
+0x00002354  6765 2062 7920 5245 5645 4e41 4e54 544f  ge by REVENANTTO
+0x00002364  4144 2072 616e 736f 6d77 6172 6520 7665  AD ransomware ve
+0x00002374  7273 696f 6e20 4445 4255 475f 6134 6661  rsion DEBUG_a4fa
+0x00002384  6538 3663 2e0a 0054 6f20 6765 7420 796f  e86c...To get yo
+0x00002394  7572 2063 6172 2062 6163 6b2c 2073 656e  ur car back, sen
+0x000023a4  6420 796f 7572 2075 7365 7220 4944 3a0a  d your user ID:.
+0x000023b4  2573 0a00 0a61 6e64 2024 3133 3337 2074  %s...and $1337 t
+0x000023c4  6f20 7468 6520 666f 6c6c 6f77 696e 6720  o the following
+0x000023d4  7268 6d65 3363 6f69 6e20 6164 6472 6573  rhme3coin addres
+0x000023e4  733a 200a 5b43 454e 534f 5245 445d 2e0a  s: .[CENSORED]..
+0x000023f4  0a41 6c72 6561 6479 2070 6169 643f 2054  .Already paid? T
+0x00002404  6865 6e20 656e 7465 7220 7468 6520 7265  hen enter the re
+0x00002414  6365 6976 6564 2075 6e6c 6f63 6b20 636f  ceived unlock co
+0x00002424  6465 2068 6572 653a 0a00 4974 2077 6173  de here:..It was
+0x00002434  2061 2070 6c65 6173 7572 6520 646f 696e   a pleasure doin
+0x00002444  6720 6275 7369 6e65 7373 2077 6974 6820  g business with
+0x00002454  796f 752e 0a59 6f75 7220 6361 7220 6973  you..Your car is
+0x00002464  206e 6f77 2075 6e6c 6f63 6b65 642e 0a48   now unlocked..H
+0x00002474  6572 6520 6973 2061 2062 6f6e 7573 3a0a  ere is a bonus:.
+0x00002484  000a 4861 7665 2061 206e 6963 6520 6461  ..Have a nice da
+0x00002494  7921 0a00 ffff ffff ffff ffff ffff ffff  y!..............
+```
+
+* So IDA is screwing up the PROG and DATA address spaces for this AVR.
+
+* indeed: IDA thinks the RESET_ handler is at 0x138; the jmp instruction in the vector points to 0x270 though; and this is what radare2 reports as well
+
+```
+ROM:0138 RESET_:                                 ; CODE XREF: TRNCOMPL__0j
+ROM:0138
+ROM:0138 ; FUNCTION CHUNK AT ROM:1190 SIZE 00000002 BYTES
+ROM:0138
+ROM:0138                 clr     r1              ; Clear Register
+```
+
+```
+            ;-- entry0:
+            ;-- pcl:
+            0x00000270      1124           clr r1
+            0x00000272      1fbe           out 0x3f, r1                ; '?' ; IO SREG: flags
+```
+
+* similarly, the string of interest is supposedly at 0x119E in IDA pro, but is exactly where we think it should be in r2
+
+```
+ROM:119E aYourCarIsTaken:.db 0xA,"Your car is taken hostage by REVENANTTOAD ransomware version DE
+```
+
+```
+[0x0000233d]> px
+- offset -   0 1  2 3  4 5  6 7  8 9  A B  C D  E F  0123456789ABCDEF
+0x0000233d  596f 7572 2063 6172 2069 7320 7461 6b65  Your car is take
+0x0000234d  6e20 686f 7374 6167 6520 6279 2052 4556  n hostage by REV
+0x0000235d  454e 414e 5454 4f41 4420 7261 6e73 6f6d  ENANTTOAD ransom
+0x0000236d  7761 7265 2076 6572 7369 6f6e 2044 4542  ware version DEB
+0x0000237d  5547 5f61 3466 6165 3836 632e 0a00 546f  UG_a4fae86c...To
+0x0000238d  2067 6574 2079 6f75 7220 6361 7220 6261   get your car ba
+0x0000239d  636b 2c20 7365 6e64 2079 6f75 7220 7573  ck, send your us
+0x000023ad  6572 2049 443a 0a25 730a 000a 616e 6420  er ID:.%s...and
+0x000023bd  2431 3333 3720 746f 2074 6865 2066 6f6c  $1337 to the fol
+0x000023cd  6c6f 7769 6e67 2072 686d 6533 636f 696e  lowing rhme3coin
+0x000023dd  2061 6464 7265 7373 3a20 0a5b 4345 4e53   address: .[CENS
+0x000023ed  4f52 4544 5d2e 0a0a 416c 7265 6164 7920  ORED]...Already
+0x000023fd  7061 6964 3f20 5468 656e 2065 6e74 6572  paid? Then enter
+0x0000240d  2074 6865 2072 6563 6569 7665 6420 756e   the received un
+0x0000241d  6c6f 636b 2063 6f64 6520 6865 7265 3a0a  lock code here:.
+0x0000242d  0049 7420 7761 7320 6120 706c 6561 7375  .It was a pleasu
+```
+
+* r2 treats as bytewise. I'm pretty sure that this is false since calls are encoded with word-wise addresses.
+
+* I wrote a script to emulate the avr loader and bss loops
+
+```
+Python>runscript('/Users/ben.gardiner/Documents/rhme3/atxmega128a4u/scripts/avr_loader_loop_copy.py')
+Python>avr_loader_emu(0x2324, 0x2000, 0x2174)
+Python>avr_bss_emu(0x2174,0x223D)
+```
+
+* The result was some xrefs into the data segment, but we were missing references to the aparent start of the strings
+
+* I noticed that the only xrefs present were from instructions which had the coplete address encoded as an immediate. It appears that there are no coplex offsets built by AVR analysis
+  * we needed a a plugin/script/other to scan and build xrefs based on loads into multiple registers. I suspected the data vectors. The question was how to decide how far backwards to search for the value of the register -- the typical problem with building complex offsets in static analysis I'm sure
+
+* My teammate noticed that the address to the first insteresting string 0x2017 was being loaded into a pair of sequential registers, and twice in fact. Like is looked like the compiler was dumbly using the pair of registers to set the full value and then ignoring that it had half the value in a register already
+  * I had read in the Cisco writeup for RHME(1) that they wrote a script to build data xrefs from loads into pairs of sequential registers.
+  * These two pieces of info were reason enough to create only this dumb form of building xrefs.
+
+* I wrote a script to do this in ~1hr and we started having more visibility into the firmware. e.g. the 0x1337 address/constant? was observed. This was a good sign.
+
+* I tried to build signatures for the libc's I could find but found that flair does not support processor type '83' !
+
+* Not through the woods yet, though, there were still no xrefs to any USART registers; how is it doing UART communications?
+
+
