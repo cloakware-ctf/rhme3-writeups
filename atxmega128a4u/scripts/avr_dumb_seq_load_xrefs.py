@@ -24,7 +24,7 @@ try:
     ram_segment = None
     rom_segment = None
     for segment in sark.segments():
-        if segment.name == 'RAM' or segment.name = '.data':
+        if segment.name == 'RAM' or segment.name == '.data':
             ram_segment = segment
         elif segment.name == 'ROM' or segment.name == '.text':
             rom_segment = segment
