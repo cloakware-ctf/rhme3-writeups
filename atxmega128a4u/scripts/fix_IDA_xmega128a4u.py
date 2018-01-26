@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 base_dir = os.path.dirname(__file__) #nice, but only works in idascript command-line, not in runscript() calls
 xmega128a4u_def = os.path.join(base_dir, '..', 'resources', 'ATxmega128A4U.atdf')
@@ -22,10 +23,16 @@ try:
     tree = et.parse(xmega128a4u_def)
     root = tree.getroot()
 
-    Wait()
     r0_address = idaapi.get_name_ea(0, 'r0')
 
+    all_bases = dict()
     for register_group in root.findall(".//peripherals/module/instance/register-group[@address-space='data']"):
+        base = int(register_group.attrib['offset'], 0)
+        if all_bases.get("%04x" % base) is None:
+            all_bases.update({"%04x" % base: register_group})
+
+    for key in sorted(all_bases.keys()):
+        register_group = all_bases.get(key)
         base_name = register_group.attrib['name']
         name_in_module = register_group.attrib['name-in-module']
         base = int(register_group.attrib['offset'], 0)

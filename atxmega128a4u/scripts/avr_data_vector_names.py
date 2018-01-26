@@ -25,7 +25,6 @@ try:
     }
 
     for vector_register in data_vectors.keys():
-        Wait()
         register_line = sark.Line(idaapi.get_name_ea(0, vector_register))
 
         register_line.name = data_vectors.get(vector_register)

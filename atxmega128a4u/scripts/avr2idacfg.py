@@ -103,16 +103,23 @@ if len(flist) >= 1:
                 base = int(interrupt_group.attrib['index'], 0) * 2
                 group_name = interrupt_group.attrib['name-in-module']
                 for interrupt in root.findall(".//interrupt-group[@name='%s']/interrupt" % group_name):
-                    name = interrupt.attrib['name']
-                    offset = int(interrupt.attrib['index'], 0) * 2
+                    name = "%s_%s" % (interrupt_group.attrib['module-instance'], interrupt.attrib['name'])
+                    offset = int(interrupt.attrib['index'], 0)
                     caption = interrupt.attrib['caption']
 
                     hdr.write("entry\t%s_\t0x%04x\t%s\n" % (name, base + offset, caption))
 
             hdr.write("\n")
 
-            hdr.write("; INPUT/OUTPUT PORTS\n")
+            all_bases = dict()
             for register_group in root.findall(".//peripherals/module/instance/register-group[@address-space='data']"):
+                base = int(register_group.attrib['offset'], 0)
+                if all_bases.get("%04x" % base) is None:
+                    all_bases.update({"%04x" % base: register_group})
+
+            hdr.write("; INPUT/OUTPUT PORTS\n")
+            for key in sorted(all_bases.keys()):
+                register_group = all_bases.get(key)
                 base_name = register_group.attrib['name']
                 name_in_module = register_group.attrib['name-in-module']
                 base = int(register_group.attrib['offset'], 0)
