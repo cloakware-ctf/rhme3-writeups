@@ -306,4 +306,30 @@ Python>avr_bss_emu(0x2174,0x223D)
 
 * Not through the woods yet, though, there were still no xrefs to any USART registers; how is it doing UART communications?
 
+* Time passes; the leaves change color etc.
 
+* It seems pretty clear that the registers are regularly being used in pairs; same with stack locations.
+
+* Stack frame is almost always setup in Y
+
+* We learn of the `*w` family of instructions which work with pairs of registers at the same time; now alot more assembly makes sense
+
+* We try using FLAIR; contact hexrays. FLAIR will never work on anything that addresses in 16bit 'bytes'
+
+* Bindiff works OK. Need to redploy the bindiff.jar file since that isn't installed in the right location. Need to remember that it does not 'see' immeadiates.
+
+* We build a sample project for the atxmega128a4u; open it in IDA. Use bindiff to bring the symbols over to the IDB we're analyzing. We use the `--whole-archive` flag to get all the object files in there for more 'symbolicating'.
+
+* except, bindiff only works in IDA 6.95 and only IDA 7.0 seems to know how to load all the symbols from a AVR studio ELF file. 
+
+* I write more baloney idapython scripts to export all the functions from an IDB and import them back. Do the former in IDA 7.0 on the sample project and the latter in 6.95 on the sample project. Then we have something to bindiff against.
+
+* We find that there are no serial routines used; but a few low-level functions are recognized.
+
+* We find and rebuild the RHME2 source code; the serial routines (after tweaking flags) are easy to spot visually. But for some reason bindiff refuses to match them.
+
+* We identify the serial read and write functions.
+
+* We get Atmel Studio simulator runnign the .hex files by first converting them to an object file. Then we can actually debug them. Helps alot.
+
+* We identify which serial port ioports are in use. We identify the buffer address used. IDA has a type 'offset in current segment' that is useful when trying to find xrefs in DATA segment. The serial port ioports are there in memory, for USARTC. There isn't a clear reference to the buffer address.
