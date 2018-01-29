@@ -42,3 +42,25 @@ So, need to:
 
 Rest of the work is done in ``race.rb``
 
+## Running
+This solution depends on my patched version of pwntools-ruby:
+git@github.com:JonathanBeverley/pwntools-ruby.git
+
+Switch to branch `feature/serialtube`, and build as per the README.
+
+Then either of the following, depending on preference:
+```
+	rescue -i ./race.rb /dev/ttyUSB*
+	pry -r ./race.rb /dev/ttyUSB*
+```
+
+Then in order
+```
+	leg1
+	leg2
+	leg3
+	leg4
+```
+
+Enjoy flag.
+
