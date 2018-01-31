@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # just try the dumb thing and make xrefs based on seq load of pairs of immediates.
 # doesn't consider RAMP% register values, doesn't consider anything more complicated than:
@@ -58,7 +58,9 @@ try:
             prev = line
             continue
 
+
         if (len(prev_insn.operands) != 2 or len(curr_insn.operands) != 2 or
+            str(prev_insn.operands[0]) == '' or str(prev_insn.operands[1]) == '' or str(curr_insn.operands[0]) == '' or str(curr_insn.operands[1]) == '' or
             str(prev_insn.operands[0].type) != 'General_Register' or str(curr_insn.operands[0].type) != 'General_Register' or
             str(prev_insn.operands[1].type) != 'Immediate_Value' or str(curr_insn.operands[1].type) != 'Immediate_Value'
             ):
