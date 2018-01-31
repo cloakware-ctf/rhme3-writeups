@@ -19,13 +19,13 @@ Here is an example session creating `ransom.idb`;
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_data_vector_names.py')
 Python>runscript('.../rhme3/atxmega128a4u/scripts/fix_IDA_xmega128a4u.py')
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_loader_loop_copy.py')
+Python>avr_loader_emu(0x2324, 0x2000, 0x2174)
+Python>avr_bss_emu(0x2174,0x223D)
 ```
 
 4. run auto-analysis (i.e. go click the circle-cross button
 
 ```
-Python>avr_loader_emu(0x2324, 0x2000, 0x2174)
-Python>avr_bss_emu(0x2174,0x223D)
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_dumb_seq_load_xrefs.py')
 ```
 
