@@ -320,7 +320,7 @@ Python>avr_bss_emu(0x2174,0x223D)
 
 * We build a sample project for the atxmega128a4u; open it in IDA. Use bindiff to bring the symbols over to the IDB we're analyzing. We use the `--whole-archive` flag to get all the object files in there for more 'symbolicating'.
 
-* except, bindiff only works in IDA 6.95 and only IDA 7.0 seems to know how to load all the symbols from a AVR studio ELF file. 
+* except, bindiff only works in IDA 6.95 and only IDA 7.0 seems to know how to load all the symbols from a AVR studio ELF file.
 
 * I write more baloney idapython scripts to export all the functions from an IDB and import them back. Do the former in IDA 7.0 on the sample project and the latter in 6.95 on the sample project. Then we have something to bindiff against.
 
@@ -333,3 +333,15 @@ Python>avr_bss_emu(0x2174,0x223D)
 * We get Atmel Studio simulator runnign the .hex files by first converting them to an object file. Then we can actually debug them. Helps alot.
 
 * We identify which serial port ioports are in use. We identify the buffer address used. IDA has a type 'offset in current segment' that is useful when trying to find xrefs in DATA segment. The serial port ioports are there in memory, for USARTC. There isn't a clear reference to the buffer address.
+
+* ...
+
+* By combining data printed by the challenge binary with simulation of the RE binary (via memory edits in the simulator) , Jonathan was able to predict the key for the crackme.
+
+## Links for later
+
+* https://www.radare.org/get/avrworkshops2016.pdf
+
+* https://vimeo.com/211371081 and http://radare.org/get/r2snow.pdf
+
+* http://thanat0s.trollprod.org/2014/01/loader-un-binaire-arduino-dans-ida/

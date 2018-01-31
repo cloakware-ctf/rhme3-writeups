@@ -104,7 +104,7 @@ if len(flist) >= 1:
                 group_name = interrupt_group.attrib['name-in-module']
                 for interrupt in root.findall(".//interrupt-group[@name='%s']/interrupt" % group_name):
                     name = "%s_%s" % (interrupt_group.attrib['module-instance'], interrupt.attrib['name'])
-                    offset = int(interrupt.attrib['index'], 0)
+                    offset = int(interrupt.attrib['index'], 0) * 2
                     caption = interrupt.attrib['caption']
 
                     hdr.write("entry\t%s_\t0x%04x\t%s\n" % (name, base + offset, caption))
