@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.WARNING)
 
 # just try the dumb thing and make xrefs based on seq load of pairs of immediates.
 # doesn't consider RAMP% register values, doesn't consider anything more complicated than:
@@ -80,8 +80,11 @@ try:
                 if address <= ram_segment.endEA:
                     result = add_dref(line.ea, address, dr_T)
                     logger.debug("add dref from 0x%x to 0x%x: %s" % (line.ea, address, str(result)))
-                    line.comments.repeat = "%s" % sark.Line(address).name
-
+                    name = sark.Line(address).name
+                    if name[0:4] == 'unk_':
+                        line.comments.repeat = "0x%x" % address
+                    else:
+                        line.comments.repeat = "%s" % name
         prev = line
 
 except:
