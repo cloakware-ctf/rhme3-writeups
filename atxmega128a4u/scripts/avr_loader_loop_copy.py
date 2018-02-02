@@ -38,13 +38,14 @@ try:
             if segment.name == 'RAM':
                 ram_segment = segment
 
-        for offset in range(0, target_end-target_start):
-            PatchByte(ram_segment.startEA + target_start + offset, 0)
+        for offset in range(0, target_end-target_start, 2):
+            PatchWord(ram_segment.startEA + target_start + offset, 0)
 
         sark.Line(ram_segment.startEA + target_start).comments.repeat = "BSS start"
         sark.Line(ram_segment.startEA + target_end).comments.repeat = "BSS end"
         return
 
+    print("emulate a loader loop with:\navr_loader_emu(source_start, target_start, target_end)\nor a bss loop with:\navr_bss_emu(target_start, target_end)\nall source addresses are ROM segment offsets; all target addresses are RAM segment offsets.")
 except:
     exc_type, exc_value, exc_traceback = sys.exc_info()
     logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
