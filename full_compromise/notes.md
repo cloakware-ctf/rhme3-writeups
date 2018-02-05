@@ -141,13 +141,13 @@ Summary: inits 0x2a6b[0...100]
 ```c
 do_test_5b30() {
 	sub_55c4a()
-	Y[1] = (getTickCount() >> 8) & 0xff
+	Y[1] = (get_RTC_CNT_644d() >> 8) & 0xff
 	Y[6:7] = 100
 	word_1029b1 = get_rand_word() % 100
 	for (i=0; i<100; i++) {
-		while (Y[1] == (getTickCount() >> 8) & 0xff)
+		while (Y[1] == (get_RTC_CNT_644d() >> 8) & 0xff)
 			;
-		Y[1] = (getTickCount() >> 8) & 0xff
+		Y[1] = (get_RTC_CNT_644d() >> 8) & 0xff
 		Y[4:5] = sub_5a20(i); // also references word_1029b1
 		write_DACB_CHDATA(Y[4:5], 0x0000);
 	}
@@ -193,11 +193,11 @@ void write_DACB_CHDATA(short low, short high) {
 }
 ```
 
-### getTickCount MACRO
+### get_RTC_CNT_644d MACRO
 IN: nil
 Out: r24
 ```fasm
-0x940E 644D call    getTickCount_644D ; get tick count?
+0x940E 644D call    get_RTC_CNT_644d ; get tick count?
 0x9592      swap    r25
 0x9582      swap    r24
 0x708F      andi    r24, 0xF
@@ -282,7 +282,7 @@ Summary:
 		you_entered_4e70();
 		return;
 	} else {
-		kTick = getTickCount_644d() >> 11; // I get zero, maybe sim issue?
+		kTick = get_RTC_CNT_644d() >> 11; // I get zero, maybe sim issue?
 		bit1 = (kTick < last_kTick) ? 1 : 0; // part 1 - time rewound?
 		bit2 = (kTick+0x1f < last_kTick+4) ? 1 : 0; // part 2 - time wrap?
 		if (bit1==0 || bit2==0) {
@@ -491,6 +491,18 @@ r26+256*r27
 r28+256*r29
 r30+256*r31
 
+## Sigint
+	* Attaching the logic analyser to A[0..5] didn't pick up anything.
+	* Reading RX and TX got the obvious comms
+	* on D7 see a clear signal
+
+### D7
+Signal detected between "test\n" and "Test done\n"
+Difference signal detected between "risc\n" and "Test done\n"
+
+However, what they mean is non-obvious, more reversing time...
+
+
 ## Write Up
 The code is obviously loaded with FI detection and RNG pinning detection. More than that, it regularly detects if the RNG is meaningfully biased. There's a lot of busy work and a lot of delay in that.
 
@@ -537,4 +549,21 @@ Next Steps:
 
 Open Questions:
 	* what is the point of 'risc'?
-	* 
+
+I built a payload and sent a long test string. A wait value of 4 seconds seems about right, but didn't work in practice. I suspect I'm waiting too long and occasionally failing the wrapping test. Time to read the docs...
+	* reading from RTC_CNT
+	* have set RTC_PER=0xFFFF
+	* ... wait, do_test_5b30() also reads from the RTC...
+    * The logic analyzer only reads digital, but using the scope, I found that it's operating at a resolution of 40-45us.
+	* Now, that should correspond to 256 clock ticks
+	* Also, we loop 100 times in 4ms, so each loop should take 40us
+	* that's 6.4 MHz.
+	* from above, 256 tick -> 40us, so 2048 ticks -> 320us.
+	* so if we're within 1.28ms, that's a pulse, and within 10.24 is a space
+	* that means I need millisecond resolution. Time for C?
+
+More work... looks like I had it right the first time. However, once the numbers get big enough, it buffers up. This means:
+	1. sometimes the sleep isn't as long as I think, because we start sleeping before the board is done processing its backlog
+	2. sometimes I can ram characters down its throat so fast it drops some.
+	3. Fixing with a 10ms sleep per charcter, and a tcdrain(fd).
+
