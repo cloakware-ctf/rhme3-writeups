@@ -96,7 +96,7 @@ try:
                 for xref in line.xrefs_to:
                     if xref.iscode or xref.frm == idc.BADADDR or str(xref.type) != 'Data_Text': # only try to fix data references from code in ROM of the Data_Text type (as created by the dumb seq xref routine above)
                         continue
-                    logger.debug("fixing xref (type:%s) to %s from 0x%x" % (xref.type, safe_name(line.ea), xref.frm))
+                    logger.debug("fixing xref (type:%s) to %s from ROM:%x" % (xref.type, safe_name(line.ea), xref.frm))
                     sark.Line(xref.frm).comments.repeat = safe_name(line.ea)
             return
 
