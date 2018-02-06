@@ -137,7 +137,6 @@ data 0x2E00  39 0c 68 d9 36 a0 cd 05 00 00 00 00 00 00 00 00  9.hÙ6 Í........
 ```
 
 ### do_test_5b30()
-Summary: inits 0x2a6b[0...100]
 ```c
 do_test_5b30() {
 	sub_55c4a()
@@ -158,29 +157,41 @@ do_test_5b30() {
 ### sub_5a20
 IN: rx24=external loop iterator, 0..99
 OUT: ???
+Example:
+	IN: 0x0d
+		-> 0x2134[6] == 0x13
+		-> * 2.73 + 0x2aa == 0x4b0
+		-> 
 
 ```c
 short sub_5a20(short i) {
          1:2   3:6    7:8  9:10
 	Y = [ret, dword, word, arg0]
 	// there's an even/odd split, similar, but...
-	r24 = *(0x200a+i/2) or *(0x2134+i/2)
+	if (arg0 % 2 == 0) {
+		r24 = byte_10200a[i/2];
+	} else {
+		r24 = byte_102134[i/2];
+	}
 	ret = (int)(rx24*2730.0/100.0) // example: 28 -> 764;
 	ret += 0x2aa
 	if (i<50) return ret;
 	if (i%5 != 0) return ret;
-	if (i>=0x223) return ret; // how?
-	rx24 = 0x81 & 0x2a6b[word_1029b1]
-	if (r24 & 0x80) r24 = 0 - (r24&1) // possible: -1, 0, 0, 1
-	word = 0x2aa * r24
-	if (0x2a6b[word_1029b1] % 2) {
-		ret -= 0x2aa
-	} else {
+	if (i>=0x223) return ret; // pointless
+
+	// begin dead code
+	rx24 = 0x81 & byte_102a6b[word_1029b1];
+	if (r24 & 0x80) r24 = 0 - (r24&1); // possible: -1, 0, 0, 1
+	word = 0x2aa * r24 * 2;        
+	// end dead code
+
+	if (byte_102a6b[word_1029b1] % 2 == 0) {
 		ret += 0x2aa
+	} else {
+		ret -= 0x2aa
 	}
-	erx22 = ((0x2a6b[word_1029b1] + 1)/4 ) * 0x147b
-	rx18 = (erx22>>17)*100
-	0x2a6b[word_1029b1] += 1 - rx18
+
+	word_1029b1 = (word_1029b1+1)%100
 	return ret;
 }
 ```
@@ -217,7 +228,7 @@ Examples: 17c -> 17
 ### sub_55c4
 ```c
 void sub_55c4() {
-	char *array = 0x2a6b;
+	char *array = byte_102a6b;
 	const char subVector[] = {...};
 	const char xorVector[] = {...};
 	memset(array, 0x05, 100); // really, store "5"
@@ -472,13 +483,18 @@ Break:
 Patch:
 	3018: 8f3f -> 8330
 	bfb2: 8d83 -> 8f70 90e0 8b83 1c82 8d83 1e82
+	b93c: 8ae1 -> 80e0 ???? 80e0
 	b9fe: 3a41 -> 3105 4105
 	ba60: 3a41 -> 3105 4105
-	b94c: 8ae1 -> 80e0 .... 80e0
 
 Star:
 	*0x3fde = 2a 0a 00
 	break 0x5d94, and r24=(byte)
+
+Test:
+	5b8c / b718: j_write_DACB_CHDATA(low, high)
+		- rx24 -> DACB_CH0DATA
+
 
 
 ### Watches
