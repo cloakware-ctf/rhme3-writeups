@@ -287,8 +287,8 @@ OUT: nil
 Summary:
 	* Uses the time since last byte as input
 ```c
-         1:2   3:4    5
-	Y = [ret, kTick, byte]
+          1:2    3:4    5
+	Y = [delay, kTick, byte]
 	if (byte == '*') {
 		you_entered_4e70();
 		return;
@@ -297,16 +297,16 @@ Summary:
 		bit1 = (kTick < last_kTick) ? 1 : 0; // part 1 - time rewound?
 		bit2 = (kTick+0x1f < last_kTick+4) ? 1 : 0; // part 2 - time wrap?
 		if (bit1==0 || bit2==0) {
-			if (last_kTick >= kTick) {
-				ret = kTick - last_kTick;
+			if (kTick >= last_kTick) {
+				delay = kTick - last_kTick;
 			} else {
-				ret = kTick + 0x1f - last_kTick;
+				delay = kTick + 0x1f - last_kTick;
 			}
 		} else {
 			password_len_102009 = 254; // aka death
-			ret = 0;
+			delay = 0;
 		}
-		if (ret >= 2) {
+		if (delay >= 2) {
 			password_len_102009 += 1
 		}
 		last_kTick = kTick
@@ -507,10 +507,72 @@ r26+256*r27
 r28+256*r29
 r30+256*r31
 
+## Documents
+### Timing
+Hard Docs:
+	0x400: RTC / CTRL -- PRESCALER
+	0x401: STATUS
+	0x402: INTCTRL
+	0x403: INTFLAGS
+	0x404: TEMP
+	0x408/9: CNTL/H
+	0x40A/B: PERL/H
+	0x40C/D: COMPL/H
+
+What I see:
+	* writing `0` to CLK_RTCCTRL -- set system clock to 2MHz
+		- doc references as CTRL
+	* writing `1` to RTC_CTRL    -- DIV1, no prescaling
+	* writing `4` to RTC_INTCTRL -- Compare Match Interrupt Enable: 1
+	* writing `1` to RTC_INTCTRL -- Overflow Interrupt Enable: 1
+
+More:
+	* reading from RTC_CNT
+	* have set RTC_PER=0xFFFF
+	* ... wait, do_test_5b30() also reads from the RTC...
+    * The logic analyzer only reads digital, but using the scope, I found that it's operating at a resolution of 40-45us.
+	* Now, that should correspond to 256 clock ticks
+	* Also, we loop 100 times in 4ms, so each loop should take 40us
+	* that's 6.4 MHz.
+	* from above, 256 tick -> 40us, so 2048 ticks -> 320us.
+	* so if we're within 0.64ms, that's a pulse, and within 10.24 is a space
+	* that means I need millisecond resolution. Time for C?
+
+Timing:
+	* whole do_test_5b30() pulse is 4ms, we cycle 100*256 times in that period.
+		-> 6.4 MHz
+	* Pulse measured around 40us, should be 256 cycles
+		-> 6.4 MHz
+	* 4096 cycles      -> 640us -- lower bound on delay
+	* 0x1f*2048 cycles -> 9,920us -- wrap point on delay
+	* however, I think PER is set to 65535
+		-> 42s - 651s -- not plausible.
+	* what if it's PER=65535, and clock = 32MHz
+		-> ~2ms per tick, 4096 cycles is ~8 seconds -- not plausible
+
+Oscillators:
+	* datasheet says:
+		* 32.768 kHz (can pre-scale to 1.024 kHz)
+		* 32 MHz (can be calibrated between 30 MHz and 55 MHz)
+		* 2 MHz 
+		* XTAL1, XTAL2 pins
+
+Note:
+	* I don't like it, but I've found a delay loop that works reliably. It take 25 minutes to submit a passcode, but it takes longer than that to process, so I'm no too picky.
+
 ## Sigint
 	* Attaching the logic analyser to A[0..5] didn't pick up anything.
 	* Reading RX and TX got the obvious comms
 	* on D7 see a clear signal
+
+I downloaded a fully up-to-date version of the Hantek software, and am scoping it. I have a 'test' capture:
+	* data read begins on line 31080
+	* data read ends on line 35017
+	* pulse width approximately 35.3 lines
+
+I've got it. And we have a problem...
+
+For reference, my first random bit sequence is `1010101010`
 
 ### D7
 Signal detected between "test\n" and "Test done\n"
@@ -567,19 +629,12 @@ Open Questions:
 	* what is the point of 'risc'?
 
 I built a payload and sent a long test string. A wait value of 4 seconds seems about right, but didn't work in practice. I suspect I'm waiting too long and occasionally failing the wrapping test. Time to read the docs...
-	* reading from RTC_CNT
-	* have set RTC_PER=0xFFFF
-	* ... wait, do_test_5b30() also reads from the RTC...
-    * The logic analyzer only reads digital, but using the scope, I found that it's operating at a resolution of 40-45us.
-	* Now, that should correspond to 256 clock ticks
-	* Also, we loop 100 times in 4ms, so each loop should take 40us
-	* that's 6.4 MHz.
-	* from above, 256 tick -> 40us, so 2048 ticks -> 320us.
-	* so if we're within 1.28ms, that's a pulse, and within 10.24 is a space
-	* that means I need millisecond resolution. Time for C?
 
 More work... looks like I had it right the first time. However, once the numbers get big enough, it buffers up. This means:
 	1. sometimes the sleep isn't as long as I think, because we start sleeping before the board is done processing its backlog
 	2. sometimes I can ram characters down its throat so fast it drops some.
 	3. Fixing with a 10ms sleep per charcter, and a tcdrain(fd).
 
+In other news, I've done a complete reverse of `do_test_5b30()`, and re-written it in ruby. With a bit of File I/O wrapper, I have a `predictor.rb` that can guess what `do_test_5b30()` will send to the DAC, for each sampleXX.hex file.
+
+I've managed to get a clean capture via scope. We have a new problem. Of the 1000 binaries, 865 produce one set of line out, and the other 165 produce the other. I see a similar pattern for risc, and they're hopefully disjoint. But regardless, it doesn't do nearly enough to narrow down which binary to use. Given that testing a given passcode will take 5-6 hours, I can't afford to test more than a couple. The only clue is the random permutations applied to each. There is a random vector built and ten of the values are permuted by it. Those could be unique...

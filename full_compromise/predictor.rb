@@ -1,4 +1,4 @@
-#!/usr/local/bin/rescue
+#!/usr/bin/ruby
 
 Byte_102a6b = Array.new(100) { Random::rand 256 }
 $randomizer = Random::rand(100)
@@ -8,19 +8,19 @@ def predict(i, grid1, grid2)
 	result = (result * 2730.0 / 100.0).to_i + 0x2aa
 
 	return result if (i<50 || i%5!=0)
-	r24 = 0x81 & Byte_102a6b[$randomizer]
-	r24 = ((r24-1) | 0xfe) + 1 if (r24&0x80)
-	if (Byte_102a6b[$randomizer] % 2) then
-		result -= 0x2aa
-	else
-		result += 0x2aa
-	end
 
+	if (Byte_102a6b[$randomizer] % 2) then
+		#result -= 0x2aa
+	else
+		#result += 0x2aa
+	end
 	$randomizer = ($randomizer+1)%100
+
+	return result
 end
 
 def extractGrids(hexFile)
-	file = ARGF.each_line.map do |line|
+	file = File::open(ARGV[0]).each_line.map do |line|
 		line[9..40]
 	end
 	words = file.join.scan(/..../).map do |hex|
@@ -39,17 +39,27 @@ def extractGrids(hexFile)
 end
 
 begin
-	if ARGV.count < 1 then
-		puts "Usage: #{$0} <sample>.hex"
+	if ARGV.count < 2 || ARGV[1]!='test' && ARGV[1]!='risc' then
+		puts "Usage: #{$0} <sample>.hex {test|risc}"
 		exit 1
+	else
 	end
 
-	grids = extractGrids ARGF
+	grids = extractGrids ARGV[0]
+	base = ARGV[1]=='test' ? 0 : 2
+
 
 	predictions = 100.times.map do |x|
-		predict x, grids[2], grids[3]
+		predict x, grids[base+0], grids[base+1]
 	end
 
-	p predictions.map{|x| '%04x'%x}
+	puts
+	predictions.each_with_index do |x,i|
+		print "\t" if i%10==0
+		print '%3x:%4d'%[x,x]
+		print ', ' if i%10!=9
+		print "\n" if i%10==9
+	end
+	puts
 end
 
