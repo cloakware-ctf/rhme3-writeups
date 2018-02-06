@@ -58,17 +58,19 @@ void set_mincount(int fd, int mcount) {
         printf("Error tcsetattr: %s\n", strerror(errno));
 }
 
+const char* DOTS = "................................................................................................................................................................................................................................................................";
 void pulseChar(int fd, char c) {
-	for (int i=0; i<c; i++) {
-		write(fd, ".", 1);
-		usleep(10*1000);
-		tcdrain(fd);    // delay for output
-	}
+	//for (int i=0; i<c; i++) {
+		write(fd, DOTS, c);
+		//usleep(10*1000);
+		//tcdrain(fd);    // delay for output
+	//}
 	printf("%c", c);fflush(stdout);
 }
 
+// usleep(6*1024*1000); -- this value worked, processing started ~14:00
 void pulseSeparator(int fd) {
-	usleep(4*1000*1000);
+	usleep(6*1024*1000);
 }
 
 int main(int argc, char* argv[]) {
