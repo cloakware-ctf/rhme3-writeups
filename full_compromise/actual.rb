@@ -1,67 +1,126 @@
 #!/usr/bin/ruby
+#!/usr/local/bin/rescue
 
 SampleCount = 100
+Debug = false
 
-def pulseValue(lines, center)
+TestRef = [
+	0xd54, 0x5a6, 0x73f, 0x554, 0x776, 0x539, 0x7c8, 0x51d, 0x7ff, 0x502,
+	0x835, 0x4e7, 0x887, 0x4b0, 0x8d9, 0x47a, 0x92b, 0x45e, 0x961, 0x443,
+	0x961, 0x428, 0x961, 0x428, 0x97d, 0x428, 0x97d, 0x428, 0x97d, 0x428,
+	0x998, 0x428, 0x998, 0x428, 0x998, 0x428, 0x998, 0x428, 0x9b3, 0x428,
+	0x9b3, 0x428, 0x9b3, 0x428, 0x9b3, 0x428, 0x9cf, 0x428, 0x9cf, 0x428,
+	0x9cf, 0x428, 0x9cf, 0x428, 0x9cf, 0x428, 0x9ea, 0x428, 0x9ea, 0x428,
+	0xa05, 0x428, 0xa21, 0x428, 0xa21, 0x428, 0xa3c, 0x428, 0xa3c, 0x428,
+	0xa57, 0x428, 0xa72, 0x428, 0xa72, 0x428, 0xa8e, 0x428, 0xaa9, 0x428,
+	0xaa9, 0x428, 0xac4, 0x428, 0xae0, 0x428, 0xae0, 0x428, 0xafb, 0x428,
+	0xafb, 0x40c, 0xb16, 0x3d6, 0xb32, 0x39f, 0xb32, 0x384, 0xb4d, 0x369,
+]
+RiscRef = [
+	0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502,
+	0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502,
+	0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502,
+	0xac4, 0x835, 0xac4, 0x8f4, 0xac4, 0x910, 0xac4, 0x961, 0xac4, 0x9b3,
+	0xac4, 0x9cf, 0xac4, 0x9cf, 0xac4, 0xa05, 0xac4, 0xa21, 0xac4, 0xa3c,
+	0xac4, 0xa72, 0xac4, 0xa8e, 0xac4, 0xaa9, 0x850, 0x502, 0x8d9, 0x502,
+	0x8d9, 0x502, 0x910, 0x502, 0x910, 0x502, 0x910, 0x502, 0x946, 0x502,
+	0x946, 0x502, 0x946, 0x502, 0x97d, 0x502, 0x97d, 0x502, 0x97d, 0x502,
+	0x97d, 0x502, 0x97d, 0x502, 0x97d, 0x502, 0x97d, 0x502, 0x9b3, 0x502,
+	0x9b3, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502, 0xac4, 0x502,
+]
+
+def pulseValue(lines, center, last=false)
 	peak = lines[center-1..center+1].inject(:+)/3
 
 	low = center
-	low -= 1 while (lines[low]-peak).abs < 0.1
+	low -= 1 while (lines[low]-peak).abs < 0.05
 	low += 1
 
 	high = center
-	high += 1 while (lines[high]-peak).abs < 0.1
+	high += 1 while (lines[high]-peak).abs < 0.05
 	high -= 1
 
 	width = high - low + 1
 	raise if width < 30
+	raise if width > 50 && !last
 	mean = lines[low..high].inject(:+) / width
-	raise if (mean-peak).abs > 100
+	raise if (mean-peak).abs > 0.1
 
 	return [mean, (low+high)/2]
 end
 
+def findStart(lines)
+	lines.each_with_index do |line, index|
+		return index if line > 1.0
+	end
+	raise
+end
+
+def validate(pulses, ref)
+	pulses.zip(ref).map{ |a,b|
+		(a-b).abs
+	}.each_with_index { |delta,i|
+		next if i>=50 && i%5==0
+		raise "Out of range in #{$file} at #{i}, value #{delta}" if delta>200
+	}
+end
+
+def extractBits(pulses, ref)
+	return pulses.zip(ref).map{ |p,r|
+		(p-r)
+	}.each_with_index.map { |delta,i|
+		next unless i>=50 && i%5==0
+		delta > 0 ? 0 : 1
+	}.compact
+end
+
+$file = nil
 begin
-	if ARGV.count < 5 then
-		puts "Usage: #{$0} <actual>.txt <start-offset> <end-offset> <gain> <baseline>"
+	if ARGV.count < 4 || ARGV[1]!='test' && ARGV[1]!='risc' then
+		puts "Usage: #{$0} <actual>.txt {test|risc} <gain> <baseline>"
 		exit 1
 	end
 
+	$file = ARGV[0]
 	lines = File::open(ARGV[0]).each_line.map{|x| x.to_f}
-	start = ARGV[1].to_i
-	last = ARGV[2].to_i
-	width = (last-start) / 99.0
-	gain = ARGV[3].to_i
-	baseline = ARGV[4].to_i
+	reference = ARGV[1]=='test' ? TestRef : RiscRef
+	gain = ARGV[2].to_i
+	baseline = ARGV[3].to_i
+	start = findStart(lines)
+	width = 40
 
-	raise if start >= lines.count
-	raise if last+20 >= lines.count
-
-	puts "Parsing with width: %6.4f x%d"%[width, gain]
+	Debug && puts("Found start: #{start}")
 
 	pulses = []
 	pulses << pulseValue(lines, start+width/2)
-	99.times do
-		pulses << pulseValue(lines, pulses.last[1]+width)
+	99.times do |i|
+		pulses << pulseValue(lines, pulses.last[1]+width, i==98)
 	end
 
-	puts
-	pulses.each_with_index do |p, i|
-		(mean, center) = *p
-		print "\t" if i%5==0
-		print '%5d:%6.4f'%[center,mean]
-		print ', ' if i%5!=4
-		print "\n" if i%5==4
+	correctedPulses = pulses.map {|p| (p[0]*gain+baseline).to_i }
+	if not Debug then
+		validate correctedPulses, reference
+		p extractBits(correctedPulses, reference)
 	end
 
-	puts
-	pulses.each_with_index do |p,i|
-		x = p[0]*gain+baseline
-		print "\t" if i%10==0
-		print '%3x:%4d'%[x,x]
-		print ', ' if i%10!=9
-		print "\n" if i%10==9
+	if Debug then
+		puts
+		pulses.each_with_index do |p, i|
+			(mean, center) = *p
+			print "\t" if i%5==0
+			print '%5d:%6.4f'%[center,mean]
+			print ', ' if i%5!=4
+			print "\n" if i%5==4
+		end
+
+		puts
+		correctedPulses.each_with_index do |x,i|
+			print "\t" if i%10==0
+			print '%3x:%4d'%[x,x]
+			print ', ' if i%10!=9
+			print "\n" if i%10==9
+		end
+		puts
 	end
-	puts
 end
 

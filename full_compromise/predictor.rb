@@ -9,10 +9,10 @@ def predict(i, grid1, grid2)
 
 	return result if (i<50 || i%5!=0)
 
-	if (Byte_102a6b[$randomizer] % 2) then
-		#result -= 0x2aa
-	else
+	if (Byte_102a6b[$randomizer] % 2 == 0) then
 		#result += 0x2aa
+	else
+		#result -= 0x2aa
 	end
 	$randomizer = ($randomizer+1)%100
 

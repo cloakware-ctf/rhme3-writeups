@@ -42,7 +42,7 @@ In main:
 ### branches:
 	brcs <= true if abs(LHS) < abs(RHS)
 	generally: cp x,y is like x-y.
-	
+
 
 ### Fixing String Drefs:
 Because we build drefs using comments, stringifying a string changes the name, for example, before it might be `unk_102739`, but after `aFiDetectedPerfor`. That name change breaks the comment-ref.
@@ -161,7 +161,7 @@ Example:
 	IN: 0x0d
 		-> 0x2134[6] == 0x13
 		-> * 2.73 + 0x2aa == 0x4b0
-		-> 
+		->
 
 ```c
 short sub_5a20(short i) {
@@ -182,7 +182,7 @@ short sub_5a20(short i) {
 	// begin dead code
 	rx24 = 0x81 & byte_102a6b[word_1029b1];
 	if (r24 & 0x80) r24 = 0 - (r24&1); // possible: -1, 0, 0, 1
-	word = 0x2aa * r24 * 2;        
+	word = 0x2aa * r24 * 2;
 	// end dead code
 
 	if (byte_102a6b[word_1029b1] % 2 == 0) {
@@ -554,7 +554,7 @@ Oscillators:
 	* datasheet says:
 		* 32.768 kHz (can pre-scale to 1.024 kHz)
 		* 32 MHz (can be calibrated between 30 MHz and 55 MHz)
-		* 2 MHz 
+		* 2 MHz
 		* XTAL1, XTAL2 pins
 
 Note:
@@ -572,7 +572,101 @@ I downloaded a fully up-to-date version of the Hantek software, and am scoping i
 
 I've got it. And we have a problem...
 
-For reference, my first random bit sequence is `1010101010`
+Note:
+	0 bit is higher
+	1 bit is lower
+
+For reference, my first random bit sequence is `0101010101`
+More:
+	hlhlhlhlhl
+	llhhhlhhll
+	llhhhhhhhh
+	lhhhhhhhhl
+	llhlhhhlll
+	llllhhllhh
+	llhhllhhhh
+	hllhlhhhll
+	lhllhlllll
+	lhlhlhlhll
+	lllllhhllh
+	hlhlllllhh
+	hlhlhlllll
+	hhllhlllll
+	lllhhhlhhl
+	hhhlhhllhl
+	hlhhllhllh
+	hlhlllllhl
+	hllhlhhhll
+	hhllhhhhhh
+	lllllhhhlh
+	hhhhhhllhl
+	hllhhhhhhh
+	lhhhlllhll
+	lhhllhhhhh
+	hlhlhllhll
+	lhlhlhlhlh
+	lllllhhllh
+	hllhlllllh
+	hlhlhhhhhl
+
+    llllhhhlhh
+    llhllhlhlh
+    llhllhlhlh
+    lllhhllhll
+    hlhlhllhll
+    hlhhllhllh
+    hhhhhhllhl
+    hhhhhhhhll
+    lhlhlhhhhh
+    lhllhlhlhh
+
+
+Trying to meld
+
+
+        lhhhlllhll
+     llhlhhhlll
+    hllhlhhhll
+    hllhlhhhll
+
+     lhllhlllll
+
+            lllhhllhll
+           llllhhllhh
+          lllllhhllh
+       hlhlllllhh
+
+       hlhlllllhl
+     hlhlhlllll
+      hllhlllllh
+     hhllhlllll
+
+
+                               hlhlhhhhhl
+                              lhlhlhhhhh
+                           lhllhlhlhh
+                        hlhlhllhll
+                     lhlhlhlhll
+                    hlhlhlhlhl
+                   lhlhlhlhlh
+               llhllhlhlh
+           hlhhllhllh
+         hhhlhhllhl
+       llhhhlhhll
+      lllhhhlhhl
+     llllhhhlhh
+    lllllhhhlh
+
+          hhhhhhllhl
+        hhhhhhhhll
+       lhhhhhhhhl
+      llhhhhhhhh
+     hllhhhhhhh
+    hhllhhhhhh
+   lhhllhhhhh
+  llhhllhhhh
+
+
 
 ### D7
 Signal detected between "test\n" and "Test done\n"
@@ -613,7 +707,7 @@ Aside: what does "risc" do?
 
 I've finished understanding how process_star_4f57() works. Description follows:
 	* we're using a serial character device like a analog input.
-	* It will "pulse count", need to be faster than ~0.8ms 
+	* It will "pulse count", need to be faster than ~0.8ms
 	* Basic idea: if I want to send 0x11223344, then
 		- send "*\n"
 		- pulse 0x11 times, fast; then wait: 1ms<wait<3ms
@@ -638,3 +732,7 @@ More work... looks like I had it right the first time. However, once the numbers
 In other news, I've done a complete reverse of `do_test_5b30()`, and re-written it in ruby. With a bit of File I/O wrapper, I have a `predictor.rb` that can guess what `do_test_5b30()` will send to the DAC, for each sampleXX.hex file.
 
 I've managed to get a clean capture via scope. We have a new problem. Of the 1000 binaries, 865 produce one set of line out, and the other 165 produce the other. I see a similar pattern for risc, and they're hopefully disjoint. But regardless, it doesn't do nearly enough to narrow down which binary to use. Given that testing a given passcode will take 5-6 hours, I can't afford to test more than a couple. The only clue is the random permutations applied to each. There is a random vector built and ten of the values are permuted by it. Those could be unique...
+
+Todo:
+	- verify that the odd 165 are actually different, not just script failure
+	- each test run exposes 10 bits of the random array... capture a bunch of samples, see if I can determine the random array.
