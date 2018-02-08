@@ -11,7 +11,7 @@ In main:
 	} else if (strcmp(Y+20, "*")) {
 		while (1) {
 			byte = usart_recv_byte(USART);
-			process_star(byte);
+			star_4f57(byte);
 			// how do we get out of this???
 			// -> we don't, we're locked once we get in.
 		}
@@ -40,7 +40,8 @@ In main:
 	rrx = long long
 
 ### branches:
-	brcs <= true if abs(LHS) < abs(RHS)
+	brcs <- true if abs(LHS) < abs(RHS)
+	brcc <- true if abs(LHS) >= abs(RHS)
 	generally: cp x,y is like x-y.
 
 
@@ -68,11 +69,11 @@ for ea in range(SelStart(), SelEnd()):
 	mulsf3: erx22 *= erx18
 	divsf3: erx22 /= erx18
 
-### sub_17f1()
+### test_const_rng_17f1()
 	prints "ABORT! constant random value!\r\n"
-	many calls to
+	many calls to prob_get_rand_5FBF
 
-### sub_5e35() -> rng_test_get()
+### rng_test_get_5e35()
 IN: nil
 OUT: rx24 = random byte?
 Simulator Delay: about 1 second per invocation
@@ -110,12 +111,12 @@ Called from main, just after welcome message
 	- malloc to 2c11
 		- 2c11: whole pile of nulls
 		- free()d before end
-	- sets word_102acf to something important
+	- sets hash_102acf to something important
 		- malloc()
 		- 2d0e: 51 8e 1d f5 46 bf 63 a1 0c 03 a8 6b fd 95 8a a9
 		- of length 0xfb=251
 
-#### raw data at word_102acf
+#### raw data at hash_102acf
 ```
 data 0x2D00  00 00 00 00 00 00 00 00 00 00 00 00 fb 00 51 8e  ............û.QŽ
 data 0x2D10  1d f5 46 bf 63 a1 0c 03 a8 6b fd 95 8a a9 10 eb  .õF¿c¡..¨ký.Š©.ë
@@ -139,32 +140,26 @@ data 0x2E00  39 0c 68 d9 36 a0 cd 05 00 00 00 00 00 00 00 00  9.hÙ6 Í........
 ### do_test_5b30()
 ```c
 do_test_5b30() {
-	sub_55c4a()
+	gen_random_bits_55c4()
 	Y[1] = (get_RTC_CNT_644d() >> 8) & 0xff
 	Y[6:7] = 100
-	word_1029b1 = get_rand_word() % 100
+	rand_mod_100_1029B1 = get_rand_word() % 100
 	for (i=0; i<100; i++) {
 		while (Y[1] == (get_RTC_CNT_644d() >> 8) & 0xff)
 			;
 		Y[1] = (get_RTC_CNT_644d() >> 8) & 0xff
-		Y[4:5] = sub_5a20(i); // also references word_1029b1
+		Y[4:5] = getFreqForDAC_5a20(i); // also references rand_mod_100_1029B1
 		write_DACB_CHDATA(Y[4:5], 0x0000);
 	}
 	printf("test done")
 }
 ```
 
-### sub_5a20
+### getFreqForDAC_5a20
 IN: rx24=external loop iterator, 0..99
-OUT: ???
-Example:
-	IN: 0x0d
-		-> 0x2134[6] == 0x13
-		-> * 2.73 + 0x2aa == 0x4b0
-		->
-
+OUT: rx24=value for DAC
 ```c
-short sub_5a20(short i) {
+short getFreqForDAC_5a20(short i) {
          1:2   3:6    7:8  9:10
 	Y = [ret, dword, word, arg0]
 	// there's an even/odd split, similar, but...
@@ -180,18 +175,18 @@ short sub_5a20(short i) {
 	if (i>=0x223) return ret; // pointless
 
 	// begin dead code
-	rx24 = 0x81 & byte_102a6b[word_1029b1];
+	rx24 = 0x81 & randombits_102a6b[rand_mod_100_1029B1];
 	if (r24 & 0x80) r24 = 0 - (r24&1); // possible: -1, 0, 0, 1
 	word = 0x2aa * r24 * 2;
 	// end dead code
 
-	if (byte_102a6b[word_1029b1] % 2 == 0) {
-		ret += 0x2aa
-	} else {
+	if (randombits_102a6b[rand_mod_100_1029B1] % 2 == 0) {
 		ret -= 0x2aa
+	} else {
+		ret += 0x2aa
 	}
 
-	word_1029b1 = (word_1029b1+1)%100
+	rand_mod_100_1029B1 = (rand_mod_100_1029B1+1)%100
 	return ret;
 }
 ```
@@ -228,7 +223,7 @@ Examples: 17c -> 17
 ### sub_55c4
 ```c
 void sub_55c4() {
-	char *array = byte_102a6b;
+	char *array = randombits_102a6b;
 	const char subVector[] = {...};
 	const char xorVector[] = {...};
 	memset(array, 0x05, 100); // really, store "5"
@@ -242,7 +237,7 @@ void sub_55c4() {
 }
 ```
 
-#### Result byte_102a6b
+#### Result randombits_102a6b
 data 0x2A60  .. .. .. .. .. .. .. .. .. .. .. 8d 88 14 e0 28  ............ˆ.à(
 data 0x2A70  56 f7 5d 51 e4 f1 5d a8 7c a4 00 92 78 1b 17 44  V÷]Qäñ]¨|¤.’x..D
 data 0x2A80  c6 28 55 d9 3a 31 aa ad 30 33 7d f9 39 f3 67 af  Æ(UÙ:1ª.03}ù9óg¯
@@ -258,18 +253,18 @@ OUT: nil
 void sub_4ffb() {
 	char array[]; // stack allocation at 0x3f44
 	for(i=0; i<100; i++) {
-		array[i] =  byte_102a6b[i];
+		array[i] =  randombits_102a6b[i];
 	}
 	/* next: 100 times:
-	 * byte_102a6b[i] ^= array[f(i)]
+	 * randombits_102a6b[i] ^= array[f(i)]
 	 */
 	/* next: 100 times:
-	 * byte_102a6b[i] ^= byte_102a6b[f(i)]
+	 * randombits_102a6b[i] ^= randombits_102a6b[f(i)]
 	 */
 }
 ```
 
-#### result byte_102a6b
+#### result randombits_102a6b
 data 0x2A60  .. .. .. .. .. .. .. .. .. .. .. 79 40 c8 bf 07  ...........y@È¿.
 data 0x2A70  e4 5d e1 6b 03 14 ba 1e 26 f8 3a 2c ea 65 0d 6d  ä]ák..º.&ø:,êe.m
 data 0x2A80  0a 27 fd c9 d9 3a f4 c7 44 a5 4f 34 8c e3 a6 8e  .'ýÉÙ:ôÇD¥O4Œã¦Ž
@@ -278,10 +273,61 @@ data 0x2AA0  03 aa 97 f8 8f fa e9 83 28 7e 58 64 96 7b 12 9c  .ª—ø.úéƒ(~X
 data 0x2AB0  6b 75 e0 63 f1 a6 b0 26 1b 36 f8 9f c1 d4 cc f7  kuàcñ¦°&.6øŸÁÔÌ÷
 data 0x2AC0  f3 50 aa 83 aa b0 aa 0b 24 f6 20 b5 23 f0 a3 ..  óPªƒª°ª.$ö µ#ð£.
 
+### init_hash_102acf_4709
+IN: nil
+OUT: hash_102acf
+Summary: call malloc_init_hash_102acf_1a30
+```c
+short* init_hash_102acf_4709() {
+	//Y+3 = 0xa4;
+	Y+5 = 4+9+0x10+0x17+0x1f;
+	Y+4 = 250;
+	if (called_init_word_YY[0] != 'Y') {
+		Y[1:2] = malloc(250+1);
+		//if (Y[1:2] == NULL) { print "error"; die(); }
+		memcpy(Y[1:2] <= hash_102acf, 250+1);
+		while (strncmp(Y[1:2] <=> hash_102acf, 250+1)) {
+			// must execute exactly once
+			malloc_init_hash_102acf_1a30();
+			Y+5 += 0x18;
+		}
+		//if (byte_102716[0] != 0x65) die();
+		//if (0==strncmp(Y[1:2] <=> hash_102acf, 250+1)) die();
+		//if (Y+5 != 0x6b) die();
+		//if (Y+3 != 0xa4) die();
+		called_init_word_YY[0..1] = "YY";
+		//Y+5 += 0x28 + 0x2b + 0x33
+		//if (Y+4 != 250) die();
+		//if (Y+5 != 0xf1) die();
+		free(Y[1:2]);
+	}
+	//if (byte_102716[0] != 0x65) die();
+	//if (called_init_word_YY[0] != 'Y') die();
+	//if (called_init_word_YY[1] != 'Y') die();
+	//if (Y+4 != 250) die();
+	//if (Y+3 != 0xa4) die();
+	return hash_102acf;
+}
+```
 
+### malloc_init_hash_102acf_1a30
+IN: nil
+OUT: nil
+SIDEEFFECTS: malloc and init hash_102acf
+```c
+	hash_102acf = malloc(250+1);
+	// if (hash_102acf == NULL) die();
+	memset(hash_102acf, 0x40, 250)
+	hash_102acf[250] = '\0'
+	// if (Y+1 != bunch of bs match) die();
+	for (i=249; i>=0; i--) {
+		hash_102acf[i] -= constants[i];
+	}
+	//byte_102716 = 101; 
+	return;
+```
 
-## Backtracking from Flag:
-### process_star_4f57(byte)
+### star_4f57(byte)
 IN: r24 = a byte
 OUT: nil
 Summary:
@@ -303,15 +349,15 @@ Summary:
 				delay = kTick + 0x1f - last_kTick;
 			}
 		} else {
-			password_len_102009 = 254; // aka death
+			entered_len_102009 = 254; // aka death
 			delay = 0;
 		}
 		if (delay >= 2) {
-			password_len_102009 += 1
+			entered_len_102009 += 1
 		}
 		last_kTick = kTick
-		if (password_len_102009 < 250) {
-			password_102ad3[password_len_102009] += 1
+		if (entered_len_102009 < 250) {
+			entered_102ad3[entered_len_102009] += 1
 		}
 		return;
 	}
@@ -322,12 +368,12 @@ IN: nil
 OUT: noreturn
 Note: I've commented out lots of the flak to make it easier to read
 Summary:
-	- print the "entered string", in password_102ad3
+	- print the "entered string", in entered_102ad3
 	- expect exactly 250 characters??
-	- if (password_len_102009 < 240) die();
-	  else password_len_102009 = 254
+	- if (entered_len_102009 < 240) die();
+	  else entered_len_102009 = 254
 	- x = process_password_47cc();
-	- password_or_die_4dBF(x, '+');
+	- password_or_die_4dbf(x, '+');
 	- die()
 ```c
 void you_entered_4e70() {
@@ -336,21 +382,21 @@ void you_entered_4e70() {
 		limit = 250; // Y+2
 		c3 = 0xc3;   // Y+3 -- actual assignment later
 		p_c3 = &c3;  // Y[4:5]
-		while (iter ~ password_len_102009 && iter ~ 250) {
+		while (iter ~ entered_len_102009 && iter ~ 250) {
 			//if (limit ~ 0) die();
 			//test_const_rng_17f1();
 			limit -= 1;
 			//test_const_rng_17f1();
-			//if (iter ~ password_len_102009 && iter ~ 250) die();
+			//if (iter ~ entered_len_102009 && iter ~ 250) die();
 			if (iter+1 % 20 == 0) printf("\r\n");
-			printf("%02hhx", password_102ad3[iter]);
+			printf("%02hhx", entered_102ad3[iter]);
 			iter += 1;
 		}
 	printf("\r\n");
-	if (iter ~ password_len_102009 && iter ~ 250) die();
+	if (iter ~ entered_len_102009 && iter ~ 250) die();
 	//test_const_rng_17f1();
-	if (password_len_102009 < 240) die();
-	password_len_102009 = 254;
+	if (entered_len_102009 < 240) die();
+	entered_len_102009 = 254;
 	c3 = 0xc3; // or 0xc3 or 195, hard to be sure
 	p_c3 = &c3;
 	//test_const_rng_17f1()
@@ -372,7 +418,7 @@ void you_entered_4e70() {
 		if (*(p_c3) !!~ '<')  die();
 		if (Y+7 != 0xff) die();
 	}
-	password_or_die_4dBF(Y+6, p_c3)
+	password_or_die_4dbf(Y+6, p_c3)
 	die();
 }
 ```
@@ -381,46 +427,104 @@ void you_entered_4e70() {
 IN: rx24=0x3f25; // stack offset, pointing to 0xc3
 OUT: rx24=0x69; // or 0x96, but only if we fail
 Summary:
-	* crazy mess
-	* on the return path, does a bitwise not on *arg0
+	* just a giant busywait. This is the four hour delay.
 ```c
-	Y+1 = 0;
-	Y+2 = 0x65
-	Y+3 = 0xCD
-	Y+4 = 0x1D
-	Y+5 = 0;
-	Y+6 = 0;
-	Y+7 = 0;
-	Y+8 = 0;
-	rYx9 = 0x0FA93ABC; // Y+9..Y+0x10
-	Y+0x11 = 0;
-	Y+0x12 = 0;
-	Y+0x13 = 0;
-	Y+0x14 = 0;
-	Y+0x15 = 0;
-	Y+0x16 = 0;
-	Y+0x17 = 0;
-	Y+0x18 = 0;
-	Y+0x19 = 0;
-	Y+0x1a = 0;
-	ret = 0x96; // Y+0x1b
-	ramp = CPU_RAMPX; // Y+0x1c, Y+0x1d
-	arg = ?; // Y+0x20, 0x21
+short process_password_47cc(short arg) {
+	uint64_t rY1  = 0x1dcd6500; // Y+1 .. Y+8
+	uint64_t rY9  = 0x0FA93ABC; // Y+9 .. Y+0x10
+	uint64_t rY11 = 0; // NOTE  // Y+0x11 .. Y+0x18
+	short    Yx19 = 0; // NOTE  // Y+0x19 .. Y+0x1a
+
+	ret = 0x96;   // Y+0x1b
+	check = 0x39; // Y+0x1c, Y+0x1d
+	four = undef; // Y+0x1e, Y+0x1f
+	arg = arg;    // Y+0x20, 0x21
+
 	printf("Processing password...")
 	printf("0% complete...")
-	rYx9 += 0xF252B44; // 0x1ece_7700
-```
+	rY9 += 0xF252B44; // 0x1ece_7700
+    while (rY11 < rY1 && rY9 ?ne? 0) {
+		if (rY11 >= rY1 || rY9 ?eq? 0) continue;
+		if (rY11 >= rY1 || rY9 ?eq? 0) continue;
+		check += 1;
+		if (rY11 >= rY1 || rY9 ?eq? 0) {
+			// four = 4
+			// if (check != four) die();
+			// if (check != four) die();
+			// if (four != 4) die();
+			continue;
+		}
+		check += 1
+		if (rY11 >= rY1 || rY9 ?eq? 0) {
+			// test_const_rng_17f1();
+			continue;
+		}
+		check += 1
+		// 8.times { test_const_rng_17f1(); }
+		if (rY11 >= rY1 || rY9 ?eq? 0) continue;
+		check += 1
+		if (rY11 >= rY1 || rY9 ?eq? 0) continue;
+		if (rY11 >= rY1 || rY9 ?eq? 0) continue;
 
+		while (???) {
+			if (rY11 >= rY1 || rY9 ?eq? 0) {
+				// test_const_rng_17f1()
+				break;
+			}
+			rY11 += 1
+			rY9 -= 1
+			rrx18 = rY11 % 0x4c4b40; // 0...100
+			if (rrx18 ?eq? 0) {
+				Yx19 += 1;
+				printf("^D%i%%", Yx19);
+			}
+			if (rY11 != 0x1b3a0c14) {
+				continue;
+			} else {
+				check -= 0x39;
+				break;
+			}
+		}
+	}
+
+	rrx18 = rrx10 = rY11;
+	rrx10 = rrx2 = rY1;
+	if (Yx19 == 0x0064 && rY11 == rY1 && rY9 ?? 0 && check == 4) {
+		arg[0] = ~arg[0]; // 0xc3 -> 0x3c
+	}
+	// test_const_rng_17f1()
+	// if (Yx19 != 0x64) die();
+	// if (rY11 != rY1) die();
+	// if (rY9 ?? 0) die();
+	// test_const_rng_17f1()
+	// if (check != 4) die();
+	if (Yx19 == 0x0064 && rY11 == rY1 && rY9 ?? 0 && check == 4) {
+		ret = 0x69; // necessary!
+	}
+	// test_const_rng_17f1()
+	// if (Yx19 != 0x64) die();
+	// if (rY11 != rY1) die();
+	// test_const_rng_17f1()
+	// if (rY9 ?? 0) die();
+	// test_const_rng_17f1()
+	// if (check != 4) die();
+	// if (Yx19 != 0x64) die();
+	// if (rY11 != rY1) die();
+	// if (rY9 ?? 0) die();
+	// if (check != 4) die();
+	return ret;
+}
+```
 
 ### password_or_die_4dbf()
 IN: r24=='i', rx22==&'3c'
 OUT: nil
 ```c
-	Y+12 = init_word_2acf_4709()
+	Y+12 = init_hash_102acf_4709()
 	tmp = 5;     // Y+3 -- testing for FI
 	arg0 = r24;  // Y+4
 	arg1 = rx22; // Y[4:5]
-	if (check_code_160(password_102ad3, Y+12)) {
+	if (check_code_160(entered_102ad3, Y+12)) {
 		printf("Wrong Code");
 		die();
 	}
@@ -433,7 +537,7 @@ OUT: nil
 ### check_code_160()
 aka sub_164()
 IN: rx24=processed pasword
-IN: rx22=init_word_2acf_4709()
+IN: rx22=init_hash_102acf_4709()
 OUT: rx24=boolean, false if wrong code.
 ```c
 	acc = 0;          // Y+1, Y+2
@@ -458,7 +562,7 @@ Summary: if we get here legit, we win.
 	printf("Your flag is: ");
 	// bunch of tests, input parameters, and precalls
 	// must have called sub_1a30()
-	// which says things about init_word_2acf_4709()
+	// which says things about init_hash_102acf_4709()
 	print_flag_73c3(0x65ac);
 	return;
 ```
@@ -561,6 +665,7 @@ Note:
 	* I don't like it, but I've found a delay loop that works reliably. It take 25 minutes to submit a passcode, but it takes longer than that to process, so I'm no too picky.
 
 ## Sigint
+### Notes
 	* Attaching the logic analyser to A[0..5] didn't pick up anything.
 	* Reading RX and TX got the obvious comms
 	* on D7 see a clear signal
@@ -577,6 +682,8 @@ Note:
 	1 bit is lower
 
 For reference, my first random bit sequence is `0101010101`
+
+### Melding Bits
 More:
 	hlhlhlhlhl
 	llhhhlhhll
@@ -667,37 +774,80 @@ Trying to meld
   llhhllhhhh
 
 
+## Simulation
+### Atmel Studio
+Works, has a gui, is generally very slow, and has shit for I/O.
+But works, that's enough for a lot.
 
-### D7
-Signal detected between "test\n" and "Test done\n"
-Difference signal detected between "risc\n" and "Test done\n"
+### simulavr
+Seems like a lot of problems
 
-However, what they mean is non-obvious, more reversing time...
+### simavr
+Was used for last years solutions, and seems to work.
+
+Has one _major_ problem, it loads RAM at 0x80000, which is fine, but then it interprets **ALL** addresses given to it as being in said segment. I don't know any way to ask for FLASH...
+
+## Comparisons
+Comparing sample194 to sample 645:
+	- there's a vector at 0x1fc/0xfe which changes
+	- many high addresses
+	- significant constant changes to malloc_init_hash_102acf_1A30()
+	- significant changes to sub_4ffb()
+	- constant changes to gen_random_bits_55c4()
+
+Comparing sample830 to sample 743: (latter is known reject)
+
+## Overview
+main_5c13()
+	do_test_5b30()
+		gen_random_bits_55c4() -> randombits_102a6b
+			sub_4ffb()
+		rand_mod_100_1029B1 = get_rand_word()
+		getFreqForDAC_5a20()
+			byte_10200a
+			byte_102134
+			randombits_102a6b
+			rand_mod_100_1029B1
+		write_DACB_CHDATA()
+
+	init_hash_102acf_4709()
+		malloc_init_hash_102acf_1a30 -> hash_102acf
+	star_4f57()
+		sets: entered_len_102009
+		sets: entered_102ad3
+		you_entered_4e70()
+			process_password_47cc()
+				XXX, unreversed
+			password_or_die_4dbf()
+				init_hash_102acf_4709(); // no-op
+				check_code_160(entered_102ad3, hash_102acf)
+				flag_4d15()
+					print_flag_73c3()
 
 
 ## Write Up
 The code is obviously loaded with FI detection and RNG pinning detection. More than that, it regularly detects if the RNG is meaningfully biased. There's a lot of busy work and a lot of delay in that.
 
-Looking at main(), it responds to three inputs 'test', 'risc', and '*'. We need to know what those do. Since I wanted to go dynamic, but the busywork slowed the simulator down too much (it would take hours, at least, to get to the meat of the code), I devise a set of patches to bypass some of the busy work. I didn't know whether things were safe to skip completely, so I generally just shaved off the high bytes, so that we'd do a couple hundred tests instead of tens of thousands. That done, it was on to reversing the 'test' path...
+Looking at main(), it responds to three inputs 'test', 'risc', and '*'. We need to know what those do. Since I wanted to go dynamic, but the busywork slowed the simulator down too much (it would take hours, at least, to get to the meat of the code), I devised a set of patches to bypass some of the busy work. I didn't know whether things were safe to skip completely, so I generally just shaved off the high bytes, so that we'd do a couple hundred tests instead of tens of thousands. That done, it was on to reversing the 'test' path...
 
 After doing a bunch of dynamic work, I realized how much code there is between me and the flag. I need to reverse smarter: back-track from the flag.
 
 main_5c13()
-	-> process_star_4f57()
+	-> star_4f57()
 		-> you_entered_4e70()
 			-> process_password_47cc()
 			-> password_or_die_4dbf()
-				-> init_word_2acf_4709()
+				-> init_hash_102acf_4709()
 				-> check_code_160()
 				-> flag_4d15()
 					-> print_flag_73c3()
-	<- infinite loop, process_star()
+	<- infinite loop, star_4f57()
 
-What we see here, is that once we enter process_star(), we're not getting out. What needs to be true?
+What we see here, is that once we enter star_4f57(), we're not getting out. What needs to be true?
 
 It looks like:
 	* 0x2009 = "entered string" length, which must be 250
-	* 0x2ad3 = "entered string"
+	* 0x2ad3 = the thing we're comparing too
 
 Aside: what does "risc" do?
 	* memcpy(0x200a <- 0x225e, 596 bytes);
@@ -705,8 +855,8 @@ Aside: what does "risc" do?
 	* I don't see any point to it.
 	* Possible it reveals the key somehow
 
-I've finished understanding how process_star_4f57() works. Description follows:
-	* we're using a serial character device like a analog input.
+I've finished understanding how star_4f57() works. Description follows:
+	* we're using a serial character device like an analog input.
 	* It will "pulse count", need to be faster than ~0.8ms
 	* Basic idea: if I want to send 0x11223344, then
 		- send "*\n"
@@ -736,3 +886,14 @@ I've managed to get a clean capture via scope. We have a new problem. Of the 100
 Todo:
 	- verify that the odd 165 are actually different, not just script failure
 	- each test run exposes 10 bits of the random array... capture a bunch of samples, see if I can determine the random array.
+	- what's at hash_102acf?
+	- find a way to gather random bits from randombits_102a6b (simulation?)
+	- understand process_password, so I can reverse to necessary input string. I believe hash is in byte_102ad3
+
+Done:
+	- 165 are not different, it was just script failure, fixed.
+	- need more samples
+	- hash_102acf is just the raw passcode
+	- I have a bit gatherer program
+	- I've reversed process_password_47cc(), it's //ALL// busywork... :(
+	

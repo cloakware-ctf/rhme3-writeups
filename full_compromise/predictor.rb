@@ -1,6 +1,9 @@
 #!/usr/bin/ruby
+# encoding: ASCII-8BIT
+
 
 Byte_102a6b = Array.new(100) { Random::rand 256 }
+Debug = false
 $randomizer = Random::rand(100)
 
 def predict(i, grid1, grid2)
@@ -10,9 +13,9 @@ def predict(i, grid1, grid2)
 	return result if (i<50 || i%5!=0)
 
 	if (Byte_102a6b[$randomizer] % 2 == 0) then
-		#result += 0x2aa
-	else
 		#result -= 0x2aa
+	else
+		#result += 0x2aa
 	end
 	$randomizer = ($randomizer+1)%100
 
@@ -34,8 +37,14 @@ def extractGrids(hexFile)
 	low = words[_reset+0xf]
 	high = words[_reset+0xf+1]
 	data = (high << 4 & 0xf000) + (high << 8 & 0xf00) + (low >> 4 & 0xf0) + (low >> 0 & 0xf)
+	offset = 10
+	offset += 1 if bytes[data] != 0x12
 
-	return bytes[data+11..-1].each_slice(298).first(4)
+	Debug && puts("Reading data from #{data.to_s 16}/#{(data/2).to_s 16} at #{offset}")
+	Debug && puts("First bytes #{bytes[data].to_s 16}, #{bytes[data,8]}")
+	Debug && puts("Relevant bytes #{bytes[data+offset,8]}")
+	Debug && puts("Total sizes #{bytes.count.to_s 16}")
+	return bytes[data+offset..-1].each_slice(298).first(4)
 end
 
 begin
@@ -47,7 +56,6 @@ begin
 
 	grids = extractGrids ARGV[0]
 	base = ARGV[1]=='test' ? 0 : 2
-
 
 	predictions = 100.times.map do |x|
 		predict x, grids[base+0], grids[base+1]

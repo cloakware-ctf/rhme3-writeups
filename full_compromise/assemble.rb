@@ -33,10 +33,11 @@ begin
 			lines.each do |line2|
 				offset = align line1,line2
 				# assert line1[i] = line2[i+offset] for all i in range
-				if 0 < offset && offset <= 4 then
+				if 0 < offset && offset <= 1
+					then
 					lines -= [line1, line2]
 					moreLines << line2[0...offset] + line1
-				elsif 0 < offset && offset <= -4 then
+				elsif 0 < offset && offset <= -1 then
 					lines -= [line1, line2]
 					moreLines << line1 + line2[offset..-1]
 				end
