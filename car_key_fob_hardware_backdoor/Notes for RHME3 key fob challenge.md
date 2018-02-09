@@ -12,6 +12,8 @@ Notes for RHME3 key fob challenge
 
 * http://trudevice.com/Workshop/program/22%20A.%20Biasizzo%20-2-%20TRUDEVICE_2013.pdf
 
+* https://pdfs.semanticscholar.org/189e/cdfe1d187a6e623ad4dd1c3ec4576e55628e.pdf
+
 ## Notes
 
 scan chain could refer to JTAG (IEEE 1149.1) or IEEE 1500 (for SoCs)
