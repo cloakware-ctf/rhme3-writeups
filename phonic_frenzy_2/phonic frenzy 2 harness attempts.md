@@ -285,3 +285,115 @@ but connecting those to D2 or D3 does nothing anyways -- then I poked with the s
 
 I recconected A1 / ~A1 to D2 / D3. The signals came back. SCL responds to D3 and SDA responds to D2. They actually mirror the D pins. They aren't iverting. Also the response time of the SCL/SDA pins to the D pins is almost immeadiate with no jitter. It doesn't look digitally handled at all.
 
+---
+
+The next next night:
+
+I'm trying to scan VCC across all the input pins this time. To confirm pin names and also I might discover something. I don't treat SCL or SDA as input b/c I observed outputs on them mirroring the D2 D3 pins last time around. But let's try out other inputs on the board break-out: Vin and RX.
+
+Here's all the messages; listed in the order they are emitted
+
+* [@1a] "unexpected clock frequency detected"
+* [@1b] "inverted clock frequency is inconsistent"
+
+* [@3a] "Audio active line does not conform to the expected model"
+
+* [@2a] "IO prepare line is not connected correctly"
+* [@2b] "IO Pulse inverted line is not connected correctly"
+* [@2c] "IO Bridge line is not connected correctly"
+* [@2d] "IO Pulse AND IO Pulse inverted line is not connected correctly"
+
+* [@1c] "clock frequency does not match inverse"
+
+| connection | messages  (~ - sometimes) | Any names correlated |
+|------------|---------------------------|----------------------|
+| VCC -> D13 | [@1a] [@2b] | IO Pulse Inverted |
+| GND -> D13 | | |
+| VCC -> D12 | [@1a] [@2c] [@2d] | IO Bridge, IO Pulse, IO Pulse Inverted |
+| GND -> D12 | | |
+| VCC -> D11 | [@1a] ~[@1b] [@2c] [@2d] | IO Bridge, IO Pulse, IO Pulse Inverted |
+| GND -> D11 | | |
+| VCC -> D10 | [@1a] ~[@1b] [@2c] [@2d] | IO Bridge, IO Pulse, IO Pulse Inverted |
+| GND -> D10 | | |
+| VCC -> D9  | [@1a] ~[@1b] [@2c] [@2d] | IO Bridge, IO Pulse, IO Pulse Inverted |
+| GND -> D9  | | |
+| VCC -> D6  | [@1a] [@2a] | IO Prepare |
+| GND -> D6  | [@1a] [@2a] [@2b] | Audio active, IO Pulse inverted |
+| VCC -> D5  | [@1a] [@2a] | IO Prepare |
+| GND -> D5  | ~[@1a] [@3a] [@2b] | Audio active, IO Pulse inverted |
+| VCC -> D4  | [@1b] [@2a] | IO Prepare, Inverted Clock |
+| GND -> D4  | [@3a] [@2b] | Audio active, IO Pulse inverted |
+| VCC -> D3  | [@1a] ~[@1b] [@2a] | IO Prepare |
+| GND -> D3  | [@1c] [@3a] [@2b] | Audio activ, IO Pusle inverted | 
+| VCC -> D2  | [@1a] ~[@1b] ~[@2b] | |
+| GND -> D2  | [@1a] ~[@1b] [@2b] [@3a] | Audio active, IO Pulse inverted |
+| VCC -> RX  | [@1a] ~[@1b] ~[@2b] | |
+| GND -> RX  | [@1a] ~[@1b] [@2b] [@3a] | Audio active, IO Pulse inverted |
+| VCC -> Vin | [@1a] [@2b] | IO Pulse Inverted |
+| GND -> Vin | [@1a] [@2b] | IO Pulse Inverted |
+
+Pretty bananas actually -- no real correlation. But I do have a better list of the messages. And Jonathan corrected my hearing on some words, so altogether better.
+
+Let's try to get the clock errors sorted out and *then* the other lines.
+
+| D2  | D3  | D4 | D5 | D6 | D9 | D10 | D11 | D12 | D13 | RX  | Vin | connection    | input name     | [@1a] | [@1b] | [@3a] | [@2a] | [@2b] | [@2c] | [@2d] | [@2e] | [@1c] | Notes |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|---------------|----------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+|     |     |    |    |    |    |     |     |     |     |     |     | none          |                |  X    |       | X     |       | X     |       |       |       |       | |
+|     | A3  |    |    |    |    |     |     |     |     |     |     |   A3 -> D3    | inv clock?     |       |       | X     |       | X     |       |       |       | ~     | |
+|     | ''  | A1 |    |    |    |     |     |     |     |     |     | + A1 -> D4    | audio active   |       |       |       |       | X     |       |       |       |       | |
+|     | ''  | '' | A5 |    |    |     |     |     |     |     |     | + A5 -> D5    | io pulse inv   |       |       |       |       |       | X     |       |       | ~     | |
+|     | ''  | '' | '' |    |    | A4  |     |     |     |     |     | + A4 -> D10   | io bridge      |       |       |       |       |       |       |       |       | X     | |
+| A2  | ''  | '' | '' |    |    | ''  |     |     |     |     |     | + A2 -> D2    | clock?         |       | X     |       |       |       |       |       |       |       | |
+| A3  | A2  | '' | '' |    |    | ''  |     |     |     |     |     | +- A2 <-> A3  | clock & inv?   |       | X     |       |       |       |       |       |       |       | |
+|     | A2  | '' | '' |    |    | ''  |     |     |     |     |     | +- A2 -> D3   | clock & inv?   |       |       |       |       |       |       |       |       | X     | |
+|     | A1  | '' | '' |    |    | ''  |     |     |     |     |     | +- A1 -> D3   | inv clock ?    | X     | ~     |       |       |       |       |       |       |       | |
+|     | A4  | '' | '' |    |    | ''  |     |     |     |     |     | +- A4 -> D3   | inv clock ?    | X     |       |       |       |       |       |       |       |       | |
+|     | A5  | '' | '' |    |    | ''  |     |     |     |     |     | +- A5 -> D3   | inv clock ?    | X     |       |       |       |       |       |       |       |       | |
+|     | A3  | '' | '' |    |    | ''  |     |     |     |     |     | +- A3 -> D3   | inv clock ?    |       |       |       |       |       |       |       |       | X     | |
+| A5  | ''  | '' | '' |    |    | ''  |     |     |     |     |     | +  A5 -> D2   | clock ?        |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     |     | A5  |     | +- A5 -> RX   | serial rx      |       |       |       | ~     |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     |     |     | A5  | +- A5 -> Vin  | Vin            |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     | A5  |     |     | +- A5 -> D13  | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     | A5  |     |     |     | +- A5 -> D12  | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  | A5  |     |     |     |     | +- A5 -> D11  | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    | A5 | ''  |     |     |     |     |     | +- A5 -> D9   | IO Pulse       |       |       |       |       |       |       |       | X     |       | |
+|     | ''  | '' | '' | A5 |    | ''  |     |     |     |     |     | +- A5 -> D6   | IO prepare     |       |       |       | X     |       |       |       |       |       | |
+| ~A1 | ''  | '' | '' |    |    | ''  |     |     |     |     |     | +- ~A1 -> D2  | clock?         | X     |       |       |       |       |       |       |       |       | |
+| ~A3 | ''  | '' | '' |    |    | ''  |     |     |     |     |     | +- ~A3 -> D2  | clock?         |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     |     | ~A3 |     | +- ~A3 -> RX  | serial rx      |       |       |       | ~     |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     |     |     | ~A3 | +- ~A3 -> Vin | Vin            |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     | ~A3 |     |     | +- ~A3 -> D13 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     | ~A3 |     |     |     | +- ~A3 -> D12 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  | ~A3 |     |     |     |     | +- ~A3 -> D11 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ~A4 | '' | '' |    |    | ''  |     |     |     |     |     | +- ~A4 -> D13 | inv clock      | X     |       |       |       |       |       |       |       |       | |
+|     |  A2 | '' | '' |    |    | ''  |     |     |     |     |     | +- A2 ->  D13 | inv clock      |       |       |       |       |       |       |       |       | X     | |
+|     |     |    |    |    |    |     |     |     |     |     |     | none          |                |  X    |       | X     |       | X     |       |       |       |       | |
+|     | A2  |    |    |    |    |     |     |     |     |     |     |   A2 -> D3    | inv clock?     |       |       | X     |       | X     |       |       |       | X     | |
+|     | ''  | A1 |    |    |    |     |     |     |     |     |     | + A1 -> D4    | audio active   |       |       |       |       | X     |       |       |       | ~     | |
+|     | ''  | '' | A5 |    |    |     |     |     |     |     |     | + A5 -> D5    | io pulse inv   |       |       |       |       |       | X     |       |       | ~     | |
+|     | ''  | '' | '' |    |    | A4  |     |     |     |     |     | + A4 -> D10   | io bridge      |       |       |       |       |       |       |       |       | X     | |
+| ~A2 | ''  | '' | '' |    |    | ''  |     |     |     |     |     | +- ~A2 -> D2  | clock?         |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     |     | ~A2 |     |     | +- ~A2 -> D13 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  |     | ~A2 |     |     |     | +- ~A2 -> D12 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     | ''  | '' | '' |    |    | ''  | ~A2 |     |     |     |     | +- ~A2 -> D11 | ?              |       |       |       |       |       |       |       |       | X     | |
+|     |     |    |    |    |    |     |     |     |     |     |     | none          |                |  X    |       | X     |       | X     |       |       |       |       | |
+|     | 7Khz|    |    |    |    |     |     |     |     |     |     | 7K 50% -> D3  | inv clock?     |       | ~     |       |       | X     |       |       |       | ~     | I setup a 7KHz 50% duty cycle 3.3v clock from a bus pirate |
+|     | ''  | A1 | A5 |    |    | A4  |     |     |     |     |     | + usual       |                |  ~    | ~     |       |       |       |       |       |       | X     | |
+|~7Khz| ''  | '' | '' |    |    | ''  |     |     |     |     |     | +- ~7K -> D2  | clock?         |       |       |       |       |       |       |       |       | X     | |
+
+I also did logic captures at the same time and confirmed that the signals coming out of the A[0..5] aren't changing from what was captured before
+
+Here's all the messages; listed in the order they are emitted
+
+* [@1a] "unexpected clock frequency detected"
+* [@1b] "inverted clock frequency is inconsistent"
+
+* [@3a] "Audio active line does not conform to the expected model"
+
+* [@2a] "IO prepare line is not connected correctly"
+* [@2b] "IO Pulse inverted line is not connected correctly"
+* [@2c] "IO Bridge line is not connected correctly"
+* [@2d] "IO Pulse AND IO Pulse inverted line is not connected correctly"
+* [@2e] "IO Pulse line is not connected correctly"
+
+* [@1c] "clock frequency does not match inverse"

@@ -23,9 +23,12 @@ Python>avr_loader_emu(0x2324, 0x2000, 0x2174)
 Python>avr_bss_emu(0x2174,0x223D)
 ```
 
-4. run auto-analysis (i.e. go click the circle-cross button
+4. run auto-analysis (i.e. go click the circle-cross button)
+5. put this into the python console
 
 ```
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_dumb_seq_load_xrefs.py')
+Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_codatafy.py')
+Python>dref_all_fixer()
 ```
 
