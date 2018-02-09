@@ -70,7 +70,7 @@ def extractBits(pulses, ref)
 		(p-r)
 	}.each_with_index.map { |delta,i|
 		next unless i>=50 && i%5==0
-		delta > 0 ? 0 : 1
+		delta > 0 ? 1 : 0
 	}.compact
 end
 

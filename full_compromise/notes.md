@@ -591,6 +591,14 @@ Patch:
 	b9fe: 3a41 -> 3105 4105
 	ba60: 3a41 -> 3105 4105
 
+Patches for 765:
+	3018: 8f3f -> 8330
+	bfaa: 8d83 -> 8f70 90e0 8b83 1c82 8d83 1e82
+	b934: 8ae1 -> 80e0 ???? 80e0
+	b9f6: 3a41 -> 3105 4105
+	ba58: 3a41 -> 3105 4105
+	break 0x5d58 / 0xbab0
+
 Star:
 	*0x3fde = 2a 0a 00
 	break 0x5d94, and r24=(byte)
@@ -598,7 +606,6 @@ Star:
 Test:
 	5b8c / b718: j_write_DACB_CHDATA(low, high)
 		- rx24 -> DACB_CH0DATA
-
 
 
 ### Watches
@@ -683,97 +690,6 @@ Note:
 
 For reference, my first random bit sequence is `0101010101`
 
-### Melding Bits
-More:
-	hlhlhlhlhl
-	llhhhlhhll
-	llhhhhhhhh
-	lhhhhhhhhl
-	llhlhhhlll
-	llllhhllhh
-	llhhllhhhh
-	hllhlhhhll
-	lhllhlllll
-	lhlhlhlhll
-	lllllhhllh
-	hlhlllllhh
-	hlhlhlllll
-	hhllhlllll
-	lllhhhlhhl
-	hhhlhhllhl
-	hlhhllhllh
-	hlhlllllhl
-	hllhlhhhll
-	hhllhhhhhh
-	lllllhhhlh
-	hhhhhhllhl
-	hllhhhhhhh
-	lhhhlllhll
-	lhhllhhhhh
-	hlhlhllhll
-	lhlhlhlhlh
-	lllllhhllh
-	hllhlllllh
-	hlhlhhhhhl
-
-    llllhhhlhh
-    llhllhlhlh
-    llhllhlhlh
-    lllhhllhll
-    hlhlhllhll
-    hlhhllhllh
-    hhhhhhllhl
-    hhhhhhhhll
-    lhlhlhhhhh
-    lhllhlhlhh
-
-
-Trying to meld
-
-
-        lhhhlllhll
-     llhlhhhlll
-    hllhlhhhll
-    hllhlhhhll
-
-     lhllhlllll
-
-            lllhhllhll
-           llllhhllhh
-          lllllhhllh
-       hlhlllllhh
-
-       hlhlllllhl
-     hlhlhlllll
-      hllhlllllh
-     hhllhlllll
-
-
-                               hlhlhhhhhl
-                              lhlhlhhhhh
-                           lhllhlhlhh
-                        hlhlhllhll
-                     lhlhlhlhll
-                    hlhlhlhlhl
-                   lhlhlhlhlh
-               llhllhlhlh
-           hlhhllhllh
-         hhhlhhllhl
-       llhhhlhhll
-      lllhhhlhhl
-     llllhhhlhh
-    lllllhhhlh
-
-          hhhhhhllhl
-        hhhhhhhhll
-       lhhhhhhhhl
-      llhhhhhhhh
-     hllhhhhhhh
-    hhllhhhhhh
-   lhhllhhhhh
-  llhhllhhhh
-
-
 ## Simulation
 ### Atmel Studio
 Works, has a gui, is generally very slow, and has shit for I/O.
@@ -843,7 +759,6 @@ dump binary memory bitdump 0x2a60 0x2ae0
 
 consider
 
-
 ## Comparisons
 Comparing sample194 to sample 645:
 	- there's a vector at 0x1fc/0xfe which changes
@@ -882,7 +797,7 @@ main_5c13()
 					print_flag_73c3()
 
 
-## Write Up
+## Running Notes
 The code is obviously loaded with FI detection and RNG pinning detection. More than that, it regularly detects if the RNG is meaningfully biased. There's a lot of busy work and a lot of delay in that.
 
 Looking at main(), it responds to three inputs 'test', 'risc', and '*'. We need to know what those do. Since I wanted to go dynamic, but the busywork slowed the simulator down too much (it would take hours, at least, to get to the meat of the code), I devised a set of patches to bypass some of the busy work. I didn't know whether things were safe to skip completely, so I generally just shaved off the high bytes, so that we'd do a couple hundred tests instead of tens of thousands. That done, it was on to reversing the 'test' path...
@@ -954,3 +869,30 @@ Done:
 	- I have a bit gatherer program
 	- I've reversed process_password_47cc(), it's //ALL// busywork... :(
 	
+## Recipe
+Sequence:
+	1. run `getrandombits.rb` on all samples to get dumps of what random pertubations they apply to the output.
+	2. run `bitsfromdump.rb` on the bitdumps to get the binary vectors.
+	3. run `actual.rb` on all the files captured via scope to get the bit samples out
+	4. grep the actualdump for line that matches all bitdumps
+		* make sure to account for wrap
+    	* in our case, that's 765
+	5. simulate sample765.hex until we enter the main read/test loop, then read from return value of sub_4707(), in my case, 0x2d0e
+```
+  434fa15b5afad44c4a6b77ab872e8b5c7d2f7c
+5f56b8d93b77b498e95615c7e49b7ef141e15db0
+f8b3c0db9c6772783b8b06e2f44e996bdb2ce2c6
+c1c7d21c156ffb50b36e97d9ade25fe6781f4ef9
+2257c0a163804e55be770973c5e15e97991fe582
+527bdde8f0e91f8b155966b6415c08d1d31dbfb8
+94d286e2389d2829289232087e6a0bef73eaa01c
+e192d17267a4333d40d17a5f4d06af8d34fc6ef2
+9993c8e10f4a16232b2809ce4eacce9dd80ecb17
+9e92443c2f9d41c0d8dc7e04a432139e0b7dacb2
+60b281cdb2cfddf08bc1e0e81805b291d06fd019
+da90e93a9082b7f1670d3bbd81dad66d90efa25d
+63bd066d140c7dd70db461
+```
+	6. `deliver` the passcode to the device.
+	7. wait a **really** long time.
+

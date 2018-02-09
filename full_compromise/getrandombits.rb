@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
-#!/usr/local/bin/rescue
 # encoding: ASCII-8BIT
+#!/usr/local/bin/rescue
 
 Debug = true
 
@@ -39,7 +39,7 @@ end
 
 def dumpBits(file, sampleNumber, address)
 	pid = fork do
-		exec "~/Programs/simavr/simavr/obj-x86_64-linux-gnu/run_avr.elf -m atmega1280 -f 32000000 -g #{file}"
+		exec "/home/jonathan.beverley/Programs/simavr/simavr/obj-x86_64-linux-gnu/run_avr.elf -m atmega1280 -f 32000000 -g #{file}"
 	end
 
 	hexAddr = '0x%04x'%[2*address]
