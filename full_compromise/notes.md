@@ -785,6 +785,9 @@ Seems like a lot of problems
 ### simavr
 Was used for last years solutions, and seems to work.
 
+However, doesn't support xmega, but `atmega1280` is close
+	- need to edit iom1280.h and change `RAMEND` to `0x3fff`
+
 Has one _major_ problem, it loads RAM at 0x80000, which is fine, but then it interprets **ALL** addresses given to it as being in said segment. I don't know any way to ask for FLASH...
 	- Solved: (by hack) do things relative to $pc. eg: `(gdb) break *($pc+4)`
 
@@ -795,7 +798,7 @@ sub_55c4() is called at do_test_5b30+9
 want to break at do_test_5b30+B
 
 
-~/Source/simavr/simavr/obj-x86_64-linux-gnu/run_avr.elf -m atmega1280 -f 32000000 sample333.hex
+~/Source/simavr/simavr/obj-x86_64-linux-gnu/run_avr.elf -m atmega1280 -f 32000000 -g sample333.hex
 avr-gdb sample333.hex
 target remote localhost:1234
 
@@ -827,6 +830,18 @@ Problem:
 0x802ad0: 0x00 0x00 0x00 0x00 0x00 0x00 0x00 0x00 
 
 WHICH IS EXACTLY RIGHT! WE HAVE SIM!
+
+### Scripting GDB
+Recipe:
+```
+target remote localhost:1234
+set $pc = 0xb672
+break *($pc+4)
+cont
+dump binary memory bitdump 0x2a60 0x2ae0
+```
+
+consider
 
 
 ## Comparisons
