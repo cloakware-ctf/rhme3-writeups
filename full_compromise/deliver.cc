@@ -121,7 +121,8 @@ int main(int argc, char* argv[]) {
     if (len != 2) {
         printf("Error from write: %d, %d\n", len, errno);
     }
-	printf("0x");
+	usleep(6*1024*1000);
+	printf("0x"); fflush(stdout);
 	for (int i=0; i<pcLen; i++) {
 		size_t hex = dehex(passcode[2*i], passcode[2*i+1]);
 		write(fd, DOTS, hex);
