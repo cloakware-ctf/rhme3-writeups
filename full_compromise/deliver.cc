@@ -58,20 +58,17 @@ void set_mincount(int fd, int mcount) {
         printf("Error tcsetattr: %s\n", strerror(errno));
 }
 
-const char* DOTS = "................................................................................................................................................................................................................................................................";
-void pulseChar(int fd, char c) {
-	//for (int i=0; i<c; i++) {
-		write(fd, DOTS, c);
-		//usleep(10*1000);
-		//tcdrain(fd);    // delay for output
-	//}
-	printf("%c", c);fflush(stdout);
+size_t dehex(char first, char second) {
+	int high = first - '0';
+	if (high>9) high = 10 + first - 'A';
+	if (high>9) high = 10 + first - 'a';
+	int low = second - '0';
+	if (low>9) low = 10 + second - 'A';
+	if (low>9) low = 10 + second - 'a';
+	return high*0x10 + low;
 }
 
-// usleep(6*1024*1000); -- this value worked, processing started ~14:00
-void pulseSeparator(int fd) {
-	usleep(6*1024*1000);
-}
+const char* DOTS = "................................................................................................................................................................................................................................................................";
 
 int main(int argc, char* argv[]) {
 	int fd;
@@ -88,7 +85,7 @@ int main(int argc, char* argv[]) {
 	}
     portname = argv[1];
     passcode = argv[2];
-	pcLen = strlen(passcode);
+	pcLen = strlen(passcode)/2;
 	printf("sending %d characters of passcode\n", pcLen);
 
     fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
@@ -124,19 +121,22 @@ int main(int argc, char* argv[]) {
     if (len != 2) {
         printf("Error from write: %d, %d\n", len, errno);
     }
+	printf("0x");
 	for (int i=0; i<pcLen; i++) {
-		pulseSeparator(fd);
-		pulseChar(fd, passcode[i]);
+		size_t hex = dehex(passcode[2*i], passcode[2*i+1]);
+		write(fd, DOTS, hex);
+		usleep(6*1024*1000);
+		printf("%02lx", hex); fflush(stdout);
+		if (i%20==18) printf("\n");
 	}
 	printf("\n");
-	pulseSeparator(fd);
     len = write(fd, "*", 1);
     tcdrain(fd);    // }}}
 
     /**********************************************************************/
     printf("getting reply\n"); // {{{
     do {
-        len = read(fd, buf, sizeof(buf) - 1);
+        len = read(fd, buf, 1);
         if (len > 0) {
             buf[len] = 0;
             printf("%s", buf);

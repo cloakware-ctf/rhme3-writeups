@@ -29,7 +29,7 @@ begin
 	$serial.send("*\n")
 	print '0x'
 	code.each_char do |char|
-		$serial.send("."*c.ord)
+		$serial.send("."*char.ord)
 		sleep SleepTime
 		print '%02x'%[char.ord]
 	end
