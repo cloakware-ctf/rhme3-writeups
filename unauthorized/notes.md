@@ -84,3 +84,81 @@ subi    r22, -0x1F
 sbci    r23, -1         ; buffer = Y+0x1f
 ```
 
+## `parse_and_maybe_set_flag_printer`
+
+parse_and_maybe_set_flag_printer(input){
+	input: Yx+0x4B
+	first_colon: Yx+2
+	saved_position: Yx+0x4A
+
+	first_colon = strchr(input, ':') || return -1
+	saved_position = 0
+
+
+	saved_position ^= 1
+	second_colon: Yx+4
+	second_colon = strchr(first_colon + 1, ':') || return -1
+
+
+	saved_position ^= 2
+	next_dash: Yx+6
+	next_dash = strchr(input, '-')
+
+
+	if (!next_dash)
+		next_dash > second_colon || return -1
+
+
+	saved_position ^= 4
+	first_colon_distance: Yx+8
+	first_colon_distance = first_colon - input - 1
+	weird_thing: Yx+0xA
+	weird_thing = 0
+	other_thing: Yx+0xC
+	other_thing = first_colon
+	change_stack(-(first_colon_distance + 1))
+	first_colon_buffer: Y+0xE
+	first_colon_buffer = newstack + 1
+
+	saved_position ^= 8
+	distance_between_colons: Y+0x10
+	distance_between_colons = second_colon - first_colon - 1
+	ya_weird_thing: Y+0x12
+	ya_weird_thing = 0
+	ya_distance_between_colons: Y+0x14
+	ya_distance_between_colons = distance_between_colons
+	change_stack(-(distance_between_colons + 1))
+	second_colon_buffer: Y+0x16
+	second_colon_buffer = newstack + 1
+	memcpy(first_colon_buffer, input, first_colon_distance)
+	first_colon_buffer[first_colon_distance] = 0
+	place_1: Y+0x28
+	first_number: Y+0x1A
+	after_1: Y+0x18
+	first_number = strtoi(first_colon_buffer, place_1, 10)
+	after_1=place_1
+
+	saved_position ^= 16
+	memcpy(second_colon_buffer, first_colon, distance_between_colons)
+	second_colon_buffer[distance_between_colons] = 0
+	second_number: Y+0x1E
+	after_2: Y+0x1C
+	second_number = strtoi(second_colon_buffer, place_1, 10)
+	after_2 = place_1
+
+	if (saved_position != 0x1f)
+		die_and_remember
+
+
+
+
+
+
+
+
+
+
+
+
+
+
