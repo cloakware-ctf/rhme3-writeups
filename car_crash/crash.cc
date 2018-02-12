@@ -1,6 +1,8 @@
 
 #include <stdio.h>
 
+const int ROUNDS = 9; // 9
+
 unsigned char known_102308[240] = {
 	0x60, 0xed, 0x82, 0x39, 0x43, 0x0c, 0xd9, 0xc9, 0x46, 0x20, 0x13, 0xab, 0x10, 0xe4, 0x52, 0x2d,
 	0x30, 0x06, 0x2f, 0xc4, 0xc0, 0x45, 0xc7, 0x3a, 0xe9, 0x4e, 0x8f, 0x2a, 0x89, 0x5c, 0xc8, 0x64,
@@ -37,7 +39,7 @@ unsigned char simulated_schedule[160] = {
 	0x43, 0x43, 0x4c, 0xf9, 0x74, 0x4d, 0x81, 0x78,  0x31, 0xcc, 0x92, 0x69, 0x02, 0x8a, 0x5c, 0x1c,
 };
 
-unsigned char byte_102210[16] = {
+unsigned char mixer_102210[16] = {
 	0x94, 0x20, 0x85, 0x10, 0xC2, 0xC0, 0x01, 0xFB,  0x01, 0xC0, 0xC2, 0x10, 0x85, 0x20, 0x94, 0x01,
 };
 
@@ -79,11 +81,56 @@ unsigned char inverse_sbox_102110[256] = {
 	0x42, 0xB4, 0xCA, 0xA2, 0x78, 0xF9, 0x4C, 0x49,  0xD6, 0x68, 0x0A, 0xF6, 0x00, 0x05, 0xD7, 0x81,
 };
 
+unsigned char expected_decrypt[256] = {              
+	0x46, 0xe0, 0x5f, 0x62, 0x98, 0x08, 0x29, 0xb4,  0x6e, 0x97, 0x4e, 0xf5, 0x78, 0x65, 0x87, 0xec, 
+	0x52, 0x2f, 0x39, 0x08, 0x5a, 0xc5, 0xdb, 0xa7,  0x22, 0x72, 0xb5, 0xf3, 0xe0, 0xdb, 0x52, 0xfc, 
+	0xc4, 0x86, 0xf0, 0x83, 0x25, 0xa3, 0x6d, 0x69,  0xf6, 0x8a, 0xfa, 0x14, 0xaa, 0x85, 0x80, 0xc1, 
+	0x9b, 0xd7, 0xe3, 0xc8, 0x2c, 0x82, 0x6c, 0x93,  0x21, 0x22, 0x60, 0x27, 0x91, 0xe7, 0x1a, 0xdf, 
+	0x46, 0xe0, 0x5f, 0x62, 0x98, 0x08, 0x29, 0xb4,  0x6e, 0x97, 0x4e, 0xf5, 0x78, 0x65, 0x87, 0xec, 
+	0x92, 0x48, 0xbb, 0x28, 0x4b, 0x5e, 0x2d, 0xe1,  0x28, 0xe8, 0xb0, 0x2f, 0x20, 0x6b, 0xc0, 0x1b, 
+	0xe2, 0x39, 0x38, 0xce, 0x36, 0xaa, 0x52, 0xc1,  0x56, 0x24, 0x09, 0x2c, 0x24, 0x0c, 0x77, 0xe1, 
+	0x46, 0xe0, 0x5f, 0x62, 0x98, 0x08, 0x29, 0xb4,  0x6e, 0x97, 0x4e, 0xf5, 0x78, 0x65, 0x87, 0xec, 
+	0x86, 0x6f, 0xba, 0xa9, 0x71, 0x5f, 0x4e, 0xf9,  0xea, 0x34, 0x06, 0xad, 0x06, 0x3c, 0xef, 0x05, 
+	0x70, 0xed, 0x3f, 0x46, 0x31, 0xb5, 0xe1, 0x3a,  0x5e, 0x8a, 0x13, 0xe7, 0x6c, 0xa9, 0x05, 0xc6, 
+	0xba, 0x7c, 0x20, 0xf1, 0x68, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+};                                                   
+                                                     
+unsigned char expected_encrypt[256] = {                                                                                                                   
+	0x7d, 0xef, 0x55, 0x25, 0xa0, 0xb8, 0xfe, 0x1e,  0x54, 0x4a, 0x54, 0x78, 0x78, 0xbb, 0x47, 0x75, 
+	0xc5, 0x84, 0x42, 0xa7, 0x23, 0x35, 0x78, 0x87,  0x1e, 0xce, 0xab, 0xeb, 0x6c, 0x17, 0x51, 0x9d, 
+	0xeb, 0xd4, 0x74, 0x5b, 0x78, 0x49, 0xc9, 0xe1,  0xff, 0x10, 0x3a, 0xef, 0x70, 0x1c, 0xf6, 0x56, 
+	0x02, 0x65, 0xb7, 0x41, 0x38, 0x0f, 0x0c, 0x36,  0xba, 0x30, 0x45, 0x35, 0xaa, 0x4f, 0x0c, 0x57, 
+	0x7d, 0xef, 0x55, 0x25, 0xa0, 0xb8, 0xfe, 0x1e,  0x54, 0x4a, 0x54, 0x78, 0x78, 0xbb, 0x47, 0x75, 
+	0x24, 0xf1, 0x85, 0xa5, 0x68, 0xa2, 0xb7, 0xb8,  0x0d, 0x1d, 0x94, 0xe1, 0x23, 0x60, 0xcb, 0x48, 
+	0x84, 0xf2, 0xab, 0xb1, 0x5c, 0x93, 0x37, 0x39,  0x2a, 0xe3, 0xca, 0x7e, 0x14, 0xc4, 0x3f, 0xf6, 
+	0x7d, 0xef, 0x55, 0x25, 0xa0, 0xb8, 0xfe, 0x1e,  0x54, 0x4a, 0x54, 0x78, 0x78, 0xbb, 0x47, 0x75, 
+	0x2c, 0x15, 0x1b, 0xeb, 0x00, 0xf2, 0x55, 0x46,  0x5c, 0xa3, 0x74, 0xf3, 0x7b, 0x17, 0x23, 0x32, 
+	0xef, 0x9f, 0xc2, 0xd6, 0xef, 0x91, 0x40, 0xcf,  0x8f, 0x1c, 0xbf, 0xdd, 0x4a, 0xb0, 0x28, 0x62, 
+	0x70, 0xaa, 0xaa, 0x76, 0xec, 0x26, 0x35, 0x86,  0x3c, 0x0e, 0x7a, 0x49, 0xcb, 0xa7, 0x3d, 0x43, 
+	0x2b, 0xea, 0xdf, 0xf4, 0x43, 0x95, 0x4a, 0xc3,  0xc0, 0x30, 0x34, 0x11, 0x69, 0xef, 0x52, 0x1b, 
+	0x1e, 0x51, 0xb3, 0xb1, 0x7c, 0x85, 0x7c, 0xea,  0x3b, 0x20, 0xab, 0x95, 0xe1, 0x41, 0x9f, 0x70, 
+	0xa1, 0x22, 0x56, 0x69, 0xa4, 0xa8, 0x9b, 0x6b,  0x1e, 0x10, 0xa8, 0x9e, 0xc4, 0x95, 0x90, 0x9d, 
+	0xff, 0xbc, 0x21, 0xbc, 0xc9, 0x5e, 0xff, 0x59,  0x6a, 0x59, 0x74, 0xa8, 0xf8, 0xe5, 0xc1, 0x5e, 
+};                                                   
+
+
 void print_data(unsigned char buffer[], int buflen) {
-	for(int i=0; i<buflen; i++) {
-		printf("%02x ", buffer[i]);
-		if ( (i+1)%16 == 8) printf(" ");
-		if ( (i+1)%16 == 0) printf("\n");
+	for(int i=0; i<buflen; i+=16) {
+		for(int j=i; j<i+16; j++) {
+			printf("%02x ", buffer[j]);
+			if ( (j+1)%16 == 8) printf(" ");
+		}
+		printf("  ");
+		for(int j=i; j<i+16; j++) {
+			unsigned char c = buffer[j];
+			if (0x20 <= c && c <= 0x7e) printf("%c",c);
+			else printf(".");
+		}
+		printf("\n");
 	}
 }
 
@@ -109,7 +156,7 @@ void mixcolumns_155(unsigned char state[16]) {
 		c = state[0+15];
 		for (j = 14; j>=0; j--) {
 			state[j+1] = state[j];
-			c ^= sub_129(state[j], byte_102210[j]);
+			c ^= sub_129(state[j], mixer_102210[j]);
 		}
 		state[0] = c;
 		// printf("intermediate mixing:  "); print_data(state, 16);
@@ -126,7 +173,7 @@ void inv_mixcolumns_1af(unsigned char state[16]) {
 		c = state[0];
 		for (j = 0; j<15; j++) {
 			state[j] = state[j+1];
-			c ^= sub_129(state[j], byte_102210[j]);
+			c ^= sub_129(state[j], mixer_102210[j]);
 		}
 		state[15] = c;
 		// printf("intermediate mixing:  "); print_data(state, 16);
@@ -135,8 +182,6 @@ void inv_mixcolumns_1af(unsigned char state[16]) {
 }
 
 void block_encrypt_568(unsigned char schedule[160], unsigned char *buffer) {
-	// very much like decrypt
-	// calls sub_155 instead of mixcolumns_1af
 	// stack frame: 0x30 -- 48 bytes -- 6 qwords
 	short i;            // Y+0x01 .. Y+0x02
 	short j;            // Y+0x03 .. Y+0x04
@@ -145,22 +190,48 @@ void block_encrypt_568(unsigned char schedule[160], unsigned char *buffer) {
 	//char** buffer;      // Y+0x17 .. Y+0x18 -- 0x3faa
 	//char unused1[8];    // Y+0x19 .. Y+0x20 -- temp swap
 	//char unused2[16];   // Y+0x21 .. Y+0x30 -- temp swap
+	unsigned char a[16], b[16];
 
 	for (i=0; i<16; i++) {
 		state[i] = buffer[i];
 	}
+	// printf("------------------------------------------------------------------------------------------------\n");
+	// printf("entry line:    ");
+	// print_data(buffer, 16);
+	// printf("initial sched: ");
+	// print_data(schedule+0x90, 16);
+	// printf("initial state: ");
+	// print_data(state, 16);
+	// printf("\n");
 
-	for (i=0; i<=8; i++) {
+	for (i=0; i<ROUNDS; i++) {
 		for (j=0; j<16; j++) {
-			state[j] = schedule[i*16+j] ^ forward_sbox_102010[state[j]];
+			if (true) {
+				a[j] = schedule[i*16+j];
+				b[j] = state[j]^a[j];
+				state[j] = forward_sbox_102010[b[j]];
+			} else {
+				state[j] ^= schedule[i*16+j];
+				state[j] = forward_sbox_102010[state[j]];
+			}
 		}
+		// printf("schedule line: ");
+		// print_data(a, 16);
+		// printf("post sbox:     ");
+		// print_data(b, 16);
+		// printf("next state:    ");
+		// print_data(state, 16);
 		mixcolumns_155(state);
+		// printf("mix-columns:   ");
+		// print_data(state, 16);
+		// printf("\n");
 	}
 
 	for (i=0; i<16; i++) {
 		buffer[i] = state[i] ^ schedule[0x90+i];
 	}
-	return;       
+	// printf("final state:   ");
+	// print_data(buffer, 16);
 }
 
 void block_decrypt_702(unsigned char schedule[160], unsigned char *buffer) {
@@ -172,8 +243,8 @@ void block_decrypt_702(unsigned char schedule[160], unsigned char *buffer) {
 	//char** buffer;    // Y+0x17 .. Y+0x18 -- 0x3faa
 	//char unused1[8];  // Y+0x19 .. Y+0x20 -- temp swap
 	//char unused2[16]; // Y+0x21 .. Y+0x30 -- temp swap
-
 	unsigned char a[16], b[16];
+
 	for (i=0; i<16; i++) {
 		state[i] = buffer[i] ^ schedule[0x90+i];
 	}
@@ -186,37 +257,36 @@ void block_decrypt_702(unsigned char schedule[160], unsigned char *buffer) {
 	// print_data(state, 16);
 	// printf("\n");
 
-	for (short i = 8; i>=0; i--) {
+	for (i=ROUNDS-1; i>=0; i--) {
 		inv_mixcolumns_1af(state);
 		// printf("mix-columns:   ");
 		// print_data(state, 16);
 		for (j=0; j<16; j++) {
-			a[j] = schedule[i*16 + j];
-			b[j] = inverse_sbox_102110[(int)state[j]];
-			state[j] = a[j]^b[j];
+			if (true) {
+				a[j] = schedule[i*16 + j];
+				b[j] = inverse_sbox_102110[state[j]];
+				state[j] = a[j]^b[j];
+			} else {
+				state[j] = inverse_sbox_102110[state[j]];
+				state[j] ^= schedule[i*16 + j];
+			}
 		}
-		// printf("schedule line: ");
-		// print_data(a, 16);
 		// printf("post sbox:     ");
 		// print_data(b, 16);
+		// printf("schedule line: ");
+		// print_data(a, 16);
 		// printf("next state:    ");
 		// print_data(state, 16);
 		// printf("\n");
-		/*
-		   for (j=0; j<16; j++) {
-		   state[j] = inverse_sbox_102110[(int)state[j]];
-		   }
-		   for (j = 0; j<16; j++) {
-		   state[j] = state[j] ^ schedule[i*16 + j]
-		   }
-	   */
 	}
 
 	for (i=0; i<16; i++) {
 		buffer[i] = state[i];
 	}
+	// printf("final state:   ");
+	// print_data(buffer, 16);
 
-	// printf("------------------------------------------------------------------------------------------------\n");
+	// // printf("------------------------------------------------------------------------------------------------\n");
 	return;
 }
 
@@ -247,25 +317,43 @@ void encrypt_data(unsigned char buffer[24], short length) {
 	}
 }
 
+void fix_sbox() {
+	for (int i=0; i<256; i++) {
+		inverse_sbox_102110[forward_sbox_102010[i]] = i;
+	}
+}
+
 int main(int argc, char** argv) {
 	//short decoded = 0;  // Y+1,2
 	short length = 240;   // Y+3,4
 	//char  choice = 0;   // Y+5
-	unsigned char  known[240+15];  // Y+6..0xF6 -- 240 bytes, plus null terminator
+	unsigned char  known[240];  // Y+6..0xF6 -- 240 bytes, plus null terminator
+	unsigned char  reverse[240];
 
-	// init_clock();
-	// some_init_a6b(); // more init
+	fix_sbox();
+
+	printf("********************************************************************************\n");
+    unsigned char  testing[17] = "0123456789abcdef";
+	print_data(testing, 16); printf("\n");
+	encrypt_data(testing, 16);
+	print_data(testing, 16); printf("\n");
+	decrypt_data_8f1(testing, 16);
+	print_data(testing, 16); printf("\n");
+
+	// return 0;
+
+	printf("********************************************************************************\n");
+	////  Try a Decrypt  ////
 	for (int i=0; i<length; i++) {
 		known[i] = known_102308[i];
 	}
-	// init of decoded and length happen here
 	printf("Raw Ciphertext\n");
 	print_data(known, length);
 	printf("\n");
 
 	decrypt_data_8f1(known, length);
 
-	printf("Possible Plaintext\n");
+	printf("Decryption\n");
 	print_data(known, length);
 	printf("\n");
 
@@ -273,14 +361,41 @@ int main(int argc, char** argv) {
 	for (int i=0;i<240;i++) printf("%c", known[i]);
 	printf("\n");
 
-	// Reverse Path
-	encrypt_data(known, length);
+	printf("Deltas expected decrypt\n");
+	for (int i=0; i<length; i++) {
+		known[i] ^= expected_decrypt[i];
+	}
+	print_data(known, length);
 
-	printf("Re-Encrypted\n");
+	printf("********************************************************************************\n");
+	////  Reverse Path  ////
+	for (int i=0; i<length; i++) {
+		reverse[i] = known_102308[i];
+	}
+	encrypt_data(reverse, length);
+
+	printf("Try Encryption Instead\n");
+	print_data(reverse, length);
+	printf("\n");
+
+	printf("Deltas expected encrypt\n");
+	for (int i=0; i<length; i++) {
+		reverse[i] ^= expected_encrypt[i];
+	}
+	print_data(reverse, length);
+
+	printf("********************************************************************************\n");
+	////  Checking  ////
+	for (int i=0; i<length; i++) {
+		known[i] = known_102308[i];
+	}
+	decrypt_data_8f1(known, length);
+	encrypt_data(known, length);
+	printf("Re-Encryption\n");
 	print_data(known, length);
 	printf("\n");
 
-	printf("Delta\n");
+	printf("Deltas\n");
 	for (int i=0; i<length; i++) {
 		known[i] ^= known_102308[i];
 	}
