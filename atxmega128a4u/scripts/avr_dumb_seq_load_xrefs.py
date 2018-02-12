@@ -46,7 +46,7 @@ try:
                 if xref.iscode or xref.frm == idc.BADADDR or str(xref.type) != 'Data_Text': # only try to fix data references from code in ROM of the Data_Text type (as created by the dumb seq xref routine above)
                     continue
                 logger.debug("fixing xref (type:%s) to %s from ROM:%x" % (xref.type, safe_name(line.ea), xref.frm))
-                sark.Line(xref.frm).comments.repeat = safe_name(line.ea)
+                sark.Line(xref.frm).comments.repeat = str(sark.Line(xref.frm).comments.repeat).replace("0x%x" % line.ea, safe_name(line.ea))
         return
 
     def dref_fixer():
@@ -83,13 +83,29 @@ try:
             if (is_latter_of_rxN_sequential_instructions(prev, line, 0) and
                 str(prev_insn.operands[1].type) == 'Immediate_Value' and str(curr_insn.operands[1].type) == 'Immediate_Value'
                ):
-                word = int(curr_insn.operands[1].text, 0) * 256 + int(prev_insn.operands[1].text, 0)
-                address = ram_segment.startEA + word
+                idc.OpHex(prev.ea, 1)
+                idc.OpHex(line.ea, 1)
+                if prev_insn.mnem == 'subi' and curr_insn.mnem == 'sbci':
+                    word = (int(curr_insn.operands[1].text, 0) + 1) * -256 + int(prev_insn.operands[1].text, 0) * -1
+                    address = ram_segment.startEA + word
 
-                if address <= ram_segment.endEA:
-                    result = add_dref(line.ea, address, dr_T)
-                    logger.info("%s adding dref to %s at 0x%x \"%s\"" % ("Success" if result else "Error", safe_name(address), line.ea, line))
-                    line.comments.repeat = safe_name(address)
+                    if (address > ram_segment.startEA + 0x2000 and address < ram_segment.endEA and
+                        str(prev_insn.operands[0]) != 'YL' and str(prev_insn.operands[0].reg) != 'r28' # ignore indexed access into stack
+                       ):
+                        result = add_dref(line.ea, address, dr_T)
+                        logger.info("%s adding dref to %s at ROM:%x \"%s\"" % ("Success" if result else "Error", safe_name(address), line.ea, line))
+                        line.comments.repeat = "indexed access into %s" % safe_name(address)
+                else:
+                    word = int(curr_insn.operands[1].text, 0) * 256 + int(prev_insn.operands[1].text, 0)
+                    address = ram_segment.startEA + word
+
+                    if address >= ram_segment.startEA and address < ram_segment.endEA:
+                        result = add_dref(line.ea, address, dr_T)
+                        logger.info("%s adding dref to %s at ROM:%x \"%s\"" % ("Success" if result else "Error", safe_name(address), line.ea, line))
+                        if address <= ram_segment.startEA + 32:
+                            line.comments.repeat = "possible %s" % sark.Line(address).comments.repeat # use the ioport name in the comments
+                        else:
+                            line.comments.repeat = safe_name(address)
 
             prev = line
 
