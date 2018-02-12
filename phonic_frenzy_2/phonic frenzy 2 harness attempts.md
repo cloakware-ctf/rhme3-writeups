@@ -224,7 +224,7 @@ as above, and A4 -> D2 + A4 -> D3 => "inverted clock frequency is inconsistent"
 as above, and A0 -> D2 + A4 -> D3 => "inverted clock frequency is inconsistent"
 as above, and A4 -> D2 + A0 -> D3 => "inverted clock frequency is inconsistent"
 
-with nothing connected to D2; we get "unexpected clock frequency indicate" 
+with nothing connected to D2; we get "unexpected clock frequency indicate"
 
 with all other pins grounded: we get "unexpected clock frequency indicate"
 
@@ -244,7 +244,7 @@ A5 is the IO pulse inverted line (kinda like the inverse of D2), so that's weird
 
 removed grounds of other pins, unchanged
 
-scanned A5 across the remaining pins: 
+scanned A5 across the remaining pins:
 with A5 -> D6 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
 with A5 -> D12 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
 with A5 -> D13 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
@@ -324,7 +324,7 @@ Here's all the messages; listed in the order they are emitted
 | VCC -> D4  | [@1b] [@2a] | IO Prepare, Inverted Clock |
 | GND -> D4  | [@3a] [@2b] | Audio active, IO Pulse inverted |
 | VCC -> D3  | [@1a] ~[@1b] [@2a] | IO Prepare |
-| GND -> D3  | [@1c] [@3a] [@2b] | Audio activ, IO Pusle inverted | 
+| GND -> D3  | [@1c] [@3a] [@2b] | Audio activ, IO Pusle inverted |
 | VCC -> D2  | [@1a] ~[@1b] ~[@2b] | |
 | GND -> D2  | [@1a] ~[@1b] [@2b] [@3a] | Audio active, IO Pulse inverted |
 | VCC -> RX  | [@1a] ~[@1b] ~[@2b] | |
@@ -397,3 +397,93 @@ Here's all the messages; listed in the order they are emitted
 * [@2e] "IO Pulse line is not connected correctly"
 
 * [@1c] "clock frequency does not match inverse"
+
+## Another night
+
+This time we wired it up so that every D[2..15] has a pull-up.
+
+| D2  | D3  | D4 | D5 | D6 | D9 | D10 | D11 | D12 | D13 | RX  | Vin |                                | [@1a] | [@1b] | [@3a] | [@2a] | [@2b] | [@2c] | [@2d] | [@2e] | [@1c] | Notes |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+|     |     |    |    |    |    |     |     |     |     |     |     |                                |       | X     |       | X     |       | X     |       | X     |       | |
+| A3  | A5  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       |       | X     | |
+| A2  | A5  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | D2 maybe pulse line |
+| A0  | A5  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+|     |     |    |    |    |    |     |     |     |     |     |     |                                |       | X     |       | X     |       | X     |       | X     |       | |
+|     |     |    | A5 |    | A3 |     |     |     |     |     |     |                                |       | X     |       | X     |       | X     |       |       |       | |
+|     |     |    | '' |    | '' | A4  |     |     |     |     |     |                                | X     | ~     |       | X     |       |       |       |       |       | |
+|     |     |    | '' | A0 | '' | ''  |     |     |     |     |     |                                | X     | ~     |       | ~     |       |       |       |       |       | |
+|     |     |    | '' | A1 | '' | ''  |     |     |     |     |     |                                | X     |       |       | X     |       |       |       |       |       | |
+|     |     |    | '' | A2 | '' | ''  |     |     |     |     |     |                                | X     | ~     |       |       |       |       |       |       |       | |
+|     |     |    | '' |    | '' | A0  |     |     |     |     |     |                                | X     | ~     |       | X     |       | ~     |       |       |       | |
+|     |     |    | '' |    | '' | A2  |     |     |     |     |     |                                | X     | ~     |       | X     |       |       |       |       |       | so either A2 or A4 are OK on D10 |
+|     | A0  |    | '' |    | '' | ''  |     |     |     |     |     |                                |       | X     |       | X     |       |       |       |       |       | |
+|     | ''  |    | '' | A2 | '' | ''  |     |     |     |     |     |                                |       | ~     |       | X     |       |       |       |       |       | D6 might be a clock line |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+|     |     |    |    |    |    |     |     |     |     |     |     |                                | X     | ~     |       | X     |       | X     |       | X     |       | |
+| A4  |     |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+| ''  | A4  |    |    |    |    |     |     |     |     |     |     |                                | ~     | X     |       | X     |       | X     |       | X     |       | inverted clock line is D3? |
+|     | ''  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+| A3  | A3  |    |    |    |    |     |     |     |     |     |     |                                | ~     | X     |       | X     |       | X     |       | X     |       | |
+| A3  | A5  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+| A5  | A3  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+| A3  |~A3  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+|~A3  | A3  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | no @1c on first boot |
+|~A2  | A2  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | no @1c on first boot |
+|~A1  | A1  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+| A1  |~A1  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | no @1c on first boot |
+| A1  |~A1  |    |    | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       |       |       |       |X      |       |       | no @1c in later cycles |
+| A1  |~A1  |    | A5 | A0 | A3 | A4  |     |     |     |     |     |                                |       |       | X     |       |       |       |       |       | X     | |
+| A1  |~A1  | A1 | A5 | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       |       |       |       |       |       | X     | |
+|~A2  | A2  | A1 | A5 | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       | X     |       |       |       |       | X     | |
+|~A3  | A3  | A1 | A5 | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       | X     |       |       |       |       | X     | |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+
+* we noticed that the errors switch from @1a -> @1b and null -> @2c on the third cycle after hard reset -- when things are connected wrong (we think)
+	* because of this we adopted the procedure of hard-reboot first time
+* this time around the @1c error can appear even when the @2X errors are present
+	* this lets us focus on getting the clock right first -- b/c the signals may in fact be re-sync'd by the clock lines
+
+## YA NIGHT
+
+Again, with pullups. Last time around we managed to stop the @1c errors in some cases; this is promising in light of the fact that the @1c errors seemed terminal a week ago.
+
+* [@1a] "unexpected clock frequency detected"
+* [@1b] "inverted clock frequency is inconsistent"
+
+* [@3a] "Audio active line does not conform to the expected model"
+
+* [@2a] "IO prepare line is not connected correctly"
+* [@2b] "IO Pulse inverted line is not connected correctly"
+* [@2c] "IO Bridge line is not connected correctly"
+* [@2d] "IO Pulse AND IO Pulse inverted line is not connected correctly"
+* [@2e] "IO Pulse line is not connected correctly"
+
+* [@1c] "clock frequency does not match inverse"
+
+| D2  | D3  | D4 | D5 | D6 | D9 | D10 | D11 | D12 | D13 | RX  | Vin |                                | [@1a] | [@1b] | [@3a] | [@2a] | [@2b] | [@2c] | [@2d] | [@2e] | [@1c] | Notes |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+|     |     |    |    |    |    |     |     |     |     |     |     |                                |       | X     |       | X     |       | X     |       | X     |       | |
+|~A4  | A4  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | X     | |
+| ''  | ''  |    |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | no @1c on first boot |
+| ''  | ''  | A1 |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | '' |
+| ''  | ''  | A0 |    |    |    |     |     |     |     |     |     |                                |       |       | X     | X     |       | X     |       | X     | ~     | '', A0 is not Audio Active Signal |
+| ''  | ''  | A2 |    |    |    |     |     |     |     |     |     |                                |       |       | X     | X     |       | X     |       | X     | ~     | '', A2 '' |
+| ''  | ''  | A3 |    |    |    |     |     |     |     |     |     |                                |       |       | X     | X     |       | X     |       | X     | ~     | '', A3 '' |
+| ''  | ''  | A4 |    |    |    |     |     |     |     |     |     |                                |       |       | X     | X     |       | X     |       | X     | ~     | '', A4 '' |
+| ''  | ''  | A5 |    |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | '' |
+| ''  | ''  | A1 | A5 |    |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | '' |
+| ''  | ''  | '' |    | A5 |    |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | '' |
+| ''  | ''  | '' |    |    | A5 |     |     |     |     |     |     |                                |       |       |       | X     |       | X     |       | X     | ~     | '' |
+| ''  | ''  | '' | A5 | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       |       |       |       |       |       | X     |    |
+| ''  | ''  | '' | A5 | A0 | A3 |     |     |     |     |     |     |                                |       |       |       |       |       | X     |       |       |       |    |
+| ''  | ''  | '' | A5 | A0 |    | A4  |     |     |     |     |     |                                |       |       |       | ~     |       |       |       | X     | ~     | there's some kind of relationship btw IO Prepare and clock   |
+| ''  | ''  | '' | A5 |    | A3 | A4  |     |     |     |     |     |                                |       |       |       | X     |       |       |       |       | ~     |  |
+| ''  | ''  | '' |    | A0 | A3 | A4  |     |     |     |     |     |                                |       |       |       |       | X     |       |       |       | X     |  |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+| ''  | ''  | '' | A5 | A0 | A3 |~A4  |     |     |     |     |     |                                |       |       |       | ~     |       | X     |       |       | ~     | @2a and @1c occur together after four cycles |
+| A4  |~A4  | '' | '' | '' | '' |~A4  |     |     |     |     |     |                                |       |       |       |       |       | X     |       |       | X     |  |
+| A4  |~A4  | '' | '' | '' | '' | A4  |     |     |     |     |     |                                |       |       |       | X     |       |       |       |       | ~     |  |
+|~A1  | A1  | '' | '' | '' | '' | ''  |     |     |     |     |     |                                |       |       |       | ~     |       |       |       |       | X     |  |
+
