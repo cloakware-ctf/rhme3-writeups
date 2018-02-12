@@ -32,3 +32,9 @@ Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_codatafy.py')
 Python>dref_all_fixer()
 ```
 
+6. (optional) create stack variables in a function containing the `idc.here()` with
+```
+Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_stack_vars.py')
+Python>all_y_stack_vars_here()
+```
+
