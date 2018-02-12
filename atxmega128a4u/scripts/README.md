@@ -28,6 +28,7 @@ Python>avr_bss_emu(0x2174,0x223D)
 
 ```
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_dumb_seq_load_xrefs.py')
+Python>all_avr_dumb_seq_load_xrefs()
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_codatafy.py')
 Python>dref_all_fixer()
 ```

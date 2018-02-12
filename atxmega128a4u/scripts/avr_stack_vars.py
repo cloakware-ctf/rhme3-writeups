@@ -20,8 +20,6 @@ try:
     sys.path.insert(0, os.path.dirname(__file__))
     from avr_utils import *
 
-    rpairs = avr_get_register_pairs()
-
     def make_stack_variable(func_start, offset, name, size):
         func = idaapi.get_func(func_start)
         frame = idaapi.get_frame(func)
@@ -42,8 +40,12 @@ try:
             else:
                 return 0
 
-    def is_latter_of_sequential_instructions(prev_line, curr_line, op_num):
-        if prev_line is None:
+    def is_latter_of_stack_sequential_instructions(prev_line, curr_line, op_num):
+        other_op_num = 0
+        if op_num == 0:
+            other_op_num = 1
+
+        if not is_latter_of_rxN_sequential_instructions(prev_line, curr_line, other_op_num):
             return False
 
         try:
@@ -52,19 +54,10 @@ try:
         except sark.exceptions.SarkNoInstruction:
             return False
 
-        if len(prev_insn.operands) != 2 or len(curr_insn.operands) != 2:
-            return False
-
-        other_op_num = 0
-        if op_num == 0:
-            other_op_num = 1
-
-        if (
-            str(prev_insn.operands[op_num]).startswith('Y+') and
-            prev_insn.operands[op_num].offset == curr_insn.operands[op_num].offset - 1 and
-            prev_insn.operands[other_op_num].reg == rpairs.get(curr_insn.operands[other_op_num].reg)
+        if (str(prev_insn.operands[op_num]).startswith('Y+') and
+            prev_insn.operands[op_num].offset == curr_insn.operands[op_num].offset - 1
            ):
-            logger.debug("offsets 0x%x && 0x%x + registers %s and %s are sequential: %s && %s" % (prev_insn.operands[op_num].offset, curr_insn.operands[op_num].offset, prev_insn.operands[other_op_num].reg, curr_insn.operands[other_op_num].reg, prev_line, curr_line))
+            logger.debug("offsets 0x%x && 0x%x are sequential: %s && %s" % (prev_insn.operands[op_num].offset, curr_insn.operands[op_num].offset, prev_line, curr_line))
             return True
 
         return False
@@ -90,7 +83,7 @@ try:
         this_function = sark.Function(curr_line.ea)
 
         next_line = sark.Line(curr_line.ea + len(curr_line.bytes))
-        size = 2 if is_latter_of_sequential_instructions(curr_line, next_line, op_num) else 1
+        size = 2 if is_latter_of_stack_sequential_instructions(curr_line, next_line, op_num) else 1
 
         logger.info("creating %d byte stack variable @ 0x%x based on %s && %s" % (size, stack_offset, curr_line, next_line))
 
@@ -126,12 +119,12 @@ try:
 
             if str(curr_insn.operands[1]).startswith('Y+'):
                 operand_to_stack_variable(line, 1)
-                if not is_latter_of_sequential_instructions(prev, line, 1): # avoid marking a stack var for the second part of a sequential load
+                if not is_latter_of_stack_sequential_instructions(prev, line, 1): # avoid marking a stack var for the second part of a sequential load
                     create_stack_variable_from_operand(line, 1)
 
             if str(curr_insn.operands[0]).startswith('Y+'):
                 operand_to_stack_variable(line, 0)
-                if not is_latter_of_sequential_instructions(prev, line, 0): # avoid marking a stack var for the second part of a sequential load
+                if not is_latter_of_stack_sequential_instructions(prev, line, 0): # avoid marking a stack var for the second part of a sequential load
                     create_stack_variable_from_operand(line, 0)
 
             # TODO also for Y+ in operand 0
