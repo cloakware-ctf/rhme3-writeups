@@ -21,6 +21,9 @@ try:
     import idaapi
     import sark
 
+    print os.path.dirname(__file__)
+    sys.path.insert(0, os.path.dirname(__file__))
+
     ram_segment = None
     rom_segment = None
     for segment in sark.segments():
@@ -29,20 +32,7 @@ try:
         elif segment.name == 'ROM' or segment.name == '.text':
             rom_segment = segment
 
-    rpairs = dict()
-
-    for i in range(1,33):
-        rpairs.update({"r%d" % i: "r%d" % (i-1)})
-
-    rpairs.update({
-        'XL': 'r25',
-        'YL': 'XH',
-        'ZL': 'YH',
-
-        'XH': 'XL',
-        'YH': 'YL',
-        'ZH': 'ZL'
-    })
+    rpairs = avr_get_register_pairs()
 
     prev = None
     for line in sark.lines(rom_segment.startEA, rom_segment.endEA):
