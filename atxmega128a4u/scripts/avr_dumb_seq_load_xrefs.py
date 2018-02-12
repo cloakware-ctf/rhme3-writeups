@@ -35,7 +35,7 @@ try:
 
     def safe_name(address):
         name = sark.Line(address).name
-        if name[0:4] == 'unk_':
+        if name is None or name == '' or name[0:4] == 'unk_':
              return "0x%x" % address
         else:
             return  "%s" % name
