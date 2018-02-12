@@ -28,7 +28,14 @@ Python>avr_bss_emu(0x2174,0x223D)
 
 ```
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_dumb_seq_load_xrefs.py')
+Python>all_avr_dumb_seq_load_xrefs()
 Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_codatafy.py')
 Python>dref_all_fixer()
+```
+
+6. (optional) create stack variables in a function containing the `idc.here()` with
+```
+Python>runscript('.../rhme3/atxmega128a4u/scripts/avr_stack_vars.py')
+Python>all_y_stack_vars_here()
 ```
 
