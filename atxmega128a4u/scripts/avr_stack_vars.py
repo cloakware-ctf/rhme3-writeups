@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 if not logger.handlers:
     handler = logging.StreamHandler(stream=sys.stdout)
     logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 try:
     import idautils
@@ -23,6 +23,10 @@ try:
     def make_stack_variable(func_start, offset, name, size):
         func = idaapi.get_func(func_start)
         frame = idaapi.get_frame(func)
+        if frame is None:
+            if idaapi.add_frame(func, 0, 0, 0) == -1:
+                raise ValueError("couldn't create frame for function @ 0x%x" % func_start)
+            frame = idaapi.get_frame(func)
 
         offset += func.frsize
         member = idaapi.get_member(frame, offset)
