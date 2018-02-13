@@ -52,10 +52,10 @@ And no:
 ## CAN
 ```sh
 ip link show dev can0
-ip link set can0 type can help
-sudo ip link set can0 type can bitrate 500000 listen-only on
+sudo ip link set can0 type can bitrate 49500 listen-only on
 sudo ip link set can0 up
 candump -cae can0,0:0,#FFFFFFFF
+cansend can0 332#756e6c6f636b0000
 ```
 
 WARNING: listen-only
@@ -162,5 +162,13 @@ At which point, we'll find out we can't because car is going too fast...
 So spam 0x10c to bring that down?
 Maybe zero 0x1bf to protective shutoff?
 
+## Write Up
 
+	1. check out the dashboard app, learn the serial protocol, enable debug prints
+	2. connect logic analyzer to the CAN terminals, capture some frames
+		* learn that the bitrate is 49.5 bps
+		* see the 0x332 "lock" frames
+	3. attach and configure our USB2CAN adapter
+	4. send 0x332 "unlock" frame
+	5. submit flag
 
