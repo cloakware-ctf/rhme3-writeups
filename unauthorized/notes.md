@@ -149,7 +149,42 @@ parse_and_maybe_set_flag_printer(input){
 	if (saved_position != 0x1f)
 		die_and_remember
 
+TODO
 
+## `ROM:046D get_valid_rand`
+
+This function is called by the `parse_and_maybe_set_flag_printer` function above. At this point I couldn't handle keeping track of `Y+NN` anymore so I wrote a stack-variable making script basing Y as the stack pointer (which avr-gcc appears to use).
+
+ maybe_test_const_rng(illegal_rand) {
+ 	word last_rand;
+ 	for (i=0; i<= 0xff; i++)
+ 		last_rand = prob_get_rand();
+ 	if (last_rand == illegal_rand) {
+ 		illegal_rand = last_rand;
+ 		for (i=0; i<0x400; i++) {
+ 			last_rand = prob_get_rand();
+ 		}
+ 		if (last_rand == illegal_rand)
+ 			die();
+ 	}
+ 	if (illegal_rand > 0x21 ) {
+ 		illegal_rand =- 0x30;
+ 		illegal_rand[H] = -1 * (illegal_rand[L] << 1 - illegal_rand[L] << 1);
+ 		illegal_rand[L] = illegal_rand[L] << 2;
+ 	}
+ 	illegal_rand_copy = illegal_rand;
+ 	j=0;
+ 	while(j < illegal_rand && illegal_rand_copy != 0) {
+ 		busy_mux();
+ 		j++;
+ 		busy_mux();
+ 		illegal_rand_copy--;
+ 	}
+ 	if (j != illegal_rand || illegal_rand_copy == 0)
+ 		die_and_remember();
+ 	busy_mux()
+ 	return illegal_rand_copy;
+ }
 
 
 
