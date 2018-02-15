@@ -69,7 +69,7 @@ char test_eeprom_4f91(char arg0) {
 }
 
 OUT: r24 = 0x0F
-char test_write_eeprom_4eea(void) {
+char init_load_eeprom_4eea(void) {
 	// stack frame: 0xab
 	char x = 1;        // Y+1
 	char var_2 = 0;    // Y+2
@@ -96,18 +96,103 @@ main_loop_2c8b()
 	* XXX TODO: reverse here
 
 I've labelled a function "brick_and_die", but it might just wipe out progress
+	* It sets a flag that causes detect_fi() to take the slow path
+
+We enable interrupts...
+	* 0x56 -> INT0__
+		- PORTE_INT_base?
+	* 0x58 -> INT1__0
+
+Get the right manual, go to page ~426, find the base address, follow link.
+
+
+## Patching with r2
+```sh
+[0x00000000]> e asm.cpu =?
+...
+ATxmega128a4u
+[0x00000000]> e asm.cpu = ATxmega128a4u
+[0x00000000]> 0xd400
+[0x0000d400]> pd 8
+       ::   0x0000d400      8f3f           cpi r24, 0xff
+       ::   0x0000d402      9105           cpc r25, r1
+       `==< 0x0000d404      91f3           breq 0xd3ea
+        `=< 0x0000d406      88f3           brcs 0xd3ea
+            0x0000d408      0e94316d       call 0xda62
+            0x0000d40c      8d83           std y+5, r24
+            0x0000d40e      9e83           std y+6, r25
+            0x0000d410      2981           ldd r18, y+1
+[0x0000d400]> oo+
+[0x0000d400]> wx 8130
+[0x0000d400]> pd 8
+       ::   0x0000d400      8130           cpi r24, 0x01
+       ::   0x0000d402      9105           cpc r25, r1
+       `==< 0x0000d404      91f3           breq 0xd3ea
+        `=< 0x0000d406      88f3           brcs 0xd3ea
+            0x0000d408      0e94316d       call 0xda62
+            0x0000d40c      8d83           std y+5, r24
+            0x0000d40e      9e83           std y+6, r25
+            0x0000d410      2981           ldd r18, y+1
+[0x0000d400]> wa  cpi r24, 0x10
+Written 2 byte(s) ( cpi r24, 0x10) = wx 8031
+[0x0000d400]> pd 8
+       ::   0x0000d400      8031           cpi r24, 0x10
+       ::   0x0000d402      9105           cpc r25, r1
+       `==< 0x0000d404      91f3           breq 0xd3ea
+        `=< 0x0000d406      88f3           brcs 0xd3ea
+            0x0000d408      0e94316d       call 0xda62
+            0x0000d40c      8d83           std y+5, r24
+            0x0000d40e      9e83           std y+6, r25
+            0x0000d410      2981           ldd r18, y+1
+```
+
+Description:
+	- e -- muck around with variables, cpu is set wrong, have to fix
+	- o -- muck around with files
+	- oo+ -- reopen current file, in RW
+	- w -- write
+	- wx -- write give hex string to current position
+	- 0xd400 -- move around
+	- pd 8 -- print disassembly, 8 lines
 
 ## Simulated Runs:
 Breakpoints:
 	7226 / 0xe44c usart_print
-	???? / write_eeprom
-		- need to do manually
+	2c8b / 0x5916 main_loop_2c8b
 
-Patches:
+### Patches:
 	6a00 / 0xd400 -- 8f3f -> 8330
 	6d4b / 0xda96 -- 8d83 -> 8f70 90e0 8b83 1c82 8d83 1e82
 	92e5 / 0x125ca -- e0ec f1e0 -> 682f 70e1 fb01 2083 0196 0895
+```sh
+	# patch const RNG test to iterate 3 times instead of 255 times
+	0x6a00*2
+	wa  cpi r24, 0x03
 
+	# patch test RNG `rx24` times to `and` rx24 with 0x000f to reduce count
+	0x6d4b*2
+	"wa  andi r24, 0x0f; ldi r25, 0x00; std y+3, r24; std y+4, r1; std y+5, r24; std y+6, r1"
+
+	# patch eeprom block reads to come from RAM:0x3200 instead
+	0x92c7*2
+	wa  sbci r23, -0x32
+
+	# patch eeprom byte reads to come from RAM:0x3200 instead
+	0x92d8*2
+	wa  sbci r31, -0x32
+
+	# patch eeprom writes to go to RAM:0x3200
+	0x92e5*2
+    "wa movw r22, r24; ldi r19, 0x32; add r23, r19; movw r30, r22; st z, r18; adiw r24, 0x01; ret"
+
+	# write a 0xff to 0x3200 so that we don't have to go through FI slow startup
+	0x6778*2
+	"wa ser r24; sts 0x3200, r24; ldi r24, 0; ldi r25, 0; call 0x12594; std y+3, r24; std y+1, r1; std y+2, r1; nop"
+
+```
+
+### --
 Issue: Simulator doesn't do EEPROM writes
-Solution: none.
+Solution: Find another spot and patch it to write there...
+	- BSS ends at 0x3081, so I could use 0x3100+
 
