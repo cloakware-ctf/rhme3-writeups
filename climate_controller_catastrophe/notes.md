@@ -107,36 +107,84 @@ void main_loop_2C8B(void) {
 	char yD[11];    // Y+13..23
 	                // Y.....34
 	y1 = 0;
-	if (byte_1021b9 != byte_1021ba) { // note 0x2137+0x82
-		byte_1021ba = (byte_1021ba+1)%8
-		rx24 = byte_1021ba * 14 + 0x12
-		sub_25a0(&yD, &0x2137[rx24]);
-		sub_2612(yD);
-	}
-	if (sub_26e3()) {
-		// this block is doing dynamic stack allocation
-		//
-		rx16 = $sp;
-		y5 = sub_2654();
-		unused7 = y5-1
-		$sp -= y5
-		y9 = $sp + 1
-		memset(y9, 0x0, y5);
-
-		yB = sub_2720(y9);
-		if (yB == 0x665) {
-			sub_1094(y9, y5);
-		} else if (yB == 0x776) {
-			sub_66c5(y9, r5);
-		} else {
-			// nil
+	while (true) {
+		if (byte_1021b9 != byte_1021ba) { // note 0x2137+0x82
+			byte_1021ba = (byte_1021ba+1)%8
+				rx24 = byte_1021ba * 14 + 0x12
+				sub_25a0(&yD, &0x2137[rx24]);
+			sub_2612(yD);
 		}
-		$sp = rx16; // stack back
-	}
+		if (sub_26e3()) {
+			// this block is doing dynamic stack allocation
+			rx16 = $sp;
+			y5 = sub_2654();
+			unused7 = y5-1;
+			$sp -= y5;
+			y9 = $sp + 1;
+			memset(y9, 0x0, y5);
 
+			yB = sub_2720(y9);
+			if (yB == 0x665) {
+				sub_1094(y9, y5);
+			} else if (yB == 0x776) {
+				msg_dispatch_66c8(y9, r5);
+			} else {
+				// nil
+			}
+			$sp = rx16; // stack back
+		}
+		y1 = (y1 + 1) & 1
+			if (y1 != 0x100 && byte_102e5d) try_readMessageBuffer_2575();
+	}
+	// forever
 }
 
-void sub_66c8(void *arg0, void *arg1) {
+sub_25a0() {
+	// XXX
+}
+
+sub_2612() {
+	// XXX
+}
+
+bool sub_26e3() {
+	short y1 = sub_2654();
+	char topNibble = byte_102a11 >> 4;
+	if (topNibble == 1) {
+		rx24 = 4*((2 * y1 / 7) + y1) +1
+		if (byte_102e5e >= rx24) return true;
+		else return false;
+	} else {
+		if (byte_102e5e) return true;
+		else return false;
+	}
+}
+
+short sub_2654(void) {
+	short y1 = 0;
+	char topNibble = byte_102a11 >> 4;
+	if (topNibble == 0) {
+		y1 = (byte_102a1b & 0xf) - 1;
+		if (y1<9)  return y1;
+		else return 0;
+	} else if (topNibble == 1) {
+		return ((byte_102a11 & 0xf) << 8) | byte_102a12;
+	} else {
+		return 0;
+	}
+}
+
+sub_2720() {
+	// XXX -- this one is important
+}
+
+sub_1094(sh) {
+	char y1;
+	// arg0
+	// XXX
+}
+
+void msg_dispatch_66c8(void *arg0, void *arg1) {
 	// arg0 at Y+1..2
 	// arg1 at Y+3..4
 	if (byte_102e61 == 11) {
@@ -147,6 +195,11 @@ void sub_66c8(void *arg0, void *arg1) {
 	}
 	return;
 }
+
+try_readMessageBuffer_2575() {
+	// XXX
+}
+
 
 void parse_cert_6481(void *arg0, void *arg1) {
 	// stack frame 9
@@ -188,6 +241,45 @@ void parse_cert_6481(void *arg0, void *arg1) {
 		printf("Session key initialized"):
 		return 0x4a;
 	}
+}
+
+void sub_666d(void *arg0, short five) {
+	// stack frame 8
+	short unused;    //  Y+1..2
+	char buffer[36]; //  Y+3..4
+	// arg0 is stored at Y+5..6
+	// five is stored at Y+7..8
+	rx14 = rx16 = $sp;
+	{
+		unused = 0x20+five-1;
+		$sp -= (0x20+five); // stack alloc 37 bytes
+		buffer = $sp+1;
+		sub_2af8(arg0, five, buffer+five);
+		memcpy(buffer, arg0, five);
+		sub_61c1(buffer, 0x20+five, 0x01ff, 0x40);
+	}
+	$sp = r14;
+	$sp = r16;
+	return;
+}
+
+void sub_2af8(char *src, short offset, char* dest) {
+	// stack frame 22 / 0x16
+	char swap[16]; // Y+1
+	// src      is at Y+0x11..12
+	// offset   is at Y+0x13..13
+	// dest     is at Y+0x15..16
+	for (i=0; i<16; i++) {
+		swap[i] = 0;
+	}
+	eeprom_read_block(&swap, 0x1028, 16);
+	possible_hmac_4b03(dest, swap, 0x0080, src, offset << 3);
+	return;
+}
+
+void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
+	// possibly HMAC_SHA_256?
+	// XXX
 }
 
 void generate_session_key_2b8a(void* arg0) {
@@ -369,6 +461,26 @@ Possible inroads:
 	- we have a some printf()s related to message recipt -> backtrace
 	- look for overflows: memcpy, memmove, printf
 		- also general search for X+, Y+, Z+
+		- nope, too many to just check them all out
+
+## String Backtracing
+main_500e
+	sub_671e -- these two are the calls between "Initializing..."
+	sub_65c1 -- and "Initialization complete"
+		cert_loadP_4de4 -- P in this case mean '?'
+		cert_parse_63E0 -- "Invalid certificate size", "Loaded invalid certificate"
+			cert_check_valid_6297
+				cert_check_Riscar_CA_6236 -- "Riscar CA"
+				cert_check_Nist_P192_627B -- "NIST P-192"
+			sub_61c1 -> sub_2873 -> sub 28c9
+				cert_something[123] -- "Unexpected length parameter"
+	main_loop_2c8b
+		msg_dispatch_66C8 -- "Message received, sharing climate control settings."
+			parse_cert_6481 -- "Certificate format not supported", "Key length not supported", "Invalid length parameters", "Session key initialized"
+				generate_session_key_2b8a --  "Error during session key generation", "Insufficient memory"
+			sub_666d
+		sub_2720
+			try_readMessageBuffer_2575 -- "Failed to read message buffer" && die
 
 ## Patching with r2
 ```sh
