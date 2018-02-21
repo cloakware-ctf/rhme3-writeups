@@ -149,33 +149,101 @@ sub_2612() {
 
 bool sub_26e3() {
 	short y1 = sub_2654();
-	char topNibble = byte_102a11 >> 4;
+	char topNibble = struct_102a11 >> 4;
 	if (topNibble == 1) {
 		rx24 = 4*((2 * y1 / 7) + y1) +1
-		if (byte_102e5e >= rx24) return true;
+		if (msgs_waiting_102e5e >= rx24) return true;
 		else return false;
 	} else {
-		if (byte_102e5e) return true;
+		if (msgs_waiting_102e5e) return true;
 		else return false;
 	}
 }
 
 short sub_2654(void) {
 	short y1 = 0;
-	char topNibble = byte_102a11 >> 4;
+	char topNibble = struct_102a11 >> 4;
 	if (topNibble == 0) {
 		y1 = (byte_102a1b & 0xf) - 1;
 		if (y1<9)  return y1;
 		else return 0;
 	} else if (topNibble == 1) {
-		return ((byte_102a11 & 0xf) << 8) | byte_102a12;
+		return ((struct_102a11 & 0xf) << 8) | byte_102a12;
 	} else {
 		return 0;
 	}
 }
 
-sub_2720() {
-	// XXX -- this one is important
+char sub_296d(char *arg0, char arg1) {
+	// char** arg0; // Y+1..2
+	// char arg1;   // Y+3
+	if (byte_102e5d + arg1 < 0x64) {
+		memcpy(struct_1025c5[byte_102e5d], arg0, arg1 * 11);
+		byte_102e5d += arg1;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+short sub_2720(char* arg0) {
+	// stack frame: 0x1c / 28
+	short y1;       // Y+1..2
+	short y3;       // Y+3..4
+	char y5 = 0;    // Y+5
+	short y6;       // Y+6..7
+	short y8;       // Y+8..9
+	char yA = 0;    // Y+10
+	short yB;       // Y+11..12
+	short yD;       // Y+13..14
+	char yF;        // Y+15
+	char y10[11];   // Y+16..26
+	// char** arg0; // Y+27..28
+
+	y5 = 0;
+	while (3 == struct_102a11 >> 4) { // high nibble == 3
+		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e * 11); 
+		msgs_waiting_102e5e -= 1;
+	}
+	if (0 == struct_102a11 >> 4) {
+		y6 = struct_102a11.short5;
+		y8 = sub_2654();
+		memcpy(arg0, byte_102a12, y8);
+		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e*11);
+		msgs_waiting_102e5e -= 1;
+		return y6;
+	} else if (2 == struct_102a11 >> 4) {
+		sub_2ac1(&y10, 2, 0, 0x500, 0, 0);
+		yA = sub_296d(&y10, 1);
+		if (yA==0) {
+			try_readMessageBuffer_2575();
+			sub_296d(&y10, 1);
+		}
+		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e*11);
+		msgs_waiting_102e5e -= 1;
+		return 0;
+	} else { // == 1?
+		yB = struct_102a11.short5;
+		yD = sub_2654();
+		memcpy(arg0, &struct_102a11.data, 6);
+		for (y1 = 6, y3 = 1; y1 < yD; y3++) {
+			Z = arg0 + y1
+			X = &struct_102a11[y3];
+			yF = sub_26a6(&arg0.data, X[0..10]); // param 2 in r12..r22
+			y1 += yF
+		}
+		if (yD == 0 && msgs_waiting_102e5e != 0) {
+			msgs_waiting_102e5e -= 1;
+		}
+		if (msgs_waiting_102e5e >= yD) {
+			msgs_waiting_102e5e -= yD;
+		} else {
+			msgs_waiting_102e5e = 0;
+		}
+		// XXX JMB: why +1 below, that screams overflow...
+		memmove(struct_102a11, struct_102a11[y3], msgs_waiting_102e5e * 11 + 1);
+		return yB;
+	}
 }
 
 sub_1094(sh) {
@@ -199,7 +267,6 @@ void msg_dispatch_66c8(void *arg0, void *arg1) {
 try_readMessageBuffer_2575() {
 	// XXX
 }
-
 
 void parse_cert_6481(void *arg0, void *arg1) {
 	// stack frame 9
@@ -367,24 +434,6 @@ sub_2d64(char arg0[]) {
 	arg0[2] |= j;
 }
 
-struct sessionKey {
-	short s1;
-	char  c1;
-	char  buf1[192];
-	short s2;
-	char  c2;
-	char  buf2[192];
-	short s3;
-	char  c3;
-	char  buf3[192];
-	short s4;
-	char  c4;
-	char  buf4[192];
-	short s5;
-	char  c5;
-	char  buf5[192];
-};
-
 char init_struct_50a9(sessionKey key, short size) {
 	// arg0 at Y+1..2
 	// size at Y+3..4
@@ -419,6 +468,36 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 		usartC0_send_byte( y5 | ~byte_102ef0 );
 	}
 }
+```
+
+Structs:
+```c
+struct struct_102a11 {
+	char:4  nibble1;
+	char:4  nibble2;
+	char    char3;
+	char[6] data;
+	short   short5;
+	char    nibble6;
+}
+
+struct sessionKey {
+	short s1;
+	char  c1;
+	char  buf1[192];
+	short s2;
+	char  c2;
+	char  buf2[192];
+	short s3;
+	char  c3;
+	char  buf3[192];
+	short s4;
+	char  c4;
+	char  buf4[192];
+	short s5;
+	char  c5;
+	char  buf5[192];
+};
 
 ```
 
