@@ -52,7 +52,13 @@ Legend:
 	D12 -> c7
 	D13 -> c6
 
-## Pin Outs
+Spec sheet says that D6,11,12,13 are SPID. I analysed as SPI, and got something.
+Consulted with Ben: he noticed that D9,10 are two lines of a SPI as well. Checking out the board schematics, he noticed that those lines are also the inputs to the CAN controllers.
+
+Current Theory: The CANBUS is active and listening for packets. We need to connect to it and start sending frames. Good frames will likely get us responses over the serial line.
+
+
+### Pin Outs
 	D7,8 -> pin 6,7 -> PB2,3
 		- unused
 	RX,TX -> pin 12,13 -> PC2,3
@@ -65,6 +71,7 @@ Legend:
 		- Port D
 		- D6,11 can be used as TCD1/OC1A,B
 		- D12,13 can be used as USB D-,D+, USART D1
+		- SPI: D6; D11,D12,D13
 
 Notes:
 	USARTC0 is at 0x8a0 .. 0x8a7
@@ -75,9 +82,29 @@ Notes:
 Notes:
 	USARTD1_DATA is referenced at 2121, which is referenced at 2127
 
-## Reversing: Looking for I/O:
+### Reversing: Looking for I/O:
 	* DACB_CTRLA -- lots of code, but at the end, uncalled
 	* ADCA_CTRLA -- also referenced, but uncalled
+
+I suspect that the secondary I/O happens over USART D1, using interrupts. Which means `eicall`.
+
+Syntax:
+	PC <= EIND:ZH:ZL
+
+generate_session_key_2b8a
+	sub_521D
+		4x eicall
+	...
+	sub_532B
+		LOTSx eicall
+	sub_5599
+		LOTSx eicall
+
+print_flag_8bb8
+	eicall usartC0_send_byte
+fputc
+	eicall
+
 
 ## Decompilation
 ```c
@@ -489,6 +516,55 @@ char sub_296d(char *arg0, char arg1) {
 }
 
 try_readMessageBuffer_2575() {
+	// XXX
+}
+
+/*** INTERRUPTS ******************************************************/
+void INT0_(void) {
+	portb_output_set_74c7();
+	sub_7904(some_sort_of_struct);
+}
+
+void INT1__0(void) {
+	portb_output_set_74c7();
+	sub_7904(byte_1021C1);
+}
+
+void portb_output_set_74c7(void) {
+	PORTB_OUTSET = 1; // 0x625 -- "I/O Port Output Set"
+}
+
+void sub_7904(char *arg) {
+	// char y1; // Y+1
+	char y2;   // Y+2
+	char sreg; // Y+3
+	// arg is at  Y+4..5
+
+	char sreg = *CPU_SREG; // Y+3
+	disable_interrupts(); // always returns 1
+	// note there's an omitted y1 that mediates a do{}while(false);
+
+	y2 = sub_7b8b(arg[84], arg[86]) >> 6;
+	if (y2 & 1) {
+		arg[82] = (arg[82] + 1) % 8;
+		rx24 = 14 * arg[82] + 0x12;
+		sub_788d(arg, 0, &arg[rx24]);
+	}
+
+	if (y2 & 2) {
+		arg[82] = (arg[82] + 1) % 8;
+		rx24 = 14 * arg[82] + 0x12;
+		sub_788d(arg, 0, &arg[rx24]);
+	}
+
+	restore_status_register(&sreg);
+}
+
+char sub_7b8b(short arg0, short arg1) {
+	// XXX
+}
+
+void sub_788d(char *arg0, char arg1, char *arg2) { // sub_7893
 	// XXX
 }
 
