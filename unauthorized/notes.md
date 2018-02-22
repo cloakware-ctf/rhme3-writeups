@@ -116,20 +116,22 @@ parse_and_maybe_set_flag_printer(input){
 	weird_thing = 0
 	other_thing: Yx+0xC
 	other_thing = first_colon
-	change_stack(-(first_colon_distance + 1))
+	first_colon_buffer = alloca(-(first_colon_distance + 1)) + 1
 	first_colon_buffer: Y+0xE
-	first_colon_buffer = newstack + 1
 
 	saved_position ^= 8
 	distance_between_colons: Y+0x10
 	distance_between_colons = second_colon - first_colon - 1
+	high_test: r0
+	high_test = (distance_between_colons & 0xff00) >> 8
+	high_test = high_test << 1
 	ya_weird_thing: Y+0x12
 	ya_weird_thing = 0
+
 	ya_distance_between_colons: Y+0x14
 	ya_distance_between_colons = distance_between_colons
-	change_stack(-(distance_between_colons + 1))
+	second_colon_buffer = alloca(-(distance_between_colons + 1)) + 1
 	second_colon_buffer: Y+0x16
-	second_colon_buffer = newstack + 1
 	memcpy(first_colon_buffer, input, first_colon_distance)
 	first_colon_buffer[first_colon_distance] = 0
 	place_1: Y+0x28
@@ -146,16 +148,46 @@ parse_and_maybe_set_flag_printer(input){
 	second_number = strtoi(second_colon_buffer, place_1, 10)
 	after_2 = place_1
 
-	if (saved_position != 0x1f)
+	get_valid_rand(illegal_rand=saved_position)
+	saved_position ^= 32
+	before_second_digit_end = second_digit_end - 1
+	later_buffer = alloca(-second_digit_end) + 1
+
+	memcpy(name_field_buffer, input + first_colon_distance + distance_between_colons + 2, first_digit_end)
+
+	if (saved_position != 0x3f)
 		die_and_remember
 
-TODO
+	get_valid_rand(saved_position) // saved_position == 0x3f
+	y = 100
+	ret = 0
+	while (y>0)
+	{
+		get_valid_rand(saved_position)
+		saved_position = 0
+
+		//mallocd_ptr: global
+		rx24 = ( ((Y+saved_position)&0xff00 >> 8) + high_test) << 8 | high_test
+		if (mallocd_ptr[rx24 + 32] == 0)
+			continue
+
+
+
+		...
+		y--;
+	}
+	return ret
+}
+
+### stack layout
+...
+later_buffer = X - second_digit_end + 1
 
 ## `ROM:046D get_valid_rand`
 
 This function is called by the `parse_and_maybe_set_flag_printer` function above. At this point I couldn't handle keeping track of `Y+NN` anymore so I wrote a stack-variable making script basing Y as the stack pointer (which avr-gcc appears to use).
 
- maybe_test_const_rng(illegal_rand) {
+ get_valid_rand(illegal_rand) {
  	word last_rand;
  	for (i=0; i<= 0xff; i++)
  		last_rand = prob_get_rand();
