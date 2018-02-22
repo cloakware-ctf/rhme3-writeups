@@ -106,7 +106,6 @@ fputc
 
 ## Decompilation
 ```c
-
 Note: ROM:0x3bf is left on stack
 void init_flag_array_89bb(void) {
 	// stack frame: 11
@@ -181,7 +180,9 @@ char load_default_cert_4eea(void) {
 	ret = 0xf;
 	return ret;
 }
+```
 
+```c
 /*** MAIN LOOP *******************************************************/
 
 void main_loop_2C8B(void) {
@@ -275,8 +276,8 @@ void sub_1094(char* buffer, short arg1) {
 	if (buffer[0] == 0x3d || buffer[0] == 0x27 || buffer[0] == 0x31) {
 		y1 = 0x87;
 		if (buffer[0] == 0x27) {
-			y1 = jmb_parser_DC8(buffer, arg1);
-			if (y1 != 0x78) remember_and_die();
+			y1 = jmb_parser_dc8(buffer, arg1);
+			// if (y1 != 0x78) remember_and_die();
 		} else if (off_1020f0 != 0x3c) {
 			can_send_error_110c(0x33);
 		} else if (buffer[0] == 0x31) {
@@ -287,6 +288,174 @@ void sub_1094(char* buffer, short arg1) {
 	} else {
 		can_send_error_110c(0x11);
 	}
+}
+
+char jmb_parser_dc8(char *buffer, short arg1) {
+	// stack frame 0x1f -- 31
+	char y1;        // Y+1
+	short y2;       // Y+2..3 - more checks
+	short y4;       // Y+4..5 - more checks
+	char ret;       // Y+6
+	char check;     // Y+7 - xor checks to avoid remember_and_die()
+	char data1[10]; // Y+0x8..0x11
+	char data2[8];  // Y+0x12..0x19
+	char data3[2];  // Y+0xa..0xb
+	// buffer is at    Y+0x1c..0x1d
+	// arg1 is at      Y+0x1e..0x1f
+
+	ret = 0x0087;
+	if (0 == (buffer[1] & 1)) {
+		if (arg1 >= 0) {
+			sub_9ac();
+			byte_1020f1 = 0x5a;
+			memset(data1, 0, 8);
+			data1[0] = 0x67;
+			data1[1] = buffer[1] & 0x3f;
+			memcpy(&data1[2], array_1025bc, 8);
+			j_can_send_666_111f(data1, 10);
+			byte_1025c4 = 0;
+			return ~ret;
+		} else {
+			can_send_error_110c(0x13);
+			return ~ret;
+		}
+	} else {
+		if (byte_1020f1 != 0x5a) {
+			can_send_error_110c(0x24);
+			return ~ret;
+		} else if (byte_1025c4 >= 4) {
+			sub_9ac();
+			can_send_error_110c(0x24);
+			return ~ret;
+		} else if (arg1 >= 11) {
+			can_send_error_110c(0x13);
+			return ~ret;
+		} else {
+			byte_1025c4 += 1;
+			memcpy(data2, &buffer[2], arg1-2);
+			y1 = sub_882(data2);
+			if (y1 == 0x1e) {
+				memset(data3, 0, 2);
+				data3[0] = 0x67;
+				data3[1] = buffer[1] & 0x3f;
+				j_can_send_666_111f(data3, 2);
+				return ~ret;
+			} else if (byte_1025c4 == 4) {
+				can_send_error_110c(0x35);
+				return ~ret;
+			} else {
+				can_send_error_110c(0x36);
+				sub_9ac();
+				return ~ret;
+			}
+		}
+	}
+}
+
+void jmb_parsing_cfc(char *buffer, short bufLen) {
+	/* buffer looks like:
+		0: ???
+		1: 0x20, 0x21, or 0x22
+		2,3: data, 2 bytes, length in y2
+		4,5: data, 0..2 bytes, length in y3
+
+	   bufLen should be 2+y2+y3+b4
+	 */
+	char y1;        // Y+1
+	char y2;        // Y+2
+	char y3;        // Y+3
+	char *data;     // Y+4..5
+	char rc;        // Y+6
+	void *eeprom_addr; // Y+7..8
+	short eeprom_len;  // Y+9..a
+	// buffer is at    Y+0xb..0xc
+	// bufLen is at    Y+0xd..0xe
+	if (byte_1020f0 != 0x3c) {
+		remember_and_die();
+	}
+
+	if (arg < 6) {
+		can_send_error_110c(0x13);
+		return;
+	}
+
+	y1 = buffer[1];
+	y2 = y1 & 0xf;
+	y3 = y1 >> 4;
+	if (y2 != 2) {
+		can_send_error_110c(0x31);
+		return;
+	}
+
+	eeprom_addr = buffer[2:3];
+	if (y3 >= 3) {
+		can_send_error_110c(0x22);
+		return;
+	}
+
+	memset(&eeprom_len, 0, 2);
+	if (bufLen < 2 + y2 + y3) {
+		can_send_error_110c(0x13);
+		return;
+	}
+
+	memcpy(&eeprom_len, &buffer[y2+2], y3);
+	if (bufLen < 2 + y2 + y3 + eeprom_len) {
+		can_send_error_110c(0x13);
+		return;
+	}
+
+	data = &buffer[2 + y2 + y3 + eeprom_len];
+	rc = eeprom_write_arbitrary_block_ca3(data, eeprom_addr, eeprom_len);
+	if (rc != 1) {
+		can_send_error_110c(0x31);
+		return;
+	}
+
+	buffer[0] = 0x7d;
+	j_can_send_666_111f(buffer, 2 + y2 + y3);
+}
+
+char eeprom_write_arbitrary_block_ca3(char *data, void *eeprom_addr, short length) {
+    char y1 = 0;       // Y+1
+	char y2 = 0x96;    // Y+2
+	char y3 = 0x96;    // Y+3
+	char y4 = 0x96;    // Y+4
+	char y5 = 0x96;    // Y+5
+	// data is at      Y+6..7
+	// eeprom_addr at  Y+8..9
+	// length is at    Y+a..b
+
+	y2 = eeprom_valid_addr_len_be1(eeprom_addr, length);
+	if (y2 != 0x69) return 0;
+	y3 = eeprom_valid_addr_len_be1(eeprom_addr, length);
+	if (y2 != 0x69) remember_and_die();
+
+	eeprom_read_block(data, eeprom_addr, length);
+	y1 = 1;
+	if (y2 != 0x69) remember_and_die();
+	return y1;
+}
+
+char eeprom_valid_addr_len_be1(void *eeprom_addr, short length) {
+	char check;     // Y+1 -- initiall 0x25, later 0x52
+	char ret;       // Y+2
+	// eeprom_addr at  Y+3..4
+	// length is at    Y+5..6
+
+	ret = 0x96;
+	if (eeprom_addr + eeprom_len < eeprom_addr) {
+		return ret;
+	} else if (eeprom_len >= 0x401) {
+		return ret;
+	} else if (eeprom_addr < 0x0040 || 0x0441 <= eeprom_addr) {
+		return ret;
+	} else if (eeprom_addr + eeprom_len < 0x0040 || 0x441 <= eeprom_addr + eeprom_len) {
+		return ret;
+	}
+
+	ret = 0x69;
+	return ret;
 }
 
 void try_readMessageBuffer_2575(void) {
@@ -306,7 +475,7 @@ void msg_dispatch_66c8(void *arg0, void *arg1) {
 	if (byte_102e61 == 11) {
 		parse_cert_6481(arg0, arg1);
 	} else if (byte_102e61 != 0) {
-		printf("Message received, sharing climate control settings."):
+		printf("Message received, sharing climate control settings.");
 		sub_666d(0x210c, 5);
 	}
 	return;
@@ -369,7 +538,7 @@ void parse_cert_6481(void *arg0, void *arg1) {
 		printf("Key length not supported");
 		die();
 	}
-	y1 = arg0[1]+2:
+	y1 = arg0[1]+2;
 	/****/ if ( 0 == (y2=arg0[3]) || y2+5 < y1) {
 		printf("Invalid length parameters");
 		return 0xa4;
@@ -388,7 +557,7 @@ void parse_cert_6481(void *arg0, void *arg1) {
 	} else {
 		generate_session_key_2b8a(arg0+y2+y3+y4+10);
 		byte_102e61 = 0;
-		printf("Session key initialized"):
+		printf("Session key initialized");
 		return 0x4a;
 	}
 }
@@ -413,8 +582,8 @@ void generate_session_key_2b8a(void* arg0) {
 		buffer[i] = 0;
 	}
 	eeprom_read_block(buffer, 0x100a, 24);
-	y29 = 24
-	y33 = &buffer
+	y29 = 24;
+	y33 = &buffer;
 	sub_2d61(y29);
 	if (arg0[0]!=4) {
 		printf("Error during session key generation");
@@ -455,7 +624,9 @@ void generate_session_key_2b8a(void* arg0) {
 	eeprom_write_block(&y152, 0x1028, 16);
 	return;
 }
+```
 
+```c
 /*** SUB 2720 ********************************************************/
 
 short sub_2720(char* arg0) {
@@ -499,7 +670,7 @@ short sub_2720(char* arg0) {
 		yD = sub_2654();
 		memcpy(arg0, &struct_102a11.data, 6);
 		for (y1 = 6, y3 = 1; y1 < yD; y3++) {
-			Z = arg0 + y1
+			Z = arg0 + y1;
 			X = &struct_102a11[y3];
 			yF = sub_26a6(&arg0.data, X[0..10]); // param 2 in r12..r22
 			y1 += yF
@@ -569,7 +740,9 @@ char sub_296d(char *arg0, char arg1) {
 		return 0;
 	}
 }
+```
 
+```c
 /*** INTERRUPTS ******************************************************/
 
 void INT0_(void) {
@@ -619,7 +792,9 @@ char sub_7b8b(short arg0, short arg1) {
 void sub_788d(char *arg0, char arg1, char *arg2) { // sub_7893
 	// XXX
 }
+```
 
+```c
 /*** OTHER ***********************************************************/
 
 sub_2d64(char arg0[]) {
@@ -678,7 +853,9 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 		usartC0_send_byte( y5 | ~flag_mask_102ef0 );
 	}
 }
+```
 
+```c
 /*** OVERFLOW ********************************************************/
 
 jmb_parsing_cfc() {
@@ -747,7 +924,7 @@ void cert_load_and_check_63e0(void) {
 	}
 
 	// test_const_rng_69e5();
-	y7 = cert_check_valid_6297(&y8)
+	y7 = cert_check_valid_6297(&y8);
 	// test_const_rng_69e5();
 	if (y7 != 0x4a) {
 		msg_new_2ac1(&y108, 2, 0, 0x0000, 0, 0);
@@ -823,7 +1000,7 @@ char cert_check_valid_6297(char cert[0x100]) {
 	if (len2 == 0) return 0xa4;
 	memcpy(buffer3, &cert[len1+6], len2); // XXX overflow?
 
-	len3 = cert[len1+len2+7]
+	len3 = cert[len1+len2+7];
 	if (len3 == 0) return 0xa4;
 	memcpy(buffer2, &cert[len1+len2+8], len3);
 
@@ -875,7 +1052,6 @@ struct sessionKey {
 	char  c5;
 	char  buf5[192];
 };
-
 ```
 
 ## High Level Overview:
@@ -923,7 +1099,7 @@ Possible inroads:
 		- also general search for X+, Y+, Z+
 		- nope, too many to just check them all out
 
-## String Backtracing
+## Call Graphs
 main_500e
 	sub_671e -- these two are the calls between "Initializing..."
 	init_eeprom_certs_65c1 -- and "Initialization complete"
@@ -942,6 +1118,25 @@ main_500e
 			sub_666d
 		sub_2720
 			try_readMessageBuffer_2575 -- "Failed to read message buffer" && die
+
+main_loop_2c8b
+	sub_25a0
+	store_msg_2612
+	sub_26e3 -> sub_2654
+	sub_2654
+	sub_2720
+		* many
+	msg_dispatch_66c8
+		parse_cert_6481
+			generate_session_key_2b8a
+	sub_1094
+		jmb_parser_dc8
+		sub_1006
+		jmb_parsing_cfc
+			eeprom_write_arbitrary_block_ca3
+				- eeprom_write_block
+	try_readMessageBuffer_2575
+		readMessageBuffer_29a7
 
 ## Patching with r2
 ```sh
@@ -1096,7 +1291,7 @@ I need to drop ~200 bytes at EEPROM:0x40 (aka 0x1040).
 Things that write there:
 	load_default_cert_4eea
 		- writes the default certs that I have in my load
-	maybe sub_ca3
+	maybe eeprom_write_arbitrary_block_ca3
 		- writes to Y+8..9, which is argument rx22
 		- comes from jmb_parsing_cfc, Y+7..8, which is Y+(B..C)[2], which is argument rx24
 		- comes from sub_1094, Y+2..3, which is argument rx24
@@ -1197,7 +1392,7 @@ Back to fuzzing:
 	- a packet starting `11 F1 E3` ate an enormous number of packets before getting a reply
 	- mostly we get back `01 11`, occasional `01 33`
 	- default 5x packets per second from `cangen` is too fast. Trying 1/s.
-	- 
+	-
 
 ```
   can0  665   [2]  F1 E3                     '..'
