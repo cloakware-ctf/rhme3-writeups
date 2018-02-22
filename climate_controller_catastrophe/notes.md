@@ -268,14 +268,36 @@ bool sub_26e3() {
 	}
 }
 
-sub_1094(sh) {
+void sub_1094(char* buffer, short arg1) {
 	char y1;
-	// arg0
-	// XXX
+	// buffer is at Y+2..3
+	// arg1 is at Y+4..5
+	if (buffer[0] == 0x3d || buffer[0] == 0x27 || buffer[0] == 0x31) {
+		y1 = 0x87;
+		if (buffer[0] == 0x27) {
+			y1 = jmb_parser_DC8(buffer, arg1);
+			if (y1 != 0x78) remember_and_die();
+		} else if (off_1020f0 != 0x3c) {
+			can_send_error_110c(0x33);
+		} else if (buffer[0] == 0x31) {
+			sub_1006(buffer, arg1);
+		} else if (buffer[0] == 0x3d) {
+			jmb_parsing_cfc(buffer, arg1);
+		}
+	} else {
+		can_send_error_110c(0x11);
+	}
 }
 
-try_readMessageBuffer_2575() {
-	// XXX
+void try_readMessageBuffer_2575(void) {
+	char ret; // Y+1
+	char msg[11]; // Y+2..0xC
+	ret = readMessageBuffer_29a7(msg);
+	if (ret) {
+	} else {
+		printf("Failed to read message buffer");
+		die();
+	}
 }
 
 void msg_dispatch_66c8(void *arg0, void *arg1) {
@@ -1076,9 +1098,141 @@ Things that write there:
 		- writes the default certs that I have in my load
 	maybe sub_ca3
 		- writes to Y+8..9, which is argument rx22
-		- comes from jmb_parsing_CFC, Y+7..8, which is Y+(B..C)[2], which is argument rx24
+		- comes from jmb_parsing_cfc, Y+7..8, which is Y+(B..C)[2], which is argument rx24
 		- comes from sub_1094, Y+2..3, which is argument rx24
 		- comes from main_loop_2c8b, Y+9..10
 		- possible, not easy to check
 
+### Can Fuzzing:
+When I spam enough crap at the CANBUS, I get back error frames. That's good. That happens because we're getting responses from the CAN controllers, but, we're out of sync. Bus contention is crapping out the frames.
+
+I'm trying to guess what the bitrate of the controllers is:
+	- 5.5 us
+	- 1.5 us
+	- 1.833 us
+	- 4.583 / 11.42 -> 6.66 / 9.33
+
+I want a signal like:
+	- 43434343434343
+
+Consider raw CAN traffic:
+	0             Start Frame
+	011.0011.0010 Arbitration: 0x332
+	000           RTR, IDE, r0
+	1000          Length: 8 bytes
+	64 bits       Data: 8 bytes worth
+	15 bits       CRC
+	111           1, ACK, 1, EOF...
+
+What do I see:
+	a 1.167 us pulse after EOF -> possible 800 kHz signal? Possible 857 kHz signal?
+	Pulse width 4us
+
+Binary Search:
+	When I send with a bitrate of 250,000 I transmit and get error frames
+	300,000 -- error frame
+	350,000 -- nil
+	When I send with a bitrate of 500,000 it doesn't seem to do anything.
+
+### Reading the SPI
+I'm not liking fuzzing. Lets try looking at the SPI:                               __
+Reading the MCP25625 data sheet, the way it works is we drop the chip-select line (CS aka Enable), then send one byte to indicate command. They send some number of data bytes for that command, then raise the Enable line.
+
+Notable Commands:
+	0x03 Read
+	0x02 Write -- arg0 is address, arg1..n are data. If n>1 arg0 is incremented for each
+	0x05 Bit Modify -- arg0 is addres, arg1 is register mask, arg2 is byte
+
+Actual Commands:
+	0x02 0x0f 0x80                 Write CANCTRL set configuration
+	0x02 0x28 0x05 0xbb 0xc4       Write CNF3 ...
+									     CNF3 0x05: PHSEG2 = 0x5 (PS2 Length bits)
+									     CNF2 0xbb: use PHSEG2, sample once, PHSEG1=7, PRSEG=3
+									     CNF1 0xc4: SJW=4xTq, BRP=4 -- Tq = 10/Fosc
+	0x02 0x0f 0x00                 Write CANCTRL set normal
+
+	0x02 0x0f 0x80                 Write CANCTRL set configuration
+	0x02 0x00 0xcc 0xa0 0x00 0x00  Write RXF0SIDH: SID filter bits, first 11 bits are CAN id filter
+									     1100.1100.101 -> 110.0110.0101 -> 0x665
+	0x02 0x20 0xff 0xe0 0x00 0x00  Write RXM0SIDH: SID mask bits, first 11 bits are a mask
+									     1111.1111.111 -> ... -> 0x7ff
+	0x02 0x0f 0x00                 Write CANCTRL set normal
+
+	0x02 0x0f 0x80                 Write CANCTRL set configuration
+	0x05 0x2b 0x01 0x01            Bitset CANINTE RX0IE: interrupt when message received in RXB0
+	0x05 0x2b 0x02 0x02            Bitset CANINTE RX1IE: interrupt when message received in RXB1
+	0x02 0x0f 0x00                 Write CANCTRL set normal
+
+So, my bitrate is composed of Tq -- time quanta
+	1 Tq for sync
+	3 Tq for propagation (PRSEG)
+	7 Tq pre-sample time (PHSEG1)
+	5 Tq post-samp time  (PHSEG2)
+	16 Tq total per bit.
+
+Which means it takes 160 clocks per bit... fun.
+How fast is a clock? Possible external oscillator, on pin 20,21
+	Possibly 16-25 MHz... schematic says a 16 MHz external oscillator
+
+So, we know:
+	1. bitrate is 100 kHz
+	2. I need ot use a CAN id of 0x665
+
+Try it:
+```
+	can0  666   [2]  01 11                     '..'
+	can0  665   [8]  F1 E3 C7 8F 1E 3C 78 F0   '.....<x.'
+	can0  666   [2]  01 11                     '..'
+	can0  665   [8]  F1 E3 C7 8F 1E 3C 78 F0   '.....<x.'
+	can0  666   [2]  01 11                     '..'
+	can0  665   [8]  F1 E3 C7 8F 1E 3C 78 F0   '.....<x.'
+	can0  666   [2]  01 11                     '..'
+```
+Success.
+
+### --
+
+Back to fuzzing:
+	- packets starting with `F1 E3` get immediate responses
+	- a packet starting `11 F1 E3` ate an enormous number of packets before getting a reply
+	- mostly we get back `01 11`, occasional `01 33`
+	- default 5x packets per second from `cangen` is too fast. Trying 1/s.
+	- 
+
+```
+  can0  665   [2]  F1 E3                     '..'
+  can0  666   [2]  01 33                     '.3'
+```
+
+```
+  can0  500   [3]  32 00 00                  '2..'
+```
+
+`sub_1094` throws error codes 0x33 and 0x11 to `jmb_error_110c`
+That invokes `sub_111c` with the address of them and 0x1 (length)
+
+NOTE: The code also accepts 776.
+```
+  can0  776   [5]  04 27 11 22 33            '.'."3'
+  can0  1FF   [8]  10 25 64 0D 25 50 32 47   '.%d.%P2G'
+  can0  1FF   [8]  21 BD 08 6F 63 6F F2 10   '!..oco..'
+  can0  1FF   [8]  22 9A E9 35 57 F4 11 F6   '"..5W...'
+  can0  1FF   [8]  23 37 76 9F 46 1E E2 3F   '#7v.F..?'
+  can0  1FF   [8]  24 A6 EA 23 7E 7A B7 09   '$..#~z..'
+  can0  1FF   [4]  25 AA 70 8B               '%.p.'
+```
+That's because the SID selection is just a list of bits that MUST be set
+So actual SID is `[67][67ef][57df]`
+
+Testing:
+	665 667 66d 66f 675 677 67d 67f 6e5 6e7 6ed 6ef 6f5 6f7 6fd 6ff 765 767 76d 76f 775 777 77d 77f 7e5 7e7 7ed 7ef 7f5 7f7 7fd 7ff
+
+Results:
+```
+  can0  67D   [5]  04 27 11 22 33            '.'."3'
+  can0  666   [8]  10 0A 67 11 B3 53 DB 97   '..g..S..'
+  can0  67F   [5]  04 27 11 22 33            '.'."3'
+  can0  666   [5]  21 00 00 00 00            '!....'
+```
+Note: something weird here.
 
