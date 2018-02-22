@@ -35,11 +35,11 @@ TODO: Oscilloscope, check for analogue signals.
 Transcription:
 	T0. D6 goes low, D11 blips low for .583 us
 	T1. D13 pulses high 4 times 83ns, D11 spends most of that low, D10 blips low, later D6 goes high.
-	T2.0. D6 goes low for duration, D11 goes low three times, each time D13 goes high 5,5,4 times. 
+	T2.0. D6 goes low for duration, D11 goes low three times, each time D13 goes high 5,5,4 times.
 	(tiny delay)
 	T2.1. similar to T2, but D10 blips low, and D11 is less stable in first pulse
 	T2.2. D10 pulses low, D9 drops low
-	T3. D6 goes low for duration, D11 goes low once, in which time D13 goes high 4 times. 
+	T3. D6 goes low for duration, D11 goes low once, in which time D13 goes high 4 times.
 	T4. actual meaningful conversation, on lines D6, D9, D10, D11, D13
 
 Legend:
@@ -56,7 +56,6 @@ Spec sheet says that D6,11,12,13 are SPID. I analysed as SPI, and got something.
 Consulted with Ben: he noticed that D9,10 are two lines of a SPI as well. Checking out the board schematics, he noticed that those lines are also the inputs to the CAN controllers.
 
 Current Theory: The CANBUS is active and listening for packets. We need to connect to it and start sending frames. Good frames will likely get us responses over the serial line.
-
 
 ### Pin Outs
 	D7,8 -> pin 6,7 -> PB2,3
@@ -105,7 +104,6 @@ print_flag_8bb8
 fputc
 	eicall
 
-
 ## Decompilation
 ```c
 
@@ -135,14 +133,14 @@ char test_eeprom_4f91(char arg0) {
 	char buf2[8];  // Y+10
 
 	memset(buf1, 0, 8);
-	eeprom_read_block(buf1, 1, 8); // EEPROM address 1
+	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
 	memcpy(buf2, abba_10237A, 8);
 
 	if (0==strncmp(buf1, buf2, 8)) {
 		x = cert_4eea();
 	}
 
-	eeprom_read_block(buf1, 1, 8); // EEPROM address 1
+	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
 	if (0==strncmp(buf1, buf2, 8)) {
 		x = 0xf;
 	} else {
@@ -150,7 +148,7 @@ char test_eeprom_4f91(char arg0) {
 		// gonna die()
 	}
 
-	eeprom_read_block(buf1, 1, 8); // EEPROM address 1
+	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
 	if (0 != strncmp(buf1, buf2, 8)) brick_and_die();
 	if (0 != strncmp(buf1, buf2, 8)) brick_and_die();
 
@@ -419,7 +417,7 @@ short sub_2720(char* arg0) {
 
 	y5 = 0;
 	while (3 == struct_102a11.first >> 4) { // high nibble == 3
-		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e * 11); 
+		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e * 11);
 		msgs_waiting_102e5e -= 1;
 	}
 	if (0 == struct_102a11 >> 4) {
@@ -520,6 +518,7 @@ try_readMessageBuffer_2575() {
 }
 
 /*** INTERRUPTS ******************************************************/
+
 void INT0_(void) {
 	portb_output_set_74c7();
 	sub_7904(some_sort_of_struct);
@@ -626,17 +625,147 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 		usartC0_send_byte( y5 | ~byte_102ef0 );
 	}
 }
+
+/*** OVERFLOW ********************************************************/
+
+jmb_parsing_cfc() {
+	// XXX
+}
+
+cert_something1_29db() {
+	// XXX
+}
+
+possible_hmac_4b03() {
+	// XXX
+}
+
+void cert_load_and_check_63e0(void) {
+	// stack frame 0x112
+	short y1;          // Y+1..2
+	short unused;      // Y+3..4
+	char *y5;          // Y+5..6
+	char y7 = 0xa4;    // Y+7
+	char y8[0x100];    // Y+8..0x107
+	struct frame y108; // Y+0x108..0x112
+
+	memset(&y8, 0xff, 0x100);
+	// test_const_rng_69e5();
+	if (0 == cert_load_from_eeprom_61de(&y8)) { // safe
+		printf("Invalid certificate size");
+	}
+
+	// test_const_rng_69e5();
+	y7 = cert_check_valid_6297(&y8)
+	// test_const_rng_69e5();
+	if (y7 != 0x4a) {
+		msg_new_2ac1(&y108, 2, 0, 0x0000, 0, 0);
+		sub_77eb(0x2137, y108.short5, y108.last, &y108);
+		detect_fi_worker_6A7C();
+		printf("Loaded invalid certificate");
+		die();
+	}
+
+	rx14 = $sp;
+	{
+		y1 = y8[1]+2;
+		$sp -= (y1-1); // stack allocation based on input array
+		y5 =  $sp + 1;
+		memcpy(y5, &y8, y1);
+		sub_61c1(y5, y1,  0x777, 0x40);
+		byte_102e61 = 11;
+	}
+	$sp = rx14;
+}
+
+char cert_load_from_eeprom_61de(char* arg) { // sub_61e2
+	char y1;        // Y+1
+	char unused;    // Y+2..3
+	char check = 0; // Y+4
+	// arg is at       Y+5..6
+
+	// test_const_rng_69e5();
+	// check ^= 1;
+	y1 = eeprom_read_byte(0x1041)+2;
+	// test_const_rng_69e5();
+	// check ^= 2;
+	// if (check == 0) return 0;
+
+	// check ^= 4;
+	// test_const_rng_69e5();
+	// check ^= 8;
+	eeprom_read_block(arg, 0x1040, y1);
+
+	// check ^= 0x10;
+	// test_const_rng_69e5();
+	// if (check != 0x1f) remember_and_die();
+	// test_const_rng_69e5();
+	// if (check != 0x1f) remember_and_die();
+	return arg;
+}
+
+char cert_check_valid_6297(char cert[0x100]) {
+	// stack frame 0x132
+	char buffer1[100]; // Y+0x1..0x64
+	char buffer2[100]; // Y+0x65..0xc8
+	char buffer3[100]; // Y+0xc9..0x12c
+	char ret;          // Y+0x12d
+	char len1;         // Y+0x12e
+	char len2;         // Y+0x12f
+	char len3;         // Y+0x130
+	// p_cert is at       Y+0x131..0x132
+
+	memset(buffer1, 0, 100);
+	memset(buffer2, 0, 100);
+	memset(buffer3, 0, 100);
+	ret = 0xa4;
+	// test_const_rng_69e5();
+
+	if (cert[0] != 0x30) return 0xa4;
+	// test_const_rng_69e5();
+
+	len1 = cert[3];
+	if (len1 == 0) return 0xa4;
+	memcpy(buffer1, &cert[4], len1);
+
+	len2 = cert[len1+5];
+	if (len2 == 0) return 0xa4;
+	memcpy(buffer3, &cert[len1+6], len2); // XXX overflow?
+
+	len3 = cert[len1+len2+7]
+	if (len3 == 0) return 0xa4;
+	memcpy(buffer2, &cert[len1+len2+8], len3);
+
+	// note, the checks below don't check null terminators...
+	ret = cert_check_Riscar_CA_6236(buffer1);
+	if (ret != 0x4a) return 0xa4;
+
+	ret = cert_check_Nist_P192_627B(buffer3);
+	if (ret != 0x4a) return 0xa4;
+
+	ret = cert_check_abba_6252(buffer2);
+	return ret;
+}
+
+char cert_check_abba_6252(char buffer[100]) {
+	char block[8];
+	eeprom_read_block(block, 0x1001, 8);
+	rx24 = strncmp(block, buffer, 8);
+	if (rx24 == 0) return 0x4a;
+	else return 0xa4;
+}
+
 ```
 
 Structs:
 ```c
-struct struct_102a11 {
+struct frame {
 	char:4  nibble1;
 	char:4  nibble2;
 	char    char3;
 	char[6] data;
 	short   short5;
-	char    nibble6;
+	char    last;
 }
 
 struct sessionKey {
@@ -705,7 +834,7 @@ main_500e
 	sub_671e -- these two are the calls between "Initializing..."
 	sub_65c1 -- and "Initialization complete"
 		cert_loadP_4de4 -- P in this case mean '?'
-		cert_parse_63E0 -- "Invalid certificate size", "Loaded invalid certificate"
+		cert_load_and_check_63e0 -- "Invalid certificate size", "Loaded invalid certificate"
 			cert_check_valid_6297
 				cert_check_Riscar_CA_6236 -- "Riscar CA"
 				cert_check_Nist_P192_627B -- "NIST P-192"
@@ -808,4 +937,61 @@ Breakpoints:
 Issue: Simulator doesn't do EEPROM writes
 Solution: Find another spot and patch it to write there...
 	- BSS ends at 0x3081, so I could use 0x3100+
+
+## Payload
+In order to win the challenge we need:
+	1. to call sub_4e8f()
+	2. with RAM:0x210a set to 0x1337
+
+Neither of which are referenced, further, this is a Harvard architecture, so we can't execute arbitrary code. We need to ROP.
+
+Key Gadgets:
+	* Function INT0_ at ROM:79F5 populates r18-r31, r0, r1, SREG, and the RAMPs. If we have a relatively large payload size this makes it trivial to populate the registers as we need
+	* ROM:3514: store rx18 to Z or rx24 (choice)
+
+Other Gadgets:
+	* loc_2606: copy r18 byte from Z to X, etc
+	* loc_2ab5: copy r20 byte from Z to X, etc
+	* ... lots of these
+	* memmove, memcpy: copy rx20 bytes from rx22 to rx24
+
+## Finding the Injection Point
+To "smash the stack", we need an unbounded write to a stack array. Which means we're looking for Z+, Z- or similar.
+
+Candidates:
+	* memmove
+	* memcopy
+
+Other possibilities:
+	* malloc/free
+	* _ultoa_invert
+
+### memmove()
+	* sub_33b5
+	* sub_34e2
+	* sub_351c
+	* sub_5bb3
+
+### memcpy()
+	* sub_20a
+	* jmb_parsing_cfc
+	* sub_25a0
+	* sub_26a6
+	* sub_2720
+	* cert_something[123]
+	* sub_2ee4
+	* sub_3604
+	* sub_3ac4
+	* sub_3dbb
+	* sub_3fee
+	* sub_47b7
+	* sub_49dc
+	* possible_hmac_4b03
+	* sub_5f40
+	* cert_check_valid_6297
+	* cert_load_and_check_63e0
+	* sub_666d - no.
+
+### cert_check_valid_6297
+I think I can overflow this, I need to set buffer1 and buffer2 small,because the total needs to be less than 256 bytes (possibly 254), but each chunk can overflow a 100 byte buffer, so I could easily get 100 bytes of overflow, which should be enough to exploit.
 
