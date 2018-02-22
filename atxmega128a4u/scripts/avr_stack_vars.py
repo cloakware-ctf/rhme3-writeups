@@ -184,7 +184,7 @@ try:
                 make_stack_variable(this_function.startEA, stack_offset, "var_%x" % stack_offset, size)
 
                 name = get_stack_variable_name(this_function.startEA, stack_offset)
-                idc.OpAlt(a2nd_line.ea, 1, name)
+                idc.OpAlt(a2nd_line.ea, 1, "-%s" % name)
 
     print("some utility functions are defined:\nall_y_stack_vars_here()")
 
