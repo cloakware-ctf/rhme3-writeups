@@ -136,35 +136,50 @@ char test_eeprom_4f91(char arg0) {
 	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
 	memcpy(buf2, abba_10237A, 8);
 
-	if (0==strncmp(buf1, buf2, 8)) {
-		x = cert_4eea();
+	if (0 != strncmp(buf1, buf2, 8)) {
+		x = load_default_cert_4eea();
 	}
 
 	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
-	if (0==strncmp(buf1, buf2, 8)) {
+	if (0 == strncmp(buf1, buf2, 8)) {
 		x = 0xf;
 	} else {
-		x = cert_4eea();
+		x = cert_init_load_eeprom_4eea();
 		// gonna die()
 	}
 
 	eeprom_read_block(buf1, 0x1001, 8); // EEPROM address 1
-	if (0 != strncmp(buf1, buf2, 8)) brick_and_die();
-	if (0 != strncmp(buf1, buf2, 8)) brick_and_die();
+	if (0 != strncmp(buf1, buf2, 8)) remember_and_die();
+	if (0 != strncmp(buf1, buf2, 8)) remember_and_die();
 
 	return x;
 }
 
-OUT: r24 = 0x0F
-char init_load_eeprom_4eea(void) {
+char load_default_cert_4eea(void) {
 	// stack frame: 0xab
-	char x = 1;        // Y+1
-	char var_2 = 0;    // Y+2
-	char var_3 = 0xf0; // Y+3
-	char buf2[8];      // Y+4..12
+	char check = 0;    // Y+1 -- or die() tests
+	char offset = 0;   // Y+2 -- or die() tests
+	char ret = 0xf0;   // Y+3
+	char buf1[8];      // Y+0x4..0xb
+	char buf2[24];     // Y+0xc..0x23
+	char buf3[16];     // Y+0x24..0x33
+	char buf4[120];    // Y+0x34..0xab
 
-	memcpy(buf2, abba_10237A, 8);
-	// XXX
+	// check ^= 1;
+	memcpy(buf1, abba_10237A, 8);
+	eeprom_write_block(buf1, 0x1001, 8);
+
+	memcpy(buf2, array_102382, 24);
+	eeprom_write_block(buf2, 0x100a, 24);
+
+	memcpy(buf3, array_10239a, 24);
+	eeprom_write_block(buf3, 0x1028, 16);
+
+	memcpy(buf4, array_1022db, 120);
+	eeprom_write_block(buf4, 0x1040, 120);
+
+	ret = 0xf;
+	return ret;
 }
 
 /*** MAIN LOOP *******************************************************/
@@ -205,14 +220,30 @@ void main_loop_2C8B(void) {
 			}
 			$sp = rx16; // stack back
 		}
-		y1 = (y1 + 1) & 1
-			if (y1 != 0x100 && byte_102e5d) try_readMessageBuffer_2575();
+
+		y1 = (y1 + 1) & 1;
+		if (y1 != 0x10000 && byte_102e5d) {
+			try_readMessageBuffer_2575();
+		}
 	}
 	// forever
 }
 
-sub_25a0() {
-	// XXX
+void sub_25a0(struct canframe *frame, char* arg1) {
+	// stack frame 0x11 -- 17
+	short y1; //         Y+1..2
+	canframe buf[11]; // Y+0x3..0xd
+	// frame is at       Y+0xe..0xf
+	// arg1 is at        Y+0x10..0x11
+	y1 = arg1[5] * 41 / 56;
+	if (y1 < 9) {
+		memcpy(buf, &arg1[6], y1)
+		buf.last = y1;
+		buf.short5 = (arg1[1] << 3) | (arg1[2] >> 5);
+		memcpy(frame, buf, 11);
+	} else {
+		memcpy(frame, buf, 11); // XXX loading uninitialized RAM???
+	}
 }
 
 bool store_msg_2612(struct message) {
@@ -243,6 +274,10 @@ sub_1094(sh) {
 	// XXX
 }
 
+try_readMessageBuffer_2575() {
+	// XXX
+}
+
 void msg_dispatch_66c8(void *arg0, void *arg1) {
 	// arg0 at Y+1..2
 	// arg1 at Y+3..4
@@ -253,6 +288,45 @@ void msg_dispatch_66c8(void *arg0, void *arg1) {
 		sub_666d(0x210c, 5);
 	}
 	return;
+}
+
+void sub_666d(void *arg0, short five) {
+	// stack frame 8
+	short unused;    //  Y+1..2
+	char buffer[36]; //  Y+3..4
+	// arg0 is stored at Y+5..6
+	// five is stored at Y+7..8
+	rx14 = rx16 = $sp;
+	{
+		unused = 0x20+five-1;
+		$sp -= (0x20+five); // stack alloc 37 bytes
+		buffer = $sp+1;
+		sub_2af8(arg0, five, buffer+five);
+		memcpy(buffer, arg0, five);
+		sub_61c1(buffer, 0x20+five, 0x01ff, 0x40);
+	}
+	$sp = r14;
+	$sp = r16;
+	return;
+}
+
+void sub_2af8(char *src, short offset, char* dest) {
+	// stack frame 22 / 0x16
+	char swap[16]; // Y+1
+	// src      is at Y+0x11..12
+	// offset   is at Y+0x13..13
+	// dest     is at Y+0x15..16
+	for (i=0; i<16; i++) {
+		swap[i] = 0;
+	}
+	eeprom_read_block(&swap, 0x1028, 16);
+	possible_hmac_4b03(dest, swap, 0x0080, src, offset << 3);
+	return;
+}
+
+void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
+	// possibly HMAC_SHA_256?
+	// XXX
 }
 
 void parse_cert_6481(void *arg0, void *arg1) {
@@ -295,45 +369,6 @@ void parse_cert_6481(void *arg0, void *arg1) {
 		printf("Session key initialized"):
 		return 0x4a;
 	}
-}
-
-void sub_666d(void *arg0, short five) {
-	// stack frame 8
-	short unused;    //  Y+1..2
-	char buffer[36]; //  Y+3..4
-	// arg0 is stored at Y+5..6
-	// five is stored at Y+7..8
-	rx14 = rx16 = $sp;
-	{
-		unused = 0x20+five-1;
-		$sp -= (0x20+five); // stack alloc 37 bytes
-		buffer = $sp+1;
-		sub_2af8(arg0, five, buffer+five);
-		memcpy(buffer, arg0, five);
-		sub_61c1(buffer, 0x20+five, 0x01ff, 0x40);
-	}
-	$sp = r14;
-	$sp = r16;
-	return;
-}
-
-void sub_2af8(char *src, short offset, char* dest) {
-	// stack frame 22 / 0x16
-	char swap[16]; // Y+1
-	// src      is at Y+0x11..12
-	// offset   is at Y+0x13..13
-	// dest     is at Y+0x15..16
-	for (i=0; i<16; i++) {
-		swap[i] = 0;
-	}
-	eeprom_read_block(&swap, 0x1028, 16);
-	possible_hmac_4b03(dest, swap, 0x0080, src, offset << 3);
-	return;
-}
-
-void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
-	// possibly HMAC_SHA_256?
-	// XXX
 }
 
 void generate_session_key_2b8a(void* arg0) {
@@ -513,10 +548,6 @@ char sub_296d(char *arg0, char arg1) {
 	}
 }
 
-try_readMessageBuffer_2575() {
-	// XXX
-}
-
 /*** INTERRUPTS ******************************************************/
 
 void INT0_(void) {
@@ -622,7 +653,7 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 		y2 = flag_0x39e+i;
 		y5 = unused = ROM:flag_0x39e[i];
 		y5 ^= flag_array_102f01[i];
-		usartC0_send_byte( y5 | ~byte_102ef0 );
+		usartC0_send_byte( y5 | ~flag_mask_102ef0 );
 	}
 }
 
@@ -640,6 +671,44 @@ possible_hmac_4b03() {
 	// XXX
 }
 
+void cert_mask_flag_4de4(void) {
+	// stack frame 0x114
+	char check = 0;
+	char block[16];  // Y+0x2..0x11
+	char buffer[16]; // Y+0x12..0x21
+	char rc1;        // Y+0x22
+	char rc2;        // Y+0x23
+	char rc3;        // Y+0x24
+	char defCert[120];  // Y+0x25..0x9c
+	char cert[120];  // Y+0x9d..0x114
+
+	/** If EEPROM block at 0x1028 is initialized, return **/
+	memset(block, 0, 16);
+	// check ^= 1;
+	eeprom_read_block(block, 0x1028, 16);
+	memset(buffer, 0xff, 16);
+	// check ^= 0x10;
+	rc1 = strncmp(block, buffer, 16);
+	if (rc1 != 0) return;
+
+	/** If loaded cert not equal to default cert, mask out flag. **/
+	rc2 = 0;
+	memset(cert, 0, 120);
+	// check ^= 2;
+	eeprom_read_block(cert, 0x1040, 120);
+	memcpy(defCert, cert_1022DB, 120);
+	// check ^= 4;
+	rc3 = strncmp(cert, defCert, 120);
+	if (rc3 == 0) return;
+
+	// if (rc1 != 0) remember_and_die();
+	// check ^= 8;
+	// if (rc3 == 0) remember_and_die();
+	// if (check != 0x1f) remember_and_die();
+
+	flag_mask_102ef0 = rc2; // hides flag, will show all 0xff after this line, but print_flag_or_die_4E8F fixes that
+}
+
 void cert_load_and_check_63e0(void) {
 	// stack frame 0x112
 	short y1;          // Y+1..2
@@ -647,7 +716,7 @@ void cert_load_and_check_63e0(void) {
 	char *y5;          // Y+5..6
 	char y7 = 0xa4;    // Y+7
 	char y8[0x100];    // Y+8..0x107
-	struct frame y108; // Y+0x108..0x112
+	struct canframe y108; // Y+0x108..0x112
 
 	memset(&y8, 0xff, 0x100);
 	// test_const_rng_69e5();
@@ -754,12 +823,11 @@ char cert_check_abba_6252(char buffer[100]) {
 	if (rx24 == 0) return 0x4a;
 	else return 0xa4;
 }
-
 ```
 
 Structs:
 ```c
-struct frame {
+struct canframe {
 	char:4  nibble1;
 	char:4  nibble2;
 	char    char3;
@@ -795,9 +863,13 @@ main_500e()
 	* 4f91() -- possibly load certs from NVM?
 	* printf("Initializing...\n");
 	* 671e() -- more init?
+	* init_eeprom_certs_65c1() -- check eeprom certs are sane, if not load defaults
 	* printf("Initialization complete\n");
 	* main_loop_2c8b()
 	* printf("==END==\n");
+
+main_loop_2c8b()
+	*
 
 I've labelled a function "brick_and_die", but it might just wipe out progress
 	* It sets a flag that causes detect_fi() to take the slow path
@@ -832,12 +904,13 @@ Possible inroads:
 ## String Backtracing
 main_500e
 	sub_671e -- these two are the calls between "Initializing..."
-	sub_65c1 -- and "Initialization complete"
-		cert_loadP_4de4 -- P in this case mean '?'
+	init_eeprom_certs_65c1 -- and "Initialization complete"
+		cert_mask_flag_4de4
 		cert_load_and_check_63e0 -- "Invalid certificate size", "Loaded invalid certificate"
 			cert_check_valid_6297
 				cert_check_Riscar_CA_6236 -- "Riscar CA"
 				cert_check_Nist_P192_627B -- "NIST P-192"
+				cert_check_abba_6252 -- byte string
 			sub_61c1 -> sub_2873 -> sub 28c9
 				cert_something[123] -- "Unexpected length parameter"
 	main_loop_2c8b
@@ -994,4 +1067,18 @@ Other possibilities:
 
 ### cert_check_valid_6297
 I think I can overflow this, I need to set buffer1 and buffer2 small,because the total needs to be less than 256 bytes (possibly 254), but each chunk can overflow a 100 byte buffer, so I could easily get 100 bytes of overflow, which should be enough to exploit.
+
+## Getting my Payload to the Injection Point
+I need to drop ~200 bytes at EEPROM:0x40 (aka 0x1040).
+
+Things that write there:
+	load_default_cert_4eea
+		- writes the default certs that I have in my load
+	maybe sub_ca3
+		- writes to Y+8..9, which is argument rx22
+		- comes from jmb_parsing_CFC, Y+7..8, which is Y+(B..C)[2], which is argument rx24
+		- comes from sub_1094, Y+2..3, which is argument rx24
+		- comes from main_loop_2c8b, Y+9..10
+		- possible, not easy to check
+
 
