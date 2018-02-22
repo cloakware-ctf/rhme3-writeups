@@ -1,0 +1,11 @@
+# Realign disassembly if there is a flag in the middle of an instruction
+e asm.midflags = true
+
+# Run ESIL emulation analysis on disasm
+# e asm.emu = true
+
+# Show opcode description
+# e asm.describe = true
+
+e asm.arch = avr
+e asm.cpu = ATxmega128a4u
