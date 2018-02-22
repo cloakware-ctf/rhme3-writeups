@@ -47,7 +47,15 @@ try:
         sark.Line(here).comments.repeat = ''
         return
 
-    print("some utility functions are defined:\nadd_dref_named_offset(name, offset)\ndel_dref_named_offset(name, offset)")
+    def del_all_dref_here():
+        for xref in sark.Line().xrefs_from:
+            if xref.iscode == 0 and str(xref.type) == 'Data_Text':
+                result = del_dref(xref.frm, xref.to)
+                logger.debug("del dref from 0x%x to 0x%x: %s" % (xref.frm, xref.to, str(result)))
+                sark.Line().comments.repeat = ''
+        return
+
+    print("some utility functions are defined:\nadd_dref_named_offset(name, offset)\ndel_dref_named_offset(name, offset)\ndel_all_dref_here()")
 
 except:
     exc_type, exc_value, exc_traceback = sys.exc_info()
