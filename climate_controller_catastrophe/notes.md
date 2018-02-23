@@ -28,7 +28,7 @@ Scoping out the leads, we see traffic on:
 	- D7
 	- D9, D10, D11, D13
 
-TODO: Oscilloscope, check for analogue signals.
+Oscilloscope, check for analogue signals:
 	- D6, D9, D10, D11, D13
 	- D12: suspicious spike/trailoff
 
@@ -185,7 +185,7 @@ char load_default_cert_4eea(void) {
 ```c
 /*** MAIN LOOP *******************************************************/
 
-void main_loop_2C8B(void) {
+void main_loop_2c8b(void) {
 	// stack frame: 0x22 -> 34
 	uint32_t y1;    // Y+1..4
 	short y5;       // Y+5..6
@@ -197,15 +197,15 @@ void main_loop_2C8B(void) {
 	y1 = 0;
 	while (true) {
 		if (byte_1021b9 != byte_1021ba) { // note 0x2137+0x82
-			byte_1021ba = (byte_1021ba+1)%8
-				rx24 = byte_1021ba * 14 + 0x12
-				sub_25a0(&yD, &0x2137[rx24]);
-			store_msg_2612(yD);
+			byte_1021ba = (byte_1021ba+1)%8;
+			rx24 = byte_1021ba * 14 + 0x12;
+			frame_read_25a0(&yD, &body_structs[byte_1021ba]); // index is rx24 above
+			frame_enqueue_2612(yD);
 		}
-		if (sub_26e3()) {
+		if (is_whole_msg_waiting_26e3()) {
 			// this block is doing dynamic stack allocation
 			rx16 = $sp;
-			y5 = sub_2654();
+			y5 = msg_total_length_2654();
 			unused7 = y5-1;
 			$sp -= y5;
 			y9 = $sp + 1;
@@ -213,24 +213,24 @@ void main_loop_2C8B(void) {
 
 			yB = sub_2720(y9);
 			if (yB == 0x665) {
-				sub_1094(y9, y5);
+				eeprom_process_msg_1094(y9, y5);
 			} else if (yB == 0x776) {
-				msg_dispatch_66c8(y9, r5);
+				cert_process_msg_66c8(y9, r5);
 			} else {
 				// nil
 			}
 			$sp = rx16; // stack back
 		}
 
-		y1 = (y1 + 1) & 1;
+		y1 = (y1 + 1) & 0x1FFFF;
 		if (y1 != 0x10000 && byte_102e5d) {
-			try_readMessageBuffer_2575();
+			try_readMessageBuffer_2575(); // XXX WTF?
 		}
 	}
 	// forever
 }
 
-void sub_25a0(struct canframe *frame, char* arg1) {
+void frame_read_25a0(char frame[11], char* arg1) {
 	// stack frame 0x11 -- 17
 	short y1; //         Y+1..2
 	canframe buf[11]; // Y+0x3..0xd
@@ -247,21 +247,21 @@ void sub_25a0(struct canframe *frame, char* arg1) {
 	}
 }
 
-bool store_msg_2612(struct message) {
+bool frame_enqueue_2612(struct message) {
 	if (msgs_waiting_102e5e != 0) {
-		struct_102a11[msgs_waiting_102e5e++] = message;
+		msg_queue_head_102a11[msgs_waiting_102e5e++] = message;
 		return true;
 	} else {
 		return false;
 	}
 }
 
-bool sub_26e3() {
-	short y1 = sub_2654();
-	char topNibble = struct_102a11 >> 4;
+bool is_whole_msg_waiting_26e3() {
+	short y1 = msg_total_length_2654();
+	char topNibble = msg_queue_head_102a11.nibble1;
 	if (topNibble == 1) {
-		rx24 = 4*((2 * y1 / 7) + y1) +1
-		if (msgs_waiting_102e5e >= rx24) return true;
+		rx24 = 4*((2 * y1 / 7) + y1) + 1; // calculate how many messages we need
+		if (msgs_waiting_102e5e >= rx24) return true; // we have enough
 		else return false;
 	} else {
 		if (msgs_waiting_102e5e) return true;
@@ -269,28 +269,28 @@ bool sub_26e3() {
 	}
 }
 
-void sub_1094(char* buffer, short arg1) {
+void eeprom_process_msg_1094(char* buffer, short arg1) {
 	char y1;
 	// buffer is at Y+2..3
 	// arg1 is at Y+4..5
 	if (buffer[0] == 0x3d || buffer[0] == 0x27 || buffer[0] == 0x31) {
 		y1 = 0x87;
 		if (buffer[0] == 0x27) {
-			y1 = jmb_parser_dc8(buffer, arg1);
+			y1 = eeprom_unlock_dc8(buffer, arg1);
 			// if (y1 != 0x78) remember_and_die();
-		} else if (off_1020f0 != 0x3c) {
+		} else if (eeprom_write_lock_1020f0 != 0x3c) {
 			can_send_error_110c(0x33);
 		} else if (buffer[0] == 0x31) {
-			sub_1006(buffer, arg1);
+			eeprom_reset_msg_1006(buffer, arg1);
 		} else if (buffer[0] == 0x3d) {
-			jmb_parsing_cfc(buffer, arg1);
+			eeprom_write_msg_cfc(buffer, arg1);
 		}
 	} else {
 		can_send_error_110c(0x11);
 	}
 }
 
-char jmb_parser_dc8(char *buffer, short arg1) {
+char eeprom_unlock_dc8(char *buffer, short arg1) {
 	// stack frame 0x1f -- 31
 	char y1;        // Y+1
 	short y2;       // Y+2..3 - more checks
@@ -352,7 +352,40 @@ char jmb_parser_dc8(char *buffer, short arg1) {
 	}
 }
 
-void jmb_parsing_cfc(char *buffer, short bufLen) {
+void eeprom_reset_msg_1006(char *msg, short msgLen) {
+	char check;     // Y+1 -- xor or die accumulator
+	char buffer[5]; // Y+2..6
+	// msg is at       Y+7..8
+	// msgLen is at    Y+9..0xa
+
+	if (eeprom_write_lock_1020f0 != 0x3c) remember_and_die();
+	if (msgLen != 4) {
+		can_send_error_110c(0x13);
+	} else if (msg[1] != 1) {
+		can_send_error_110c(0x12);
+	} else if (msg[2:3] != 0x0143) {
+		can_send_error_110c(0x31);
+	}
+	eeprom_invalidate_cert_fb6();
+	memset(buffer, 0, 5);
+	buffer[0] = 0x71;
+	buffer[1] = msg[1] & 0x3f;
+	buffer[2] = msg[2];
+	buffer[3] = msg[3];
+	buffer[4] = 1;
+	j_can_send_666_111f(buffer, 5);
+}
+
+void eeprom_invalidate_cert_fb6() {
+	char check;      // Y+1 -- xor or die accumulator
+	char buffer[16]; // Y+2..0x11
+
+	if (eeprom_write_lock_1020f0 != 0x3c) remember_and_die();
+	memset(buffer, 0xff, 16);
+	eeprom_write_block(buffer, 0x1028, 16);
+}
+
+void eeprom_write_msg_cfc(char *buffer, short bufLen) {
 	/* buffer looks like:
 		0: ???
 		1: 0x20, 0x21, or 0x22
@@ -370,9 +403,7 @@ void jmb_parsing_cfc(char *buffer, short bufLen) {
 	short eeprom_len;  // Y+9..a
 	// buffer is at    Y+0xb..0xc
 	// bufLen is at    Y+0xd..0xe
-	if (byte_1020f0 != 0x3c) {
-		remember_and_die();
-	}
+	if (eeprom_write_lock_1020f0 != 0x3c) remember_and_die();
 
 	if (arg < 6) {
 		can_send_error_110c(0x13);
@@ -431,7 +462,7 @@ char eeprom_write_arbitrary_block_ca3(char *data, void *eeprom_addr, short lengt
 	y3 = eeprom_valid_addr_len_be1(eeprom_addr, length);
 	if (y2 != 0x69) remember_and_die();
 
-	eeprom_read_block(data, eeprom_addr, length);
+	eeprom_write_block(data, eeprom_addr, length);
 	y1 = 1;
 	if (y2 != 0x69) remember_and_die();
 	return y1;
@@ -460,21 +491,30 @@ char eeprom_valid_addr_len_be1(void *eeprom_addr, short length) {
 
 void try_readMessageBuffer_2575(void) {
 	char ret; // Y+1
-	char msg[11]; // Y+2..0xC
-	ret = readMessageBuffer_29a7(msg);
+	canframe frame; // Y+2..0xC
+	ret = readMessageBuffer_29a7(frame);
 	if (ret) {
+		possible_store_cert_eeprom_77EB(0x2137, frame.short5, frame.last, frame); // XXX WTF?
 	} else {
 		printf("Failed to read message buffer");
 		die();
 	}
 }
 
-void msg_dispatch_66c8(void *arg0, void *arg1) {
+char readMessageBuffer_29a7(char msg[11]) {
+	if (byte_102e5d == 0) return 0;
+	memcpy(msg, struct_1025c5, 11);
+	byte_102e5d -= 1;
+	memmove(struct_1025c5, word_1025d0, byte_102e5d * 11); // advance queue
+	return 1;
+}
+
+void cert_process_msg_66c8(void *arg0, void *arg1) {
 	// arg0 at Y+1..2
 	// arg1 at Y+3..4
-	if (byte_102e61 == 11) {
+	if (cert_lock_102e61 == 11) {
 		parse_cert_6481(arg0, arg1);
-	} else if (byte_102e61 != 0) {
+	} else if (cert_lock_102e61 != 0) {
 		printf("Message received, sharing climate control settings.");
 		sub_666d(0x210c, 5);
 	}
@@ -517,7 +557,6 @@ void sub_2af8(char *src, short offset, char* dest) {
 
 void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
 	// possibly HMAC_SHA_256?
-	// XXX
 }
 
 void parse_cert_6481(void *arg0, void *arg1) {
@@ -529,7 +568,7 @@ void parse_cert_6481(void *arg0, void *arg1) {
 	char y5; // Y+5
 	// arg0 at  Y+6..7
 	// arg1 at  Y+8..9
-	if (byte_102e61 != 11) {
+	if (cert_lock_102e61 != 11) {
 		remember_and_die();
 	} else if (*arg0 != 0x30) {
 		printf("Certificate format not supported");
@@ -556,7 +595,7 @@ void parse_cert_6481(void *arg0, void *arg1) {
 		return 0xa4;
 	} else {
 		generate_session_key_2b8a(arg0+y2+y3+y4+10);
-		byte_102e61 = 0;
+		cert_lock_102e61 = 0;
 		printf("Session key initialized");
 		return 0x4a;
 	}
@@ -644,34 +683,34 @@ short sub_2720(char* arg0) {
 	// char** arg0; // Y+27..28
 
 	y5 = 0;
-	while (3 == struct_102a11.first >> 4) { // high nibble == 3
-		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e * 11);
+	while (3 == struct_102a11.nibble1) { // high nibble == 3
+		memmove(msg_queue_head_102a11, byte_102a1c, msgs_waiting_102e5e * 11);
 		msgs_waiting_102e5e -= 1;
 	}
-	if (0 == struct_102a11 >> 4) {
+	if (0 == msg_queue_head_102a11.nibble1) {
 		y6 = struct_102a11.short5;
-		y8 = sub_2654();
+		y8 = msg_total_length_2654();
 		memcpy(arg0, byte_102a12, y8);
-		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e*11);
+		memmove(msg_queue_head_102a11, byte_102a1c, msgs_waiting_102e5e*11);
 		msgs_waiting_102e5e -= 1;
 		return y6;
-	} else if (2 == struct_102a11 >> 4) {
+	} else if (2 == msg_queue_head_102a11.nibble1) {
 		msg_new_2ac1(&y10, 2, 0, 0x500, 0, 0);
 		yA = sub_296d(&y10, 1);
 		if (yA==0) {
 			try_readMessageBuffer_2575();
 			sub_296d(&y10, 1);
 		}
-		memmove(struct_102a11, byte_102a1c, msgs_waiting_102e5e*11);
+		memmove(msg_queue_head_102a11, byte_102a1c, msgs_waiting_102e5e*11);
 		msgs_waiting_102e5e -= 1;
 		return 0;
 	} else { // == 1?
 		yB = struct_102a11.short5;
-		yD = sub_2654();
+		yD = msg_total_length_2654();
 		memcpy(arg0, &struct_102a11.data, 6);
 		for (y1 = 6, y3 = 1; y1 < yD; y3++) {
 			Z = arg0 + y1;
-			X = &struct_102a11[y3];
+			X = &msg_queue_head_102a11[y3];
 			yF = sub_26a6(&arg0.data, X[0..10]); // param 2 in r12..r22
 			y1 += yF
 		}
@@ -683,8 +722,7 @@ short sub_2720(char* arg0) {
 		} else {
 			msgs_waiting_102e5e = 0;
 		}
-		// XXX JMB: why +1 below, that screams overflow...
-		memmove(struct_102a11, struct_102a11[y3], msgs_waiting_102e5e * 11 + 1);
+		memmove(msg_queue_head_102a11, msg_queue_head_102a11[y3], msgs_waiting_102e5e * 11 + 1);
 		return yB;
 	}
 }
@@ -715,15 +753,15 @@ struct *msg_new_2ac1(struct* arg0, char a1, char a2, short a3, char a4, char a5)
 	return arg0;
 }
 
-short sub_2654(void) {
+short msg_total_length_2654(void) {
 	short y1 = 0;
-	char topNibble = struct_102a11 >> 4;
+	char topNibble = msg_queue_head_102a11.nibble1;
 	if (topNibble == 0) {
-		y1 = (byte_102a1b & 0xf) - 1;
-		if (y1<9)  return y1;
+		y1 = (msg_queue_head_102a11.last & 0xf) - 1;
+		if (y1<9) return y1;
 		else return 0;
 	} else if (topNibble == 1) {
-		return ((struct_102a11 & 0xf) << 8) | byte_102a12;
+		return ((msg_queue_head_102a11.nibble2) << 8) | msg_queue_head_102a11.char3;
 	} else {
 		return 0;
 	}
@@ -783,14 +821,6 @@ void sub_7904(char *arg) {
 	}
 
 	restore_status_register(&sreg);
-}
-
-char sub_7b8b(short arg0, short arg1) {
-	// XXX
-}
-
-void sub_788d(char *arg0, char arg1, char *arg2) { // sub_7893
-	// XXX
 }
 ```
 
@@ -857,18 +887,6 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 
 ```c
 /*** OVERFLOW ********************************************************/
-
-jmb_parsing_cfc() {
-	// XXX
-}
-
-cert_something1_29db() {
-	// XXX
-}
-
-possible_hmac_4b03() {
-	// XXX
-}
 
 void cert_mask_flag_4de4(void) {
 	// stack frame 0x114
@@ -941,7 +959,7 @@ void cert_load_and_check_63e0(void) {
 		y5 =  $sp + 1;
 		memcpy(y5, &y8, y1);
 		sub_61c1(y5, y1,  0x777, 0x40);
-		byte_102e61 = 11;
+		cert_lock_102e61 = 11;
 	}
 	$sp = rx14;
 }
@@ -1027,8 +1045,8 @@ char cert_check_abba_6252(char buffer[100]) {
 Structs:
 ```c
 struct canframe {
-	char:4  nibble1;
-	char:4  nibble2;
+	char:4  nibble1; // 1 -> multipart message
+	char:4  nibble2; // first 4 bits of 12 bit msg size, with char3
 	char    char3;
 	char[6] data;
 	short   short5;
@@ -1112,7 +1130,7 @@ main_500e
 			sub_61c1 -> sub_2873 -> sub 28c9
 				cert_something[123] -- "Unexpected length parameter"
 	main_loop_2c8b
-		msg_dispatch_66C8 -- "Message received, sharing climate control settings."
+		cert_process_msg_66C8 -- "Message received, sharing climate control settings."
 			parse_cert_6481 -- "Certificate format not supported", "Key length not supported", "Invalid length parameters", "Session key initialized"
 				generate_session_key_2b8a --  "Error during session key generation", "Insufficient memory"
 			sub_666d
@@ -1120,19 +1138,19 @@ main_500e
 			try_readMessageBuffer_2575 -- "Failed to read message buffer" && die
 
 main_loop_2c8b
-	sub_25a0
-	store_msg_2612
-	sub_26e3 -> sub_2654
-	sub_2654
+	frame_read_25a0
+	frame_enqueue_2612
+	is_whole_msg_waiting_26e3 -> msg_total_length_2654
+	msg_total_length_2654
 	sub_2720
 		* many
-	msg_dispatch_66c8
+	cert_process_msg_66c8
 		parse_cert_6481
 			generate_session_key_2b8a
-	sub_1094
-		jmb_parser_dc8
-		sub_1006
-		jmb_parsing_cfc
+	eeprom_process_msg_1094
+		eeprom_unlock_dc8
+		eeprom_reset_msg_1006
+		eeprom_write_msg_cfc
 			eeprom_write_arbitrary_block_ca3
 				- eeprom_write_block
 	try_readMessageBuffer_2575
@@ -1264,8 +1282,8 @@ Other possibilities:
 
 ### memcpy()
 	* sub_20a
-	* jmb_parsing_cfc
-	* sub_25a0
+	* eeprom_write_msg_cfc
+	* frame_read_25a0
 	* sub_26a6
 	* sub_2720
 	* cert_something[123]
@@ -1293,8 +1311,8 @@ Things that write there:
 		- writes the default certs that I have in my load
 	maybe eeprom_write_arbitrary_block_ca3
 		- writes to Y+8..9, which is argument rx22
-		- comes from jmb_parsing_cfc, Y+7..8, which is Y+(B..C)[2], which is argument rx24
-		- comes from sub_1094, Y+2..3, which is argument rx24
+		- comes from eeprom_write_msg_cfc, Y+7..8, which is Y+(B..C)[2], which is argument rx24
+		- comes from eeprom_process_msg_1094, Y+2..3, which is argument rx24
 		- comes from main_loop_2c8b, Y+9..10
 		- possible, not easy to check
 
@@ -1385,7 +1403,7 @@ Try it:
 ```
 Success.
 
-### --
+### More Can Fuzzing
 
 Back to fuzzing:
 	- packets starting with `F1 E3` get immediate responses
@@ -1403,7 +1421,7 @@ Back to fuzzing:
   can0  500   [3]  32 00 00                  '2..'
 ```
 
-`sub_1094` throws error codes 0x33 and 0x11 to `jmb_error_110c`
+`eeprom_process_msg_1094` throws error codes 0x33 and 0x11 to `jmb_error_110c`
 That invokes `sub_111c` with the address of them and 0x1 (length)
 
 NOTE: The code also accepts 776.
@@ -1431,3 +1449,29 @@ Results:
 ```
 Note: something weird here.
 
+### Happy Path
+
+Todo:
+	understand how main_loop_2c8b merges frames into messages
+		-> sub_2720 is the thing that does that
+	understand how sub_2720 works
+	figure out what's up with readMessageBuffer_29a7()...
+
+Phase 1:
+	
+	0. invoke eeprom_process_msg_1094() with a buffer starting with 0x27
+	1. that invokes eeprom_unlock_dc8
+		* which somehow sets eeprom_write_lock_1020f0 to 0x3c
+	1. invoke eeprom_process_msg_1094() with a buffer starting with 0x3d
+	1. which invokes eeprom_write_msg_cfc with a buff that writes my "cert" to EEPROM:0x1040
+	2. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
+
+
+Phase 2:
+	1. reboot board
+	2. cert_load_and_check_63e0 fires, loads my "cert" from EEPROM:0x1040
+	3. invokes cert_check_valid_6297, which overflows
+	4. return to INT0_ populates registers
+	5. return to ROM:3514 makes us leet
+	6. return to print_flag_or_die_4E8F and we win.
+	7. submit flag
