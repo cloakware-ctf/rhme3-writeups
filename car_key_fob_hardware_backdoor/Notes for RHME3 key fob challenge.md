@@ -40,3 +40,9 @@ Headed over to MPSSE programming;
 | CLK         | Orange                  |
 | Vcc         | Red                     |
 -----------------------------------------
+
+...
+
+I coded up a script to pulse the LATCH based on the way that TDI+TMS are toggled wrt TCK in JTAG BYPASS scans. B/c I remember seeing the self-destruct message when running the BYPASS scan with the TDI/TMS swapped. `test_low_pulse.py` -- results in the self-destruct message but only a chain of ff's getting shifted-out
+
+Actually it seems more like I trigger the self-destruct on the second-time.
