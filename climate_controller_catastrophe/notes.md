@@ -270,14 +270,12 @@ bool is_whole_msg_waiting_26e3() {
 }
 
 void eeprom_process_msg_1094(char* buffer, short arg1) {
-	char y1;
+	char y1 = 0x87;
 	// buffer is at Y+2..3
 	// arg1 is at Y+4..5
 	if (buffer[0] == 0x3d || buffer[0] == 0x27 || buffer[0] == 0x31) {
-		y1 = 0x87;
 		if (buffer[0] == 0x27) {
-			y1 = eeprom_unlock_dc8(buffer, arg1);
-			// if (y1 != 0x78) remember_and_die();
+			eeprom_unlock_dc8(buffer, arg1) == 0x78 || remember_and_die();
 		} else if (eeprom_write_lock_1020f0 != 0x3c) {
 			can_send_error_110c(0x33);
 		} else if (buffer[0] == 0x31) {
@@ -306,12 +304,12 @@ char eeprom_unlock_dc8(char *buffer, short arg1) {
 	ret = 0x0087;
 	if (0 == (buffer[1] & 1)) {
 		if (arg1 >= 0) {
-			sub_9ac();
+			dh_generate_challenge_9ac();
 			byte_1020f1 = 0x5a;
-			memset(data1, 0, 8);
+			memset(data1, 0, 10);
 			data1[0] = 0x67;
 			data1[1] = buffer[1] & 0x3f;
-			memcpy(&data1[2], array_1025bc, 8);
+			memcpy(&data1[2], dh_checksum_1025bc, 8);
 			j_can_send_666_111f(data1, 10);
 			byte_1025c4 = 0;
 			return ~ret;
@@ -324,7 +322,7 @@ char eeprom_unlock_dc8(char *buffer, short arg1) {
 			can_send_error_110c(0x24);
 			return ~ret;
 		} else if (byte_1025c4 >= 4) {
-			sub_9ac();
+			dh_generate_challenge_9ac();
 			can_send_error_110c(0x24);
 			return ~ret;
 		} else if (arg1 >= 11) {
@@ -333,7 +331,7 @@ char eeprom_unlock_dc8(char *buffer, short arg1) {
 		} else {
 			byte_1025c4 += 1;
 			memcpy(data2, &buffer[2], arg1-2);
-			y1 = sub_882(data2);
+			y1 = check_dh_response_882(data2);
 			if (y1 == 0x1e) {
 				memset(data3, 0, 2);
 				data3[0] = 0x67;
@@ -345,11 +343,98 @@ char eeprom_unlock_dc8(char *buffer, short arg1) {
 				return ~ret;
 			} else {
 				can_send_error_110c(0x36);
-				sub_9ac();
+				dh_generate_challenge_9ac();
 				return ~ret;
 			}
 		}
 	}
+}
+
+char dh_generate_challenge_9ac(void) {
+	char y1 = 0xd2; // Y+1
+	char check = 0; // Y+2
+	uint64_t last;  // Y+3..0xA
+	uint64_t yB;    // Y+0xB..0x12 -- swap for |=
+
+	last = dh_checksum_1025bc
+	dh_checksum_1025bc = sub_8d26(prob_get_rand_5fbf(), 0x10);
+	dh_checksum_1025bc |= sub_8d26(prob_get_rand_5fbf(), 0x20);
+	dh_checksum_1025bc |= sub_8d26(prob_get_rand_5fbf(), 0x30);
+	dh_checksum_1025bc |= prob_get_rand_5fbf();
+
+	dh_checksum_1025bc %= 0xa59068ff; // __umoddi3(dh_checksum_1025bc, 0xa59068ff);
+	if (dh_checksum_1025bc == last) remember_and_die();
+	y1 = 0x2d;
+	// various or die tests
+
+	return y1;
+}
+
+char check_dh_response_882(uint64_t data) {
+	char y1 = 0xC3; // Y+1
+	char rc1;       // Y+2
+	char rc2;       // Y+3
+	// data is mapped to Y+4..0xb
+
+	if (dh_checksum_1025bc == 0x0LL) remember_and_die();
+	rc1 = dh_verify_619(data, 0x7a69, 0xa59068ff, dh_checksum_1025bc);
+	rc2 = dh_verify_619(data, 0x7a69, 0xa59068ff, dh_checksum_1025bc);
+	if (rc1 != rc2) remember_and_die();
+	if (rc1 != 0x1e) return 0xe1; //fail
+	eeprom_write_lock_1020f0 = y1 = 0x3c;
+	return rc1;
+}
+
+char dh_verify_619(uint64_t base, uint64_t exponent, uint64_t modulus, uint64_t check_value) {
+	char y1 = 0xE1; // Y+1
+	uint64_t y2;    // Y+0x02..0x09
+	uint64_t yA;    // Y+0x0a..0x11
+	// arg0 is at      Y+0x12..0x19
+	// arg1 is at      Y+0x1a..0x21
+	// 18 bytes of saved registers, 3 bytes of return address
+	// arg2 guessed at Y+0x37..0x3e
+	// arg3 guessed at Y+0x3f..0x46
+
+	y2 = modular_power_3a6(arg0, arg1, arg2);
+	if (y2 != arg3) return y1;
+	// yA = sub_3a6(arg0, arg1, arg2);
+	// if (yA != arg3) remember_and_die();
+	// if (y2 != yA) remember_and_die();
+	// if (y2 == 0x0LL || yA == 0x0LL) remember_and_die();
+	y1 = 0x1E;
+	// if (y2 != arg3) remember_and_die();
+	// if (yA != arg3) remember_and_die();
+	// if (y2 != yA) remember_and_die();
+	// if (y2 == 0x0LL || yA == 0x0LL) remember_and_die();
+	return y1;
+}
+
+uint64_t modular_power_3a6(uint64_t base, uint64_t exponent, uint64_t modulus) {
+	uint64_t y1;    // Y+0x01..0x08
+	uint64_t y9;    // Y+0x09..0x10
+	uint64_t y11;   // Y+0x11..0x18
+	// arg0 is at      Y+0x19..0x20
+	// arg1 is at      Y+0x21..0x28
+	uint64_t y29;   // Y+0x29..0x30
+	// 18 bytes of saved registers, 3 bytes of return address
+	// modulus guessed at Y+0x46..0x4d
+
+	y1 = 0x1;
+	y9 = arg0;
+	// y11 = arg1; parallel check variable
+	while (arg1 != 0x0LL) {
+		// y11 = y11 >> 1; // __lshrdi3(y11, 1);
+		if (arg1 & 1) { // y29 used as a temporary here
+			// rrx18 = y1 * y9; // probably_64bit_multiply_8c6e(y1, y9);
+			y1 = (y1 * y9) % modulus; //  __umoddi3(rrx18, modulus);
+		}
+		// rrx18 = y9 * y9; // probably_64bit_multiply_8c6e(y9, y9);
+		y9 = (y9 * y9) % modulus; // __umoddi3(rrx18, modulus);
+		arg1 = arg1 >> 1; // __lshrdi3(arg1, 1);
+	}
+	if (y11 != arg1) remember_and_die();
+	if (arg1 != 0x0LL) remember_and_die();
+	return y1 % modulus; // __umoddi3(y1, modulus);
 }
 
 void eeprom_reset_msg_1006(char *msg, short msgLen) {
@@ -387,7 +472,7 @@ void eeprom_invalidate_cert_fb6() {
 
 void eeprom_write_msg_cfc(char *buffer, short bufLen) {
 	/* buffer looks like:
-		0: ???
+		0: 0x3d -- selecting this function
 		1: 0x20, 0x21, or 0x22
 		2,3: data, 2 bytes, length in y2
 		4,5: data, 0..2 bytes, length in y3
@@ -509,6 +594,16 @@ char readMessageBuffer_29a7(char msg[11]) {
 	return 1;
 }
 
+void sub_8806(short arg0, char arg1) { // sub_8803
+	Z = arg0
+	arg0[3] = arg1;
+	while (Z[2] >= 0) {
+		Z = arg0;
+	}
+	return arg0[3];
+}
+
+
 void cert_process_msg_66c8(void *arg0, void *arg1) {
 	// arg0 at Y+1..2
 	// arg1 at Y+3..4
@@ -516,42 +611,40 @@ void cert_process_msg_66c8(void *arg0, void *arg1) {
 		parse_cert_6481(arg0, arg1);
 	} else if (cert_lock_102e61 != 0) {
 		printf("Message received, sharing climate control settings.");
-		sub_666d(0x210c, 5);
+		share_climate_settings_666d(0x210c, 5);
 	}
 	return;
 }
 
-void sub_666d(void *arg0, short five) {
+void share_climate_settings_666d(char *data, short dataLen) {
 	// stack frame 8
 	short unused;    //  Y+1..2
-	char buffer[36]; //  Y+3..4
-	// arg0 is stored at Y+5..6
-	// five is stored at Y+7..8
+	char buffer[37]; //  Y+3..4
+	// data is stored at Y+5..6
+	// dataLen is stored at Y+7..8
 	rx14 = rx16 = $sp;
 	{
-		unused = 0x20+five-1;
-		$sp -= (0x20+five); // stack alloc 37 bytes
+		unused = 0x20+dataLen-1;
+		$sp -= (0x20+dataLen); // stack alloc
 		buffer = $sp+1;
-		sub_2af8(arg0, five, buffer+five);
-		memcpy(buffer, arg0, five);
-		sub_61c1(buffer, 0x20+five, 0x01ff, 0x40);
+		sub_2af8(data, dataLen, &buffer[dataLen]);
+		memcpy(buffer, data, dataLen);
+		can_send_61c1(buffer, 0x20+dataLen, 0x1ff, 0x40);
 	}
 	$sp = r14;
 	$sp = r16;
 	return;
 }
 
-void sub_2af8(char *src, short offset, char* dest) {
+void sub_2af8(char *src, short length, char* dest) {
 	// stack frame 22 / 0x16
-	char swap[16]; // Y+1
+	char key[16]; // Y+1
 	// src      is at Y+0x11..12
-	// offset   is at Y+0x13..13
+	// length   is at Y+0x13..13
 	// dest     is at Y+0x15..16
-	for (i=0; i<16; i++) {
-		swap[i] = 0;
-	}
-	eeprom_read_block(&swap, 0x1028, 16);
-	possible_hmac_4b03(dest, swap, 0x0080, src, offset << 3);
+	memset(key, 0, 16);
+	eeprom_read_block(&key, 0x1028, 16);
+	possible_hmac_4b03(dest, key, 0x0080, src, length << 3);
 	return;
 }
 
@@ -958,7 +1051,7 @@ void cert_load_and_check_63e0(void) {
 		$sp -= (y1-1); // stack allocation based on input array
 		y5 =  $sp + 1;
 		memcpy(y5, &y8, y1);
-		sub_61c1(y5, y1,  0x777, 0x40);
+		can_send_61c1(y5, y1,  0x777, 0x40);
 		cert_lock_102e61 = 11;
 	}
 	$sp = rx14;
@@ -1127,13 +1220,13 @@ main_500e
 				cert_check_Riscar_CA_6236 -- "Riscar CA"
 				cert_check_Nist_P192_627B -- "NIST P-192"
 				cert_check_abba_6252 -- byte string
-			sub_61c1 -> sub_2873 -> sub 28c9
+			can_send_61c1 -> sub_2873 -> sub 28c9
 				cert_something[123] -- "Unexpected length parameter"
 	main_loop_2c8b
 		cert_process_msg_66C8 -- "Message received, sharing climate control settings."
 			parse_cert_6481 -- "Certificate format not supported", "Key length not supported", "Invalid length parameters", "Session key initialized"
 				generate_session_key_2b8a --  "Error during session key generation", "Insufficient memory"
-			sub_666d
+			share_climate_settings_666d
 		sub_2720
 			try_readMessageBuffer_2575 -- "Failed to read message buffer" && die
 
@@ -1155,6 +1248,18 @@ main_loop_2c8b
 				- eeprom_write_block
 	try_readMessageBuffer_2575
 		readMessageBuffer_29a7
+
+## EEPROM
+	1001: 8 bytes of ABBA42C0FFEE1337
+	100a: 24 bytes of 
+		- default: C44ABF3BA6C1F6FC4B730D82E3694BF131D102CB5A2DDE
+	1028: 16 bytes of session key, from generate_session_key
+		- default: AB7CDFB4C464DCD791
+	1040: 120 bytes of cert
+		- default starts: 30768095269736361
+
+
+
 
 ## Patching with r2
 ```sh
@@ -1298,7 +1403,7 @@ Other possibilities:
 	* sub_5f40
 	* cert_check_valid_6297
 	* cert_load_and_check_63e0
-	* sub_666d - no.
+	* share_climate_settings_666d - no.
 
 ### cert_check_valid_6297
 I think I can overflow this, I need to set buffer1 and buffer2 small,because the total needs to be less than 256 bytes (possibly 254), but each chunk can overflow a 100 byte buffer, so I could easily get 100 bytes of overflow, which should be enough to exploit.
@@ -1435,7 +1540,20 @@ NOTE: The code also accepts 776.
   can0  1FF   [4]  25 AA 70 8B               '%.p.'
 ```
 That's because the SID selection is just a list of bits that MUST be set
-So actual SID is `[67][67ef][57df]`
+So actual SID filter is `[67][67ef][57df]`
+
+That 776 response is important. We know what produced that.
+	- size 37
+	- Actual byte count: 44 ->  7 bytes overhead
+	- A header like 0x10, 0x25
+	- then we have the five bytes: `64 0D 25 50 32` from RAM:0x210c
+	- and 0x21, 0x22, 0x23, 0x24, 0x25 to indicate fragments
+	- leaving": 1 + 7*4 + 3 = 32 bytes.
+		47BD086F636FF2109AE93557F411F637769F461EE23FA6EA237E7AB709AA708B
+		- calling 2af8 with rx20=0x80 and r14=40
+	- since I theoretically know the default key, I might be able to compute this
+	- but I don't know why I care...
+
 
 Testing:
 	665 667 66d 66f 675 677 67d 67f 6e5 6e7 6ed 6ef 6f5 6f7 6fd 6ff 765 767 76d 76f 775 777 77d 77f 7e5 7e7 7ed 7ef 7f5 7f7 7fd 7ff
@@ -1449,6 +1567,7 @@ Results:
 ```
 Note: something weird here.
 
+
 ### Happy Path
 
 Todo:
@@ -1457,15 +1576,22 @@ Todo:
 	understand how sub_2720 works
 	figure out what's up with readMessageBuffer_29a7()...
 
-Phase 1:
-	
-	0. invoke eeprom_process_msg_1094() with a buffer starting with 0x27
-	1. that invokes eeprom_unlock_dc8
-		* which somehow sets eeprom_write_lock_1020f0 to 0x3c
-	1. invoke eeprom_process_msg_1094() with a buffer starting with 0x3d
-	1. which invokes eeprom_write_msg_cfc with a buff that writes my "cert" to EEPROM:0x1040
-	2. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
+Phase 0:
+	1. send `665#022700`, get DH challenge
+		* response will start with `666#0x6700`, ignore that
+	2. find the discrete logarithm of it, power: 0x7a69, mod: 0xa59068ff
+		* above is 31337, 2777704703
+	3. send `665#??2701{8-bytes)`
+	4. see a reply like `666#0x6701`
 
+Phase 1:
+	1. send a message like `665#__3d...`
+		`__` -- total length above
+		`21` -- 2 byte eeprom address length, 1 byte content address length
+		`1040` -- eeprom address
+		`??` -- cert length
+		`...` -- actual cert
+	2. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
 
 Phase 2:
 	1. reboot board
