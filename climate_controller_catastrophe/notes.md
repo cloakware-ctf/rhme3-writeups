@@ -357,10 +357,10 @@ char dh_generate_challenge_9ac(void) {
 	uint64_t yB;    // Y+0xB..0x12 -- swap for |=
 
 	last = dh_checksum_1025bc
-	dh_checksum_1025bc = sub_8d26(prob_get_rand_5fbf(), 0x10);
-	dh_checksum_1025bc |= sub_8d26(prob_get_rand_5fbf(), 0x20);
-	dh_checksum_1025bc |= sub_8d26(prob_get_rand_5fbf(), 0x30);
-	dh_checksum_1025bc |= prob_get_rand_5fbf();
+	dh_checksum_1025bc =  prob_get_rand_5fbf() << 0x10; // uint64_rol_8d26(prob_get_rand_5fbf(), 0x10);
+	dh_checksum_1025bc |= prob_get_rand_5fbf() << 0x20; // uint64_rol_8d26(prob_get_rand_5fbf(), 0x20);
+	dh_checksum_1025bc |= prob_get_rand_5fbf() << 0x30; // uint64_rol_8d26(prob_get_rand_5fbf(), 0x30);
+	dh_checksum_1025bc |= prob_get_rand_5fbf();         // first byte
 
 	dh_checksum_1025bc %= 0xa59068ff; // __umoddi3(dh_checksum_1025bc, 0xa59068ff);
 	if (dh_checksum_1025bc == last) remember_and_die();
@@ -1251,15 +1251,42 @@ main_loop_2c8b
 
 ## EEPROM
 	1001: 8 bytes of ABBA42C0FFEE1337
-	100a: 24 bytes of 
+	100a: 24 bytes of
 		- default: C44ABF3BA6C1F6FC4B730D82E3694BF131D102CB5A2DDE
 	1028: 16 bytes of session key, from generate_session_key
 		- default: AB7CDFB4C464DCD791
 	1040: 120 bytes of cert
 		- default starts: 30768095269736361
 
+## Discrete Log
+Challenge: 2547733427
+Exponent:       31337
+Modulus    2777704703
+
+Equation is Challenge = Response ^ Exponent mod Modulus
+
+Now a proper discrete log is to find the exponent, here I need to find the root.
+I need the Eth root of Challenge.
+
+First step: factoring:
+	Modulus is 39971 * 69493
+	Euler's totient phi(m) is 2777595240
 
 
+I've seen this one before...
+Reference: http://www.oxfordmathcenter.com/drupal7/node/179, with: x->r / k->e / b->c
+	r^e = c (mod m)
+	:- r = c^u -- u being unknown
+	:- e*u = 1 (mod phi)
+	:- u = 690033473
+	:- r = 32053417
+And that's it, my response is 32053417.
+
+Ok, the formula is:
+```ruby
+response = modPower(challenge, modInv(31337, 2777595240), 2777704703)
+check = challenge == modPower(response, 31337, 2777704703)
+```
 
 ## Patching with r2
 ```sh
@@ -1565,11 +1592,18 @@ Results:
   can0  67F   [5]  04 27 11 22 33            '.'."3'
   can0  666   [5]  21 00 00 00 00            '!....'
 ```
-Note: something weird here.
-
+Note: something weird here...
+This is an accidental unlock request:
+	10 0A -- multipart, 0xA bytes
+		67 11 -- 0x67, + my 0x11 & 0x3f
+		B3 53 DB 97
+	21 -- more bytes
+		B3 53 DB 97
+		00 00 00 00
+So my challenge is: B3 53 DB 97 00 00 00 00
+	- little end first.
 
 ### Happy Path
-
 Todo:
 	understand how main_loop_2c8b merges frames into messages
 		-> sub_2720 is the thing that does that
@@ -1580,7 +1614,7 @@ Phase 0:
 	1. send `665#022700`, get DH challenge
 		* response will start with `666#0x6700`, ignore that
 	2. find the discrete logarithm of it, power: 0x7a69, mod: 0xa59068ff
-		* above is 31337, 2777704703
+		* I've written a ruby script, `./getResponse.rb <challenge>`
 	3. send `665#??2701{8-bytes)`
 	4. see a reply like `666#0x6701`
 
@@ -1601,3 +1635,4 @@ Phase 2:
 	5. return to ROM:3514 makes us leet
 	6. return to print_flag_or_die_4E8F and we win.
 	7. submit flag
+
