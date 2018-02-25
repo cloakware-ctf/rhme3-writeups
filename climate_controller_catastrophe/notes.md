@@ -10,10 +10,10 @@ In addition to the attached challenge and reversing binaries, you're provided a 
 
 ## Initial Analysis
 X <- Z // data
-	Z = 0x12612
-	X = 0x2000 .. 0x25bc
+Z = 0x12612
+X = 0x2000 .. 0x25bc
 X <- 0 // bss
-	0x25bc .. 0x3081
+0x25bc .. 0x3081
 
 avr_loader_emu(0x12612, 0x2000, 0x25bc)
 avr_bss_emu(0x25bc, 0x3081)
@@ -240,7 +240,7 @@ void frame_read_25a0(char frame[11], char* arg1) {
 	if (y1 < 9) {
 		memcpy(buf, &arg1[6], y1)
 		buf.last = y1;
-		buf.short5 = (arg1[1] << 3) | (arg1[2] >> 5);
+		buf.sid = (arg1[1] << 3) | (arg1[2] >> 5);
 		memcpy(frame, buf, 11);
 	} else {
 		memcpy(frame, buf, 11); // XXX loading uninitialized RAM???
@@ -269,6 +269,191 @@ bool is_whole_msg_waiting_26e3() {
 	}
 }
 
+void try_readMessageBuffer_2575(void) {
+	char ret; // Y+1
+	canframe frame; // Y+2..0xC
+	ret = readMessageBuffer_29a7(frame);
+	if (ret) {
+		possible_store_cert_eeprom_77EB(0x2137, frame.sid, frame.last, frame); // XXX WTF?
+	} else {
+		printf("Failed to read message buffer");
+		die();
+	}
+}
+
+char readMessageBuffer_29a7(char msg[11]) {
+	if (byte_102e5d == 0) return 0;
+	memcpy(msg, struct_1025c5, 11);
+	byte_102e5d -= 1;
+	memmove(struct_1025c5, word_1025d0, byte_102e5d * 11); // advance queue
+	return 1;
+}
+
+void sub_8806(short arg0, char arg1) { // sub_8803
+	Z = arg0
+	arg0[3] = arg1;
+	while (Z[2] >= 0) {
+		Z = arg0;
+	}
+	return arg0[3];
+}
+
+void cert_process_msg_66c8(void *arg0, void *arg1) {
+	// arg0 at Y+1..2
+	// arg1 at Y+3..4
+	if (cert_lock_102e61 == 11) {
+		parse_cert_6481(arg0, arg1);
+	} else if (cert_lock_102e61 != 0) {
+		printf("Message received, sharing climate control settings.");
+		share_climate_settings_666d(0x210c, 5);
+	}
+	return;
+}
+
+void share_climate_settings_666d(char *data, short dataLen) {
+	// stack frame 8
+	short unused;    //  Y+1..2
+	char buffer[37]; //  Y+3..4
+	// data is stored at Y+5..6
+	// dataLen is stored at Y+7..8
+	rx14 = rx16 = $sp;
+	{
+		unused = 0x20+dataLen-1;
+		$sp -= (0x20+dataLen); // stack alloc
+		buffer = $sp+1;
+		sub_2af8(data, dataLen, &buffer[dataLen]);
+		memcpy(buffer, data, dataLen);
+		can_send_61c1(buffer, 0x20+dataLen, 0x1ff, 0x40);
+	}
+	$sp = r14;
+	$sp = r16;
+	return;
+}
+
+void sub_2af8(char *src, short length, char* dest) {
+	// stack frame 22 / 0x16
+	char key[16]; // Y+1
+	// src      is at Y+0x11..12
+	// length   is at Y+0x13..13
+	// dest     is at Y+0x15..16
+	memset(key, 0, 16);
+	eeprom_read_block(&key, 0x1028, 16);
+	possible_hmac_4b03(dest, key, 0x0080, src, length << 3);
+	return;
+}
+
+void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
+	// possibly HMAC_SHA_256?
+}
+
+void parse_cert_6481(void *arg0, short length) {
+	// stack frame 9
+	char y1; // Y+1
+	char y2; // Y+2
+	char y3; // Y+3
+	char y4; // Y+4
+	char y5; // Y+5
+	// arg0 at  Y+6..7
+	// length at Y+8..9
+	if (cert_lock_102e61 != 11) {
+		remember_and_die();
+	} else if (*arg0 != 0x30) {
+		printf("Certificate format not supported");
+		die();
+	} else if (length < 64 || arg0[1]+2 != length) {
+		printf("Key length not supported");
+		die();
+	}
+	y1 = arg0[1]+2;
+	/****/ if ( 0 == (y2=arg0[3]) || y2+5 < y1) {
+		printf("Invalid length parameters");
+		return 0xa4;
+	} else if ( 0 == (y3=arg0[y2+5]) || y2+y3+7 < y1) {
+		printf("Invalid length parameters");
+		return 0xa4;
+	} else if ( 0 == (y4=arg0[y2+y3+7]) || y2+y3+y4+9 < y1) {
+		printf("Invalid length parameters");
+		return 0xa4;
+	} else if ( 0 == (y5=arg[y2+y3+y4+9]) || y2+y3+y4+y5+9 < y1) {
+		printf("Invalid length parameters");
+		return 0xa4;
+	} else if (y5 != 0x31) {
+		printf("Key length not supported");
+		return 0xa4;
+	} else {
+		generate_session_key_2b8a(arg0+y2+y3+y4+10);
+		cert_lock_102e61 = 0;
+		printf("Session key initialized");
+		return 0x4a;
+	}
+}
+
+void generate_session_key_2b8a(void* arg0) {
+	// stack frame 185
+	void* y1;        // Y+1..2
+	void* y3;        // Y+3..4
+	char buffer[24]; // Y+5..28
+	short y29;       // Y+29..30
+	short y34;       // Y+34..35
+	short y37;       // Y+37..48
+	short y39;       // Y+39..40
+	short y42;       // Y+42..43
+	sessionKey sk44; // Y+44
+	sessionKey sk69; // Y+69
+	char bufTwo[24]; // Y+94..117
+	char bufThr[24]; // Y+118..141
+	// arg0 at          Y+184..185
+
+	for (int i=0; i<24; i++) {
+		buffer[i] = 0;
+	}
+	eeprom_read_block(buffer, 0x100a, 24);
+	y29 = 24;
+	y33 = &buffer;
+	sub_2d61(y29);
+	if (arg0[0]!=4) {
+		printf("Error during session key generation");
+		die();
+	}
+	y1 = arg0+1;
+	y3 = arg0+25;
+	y34 = 24;
+	y39 = 24;
+	y37 = y1;
+	y42 = y3;
+
+	sub_2d61(&y34);
+	sub_2d61(&y39);
+	if (j_init_struct_50a6(&sk44, 0xc0)) {
+		printf("Insufficient memory");
+		die();
+	}
+	sub_51a4(&sk44, &y34);
+
+	if (j_init_struct_50a6(&sk69, 0xc0)) {
+		printf("Insufficient memory");
+		die();
+	}
+	sub_59d8(&sk69, &y29, &sk44, 0x20e8);
+
+	for (int i=0; i<24; i++) {
+		bufTwo[i] = 0;
+		bufThr[i] = 0;
+	}
+
+	y142[0:1] = 24;
+	y142[3:4] = &y94;
+	y142[5:6] = 24;
+	y142[8:9] = &y118;
+	sub_521d(&y142, &sk69, 0x20e8);
+	sub_6130(&y152, y142[3:4], 0, 24);
+	eeprom_write_block(&y152, 0x1028, 16);
+	return;
+}
+```
+
+```c
+/*** EEPROM **********************************************************/
 void eeprom_process_msg_1094(char* buffer, short arg1) {
 	char y1 = 0x87;
 	// buffer is at Y+2..3
@@ -573,189 +758,6 @@ char eeprom_valid_addr_len_be1(void *eeprom_addr, short length) {
 	ret = 0x69;
 	return ret;
 }
-
-void try_readMessageBuffer_2575(void) {
-	char ret; // Y+1
-	canframe frame; // Y+2..0xC
-	ret = readMessageBuffer_29a7(frame);
-	if (ret) {
-		possible_store_cert_eeprom_77EB(0x2137, frame.short5, frame.last, frame); // XXX WTF?
-	} else {
-		printf("Failed to read message buffer");
-		die();
-	}
-}
-
-char readMessageBuffer_29a7(char msg[11]) {
-	if (byte_102e5d == 0) return 0;
-	memcpy(msg, struct_1025c5, 11);
-	byte_102e5d -= 1;
-	memmove(struct_1025c5, word_1025d0, byte_102e5d * 11); // advance queue
-	return 1;
-}
-
-void sub_8806(short arg0, char arg1) { // sub_8803
-	Z = arg0
-	arg0[3] = arg1;
-	while (Z[2] >= 0) {
-		Z = arg0;
-	}
-	return arg0[3];
-}
-
-
-void cert_process_msg_66c8(void *arg0, void *arg1) {
-	// arg0 at Y+1..2
-	// arg1 at Y+3..4
-	if (cert_lock_102e61 == 11) {
-		parse_cert_6481(arg0, arg1);
-	} else if (cert_lock_102e61 != 0) {
-		printf("Message received, sharing climate control settings.");
-		share_climate_settings_666d(0x210c, 5);
-	}
-	return;
-}
-
-void share_climate_settings_666d(char *data, short dataLen) {
-	// stack frame 8
-	short unused;    //  Y+1..2
-	char buffer[37]; //  Y+3..4
-	// data is stored at Y+5..6
-	// dataLen is stored at Y+7..8
-	rx14 = rx16 = $sp;
-	{
-		unused = 0x20+dataLen-1;
-		$sp -= (0x20+dataLen); // stack alloc
-		buffer = $sp+1;
-		sub_2af8(data, dataLen, &buffer[dataLen]);
-		memcpy(buffer, data, dataLen);
-		can_send_61c1(buffer, 0x20+dataLen, 0x1ff, 0x40);
-	}
-	$sp = r14;
-	$sp = r16;
-	return;
-}
-
-void sub_2af8(char *src, short length, char* dest) {
-	// stack frame 22 / 0x16
-	char key[16]; // Y+1
-	// src      is at Y+0x11..12
-	// length   is at Y+0x13..13
-	// dest     is at Y+0x15..16
-	memset(key, 0, 16);
-	eeprom_read_block(&key, 0x1028, 16);
-	possible_hmac_4b03(dest, key, 0x0080, src, length << 3);
-	return;
-}
-
-void possible_hmac_4b03(char *dest, char *temp, short eighty, char *src, uint32_t off8) {
-	// possibly HMAC_SHA_256?
-}
-
-void parse_cert_6481(void *arg0, short length) {
-	// stack frame 9
-	char y1; // Y+1
-	char y2; // Y+2
-	char y3; // Y+3
-	char y4; // Y+4
-	char y5; // Y+5
-	// arg0 at  Y+6..7
-	// length at Y+8..9
-	if (cert_lock_102e61 != 11) {
-		remember_and_die();
-	} else if (*arg0 != 0x30) {
-		printf("Certificate format not supported");
-		die();
-	} else if (length < 64 || arg0[1]+2 != length) {
-		printf("Key length not supported");
-		die();
-	}
-	y1 = arg0[1]+2;
-	/****/ if ( 0 == (y2=arg0[3]) || y2+5 < y1) {
-		printf("Invalid length parameters");
-		return 0xa4;
-	} else if ( 0 == (y3=arg0[y2+5]) || y2+y3+7 < y1) {
-		printf("Invalid length parameters");
-		return 0xa4;
-	} else if ( 0 == (y4=arg0[y2+y3+7]) || y2+y3+y4+9 < y1) {
-		printf("Invalid length parameters");
-		return 0xa4;
-	} else if ( 0 == (y5=arg[y2+y3+y4+9]) || y2+y3+y4+y5+9 < y1) {
-		printf("Invalid length parameters");
-		return 0xa4;
-	} else if (y5 != 0x31) {
-		printf("Key length not supported");
-		return 0xa4;
-	} else {
-		generate_session_key_2b8a(arg0+y2+y3+y4+10);
-		cert_lock_102e61 = 0;
-		printf("Session key initialized");
-		return 0x4a;
-	}
-}
-
-void generate_session_key_2b8a(void* arg0) {
-	// stack frame 185
-	void* y1;        // Y+1..2
-	void* y3;        // Y+3..4
-	char buffer[24]; // Y+5..28
-	short y29;       // Y+29..30
-	short y34;       // Y+34..35
-	short y37;       // Y+37..48
-	short y39;       // Y+39..40
-	short y42;       // Y+42..43
-	sessionKey sk44; // Y+44
-	sessionKey sk69; // Y+69
-	char bufTwo[24]; // Y+94..117
-	char bufThr[24]; // Y+118..141
-	// arg0 at          Y+184..185
-
-	for (int i=0; i<24; i++) {
-		buffer[i] = 0;
-	}
-	eeprom_read_block(buffer, 0x100a, 24);
-	y29 = 24;
-	y33 = &buffer;
-	sub_2d61(y29);
-	if (arg0[0]!=4) {
-		printf("Error during session key generation");
-		die();
-	}
-	y1 = arg0+1;
-	y3 = arg0+25;
-	y34 = 24;
-	y39 = 24;
-	y37 = y1;
-	y42 = y3;
-
-	sub_2d61(&y34);
-	sub_2d61(&y39);
-	if (j_init_struct_50a6(&sk44, 0xc0)) {
-		printf("Insufficient memory");
-		die();
-	}
-	sub_51a4(&sk44, &y34);
-
-	if (j_init_struct_50a6(&sk69, 0xc0)) {
-		printf("Insufficient memory");
-		die();
-	}
-	sub_59d8(&sk69, &y29, &sk44, 0x20e8);
-
-	for (int i=0; i<24; i++) {
-		bufTwo[i] = 0;
-		bufThr[i] = 0;
-	}
-
-	y142[0:1] = 24;
-	y142[3:4] = &y94;
-	y142[5:6] = 24;
-	y142[8:9] = &y118;
-	sub_521d(&y142, &sk69, 0x20e8);
-	sub_6130(&y152, y142[3:4], 0, 24);
-	eeprom_write_block(&y152, 0x1028, 16);
-	return;
-}
 ```
 
 ```c
@@ -781,7 +783,7 @@ short sub_2720(char* arg0) {
 		msgs_waiting_102e5e -= 1;
 	}
 	if (0 == msg_queue_head_102a11.nibble1) {
-		y6 = struct_102a11.short5;
+		y6 = struct_102a11.sid;
 		y8 = msg_total_length_2654();
 		memcpy(arg0, byte_102a12, y8);
 		memmove(msg_queue_head_102a11, byte_102a1c, msgs_waiting_102e5e*11);
@@ -798,13 +800,12 @@ short sub_2720(char* arg0) {
 		msgs_waiting_102e5e -= 1;
 		return 0;
 	} else { // == 1?
-		yB = struct_102a11.short5;
+		yB = struct_102a11.sid;
 		yD = msg_total_length_2654();
 		memcpy(arg0, &struct_102a11.data, 6);
 		for (y1 = 6, y3 = 1; y1 < yD; y3++) {
-			Z = arg0 + y1;
 			X = &msg_queue_head_102a11[y3];
-			yF = sub_26a6(&arg0.data, X[0..10]); // param 2 in r12..r22
+			yF = sub_26a6(&arg0[y1], X[0..10]); // param 2 in r12..r22
 			y1 += yF
 		}
 		if (yD == 0 && msgs_waiting_102e5e != 0) {
@@ -850,7 +851,7 @@ short msg_total_length_2654(void) {
 	short y1 = 0;
 	char topNibble = msg_queue_head_102a11.nibble1;
 	if (topNibble == 0) {
-		y1 = (msg_queue_head_102a11.last & 0xf) - 1;
+		y1 = (msg_queue_head_102a11.size & 0xf) - 1;
 		if (y1<9) return y1;
 		else return 0;
 	} else if (topNibble == 1) {
@@ -1056,7 +1057,7 @@ void cert_load_and_check_63e0(void) {
 	// test_const_rng_69e5();
 	if (y7 != 0x4a) {
 		msg_new_2ac1(&y108, 2, 0, 0x0000, 0, 0);
-		sub_77eb(0x2137, y108.short5, y108.last, &y108);
+		sub_77eb(0x2137, y108.sid, y108.last, &y108);
 		detect_fi_worker_6A7C();
 		printf("Loaded invalid certificate");
 		die();
@@ -1159,8 +1160,8 @@ struct canframe {
 	char:4  nibble2; // first 4 bits of 12 bit msg size, with char3
 	char    char3;
 	char[6] data;
-	short   short5;
-	char    last;
+	short   sid;     // CAN SID
+	char    size;    // how many bytes of nibbles+char+data are live, max 8.
 }
 
 struct sessionKey {
@@ -1443,7 +1444,7 @@ Payload is:
 	01 02 03 04 05 06 07 08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 38 39 3a 3b 3c 3d 3e 3f 40 41 42 43 44 45 46 47 48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 58 59 5a
 		-- ninety bytes padding
 	4a 09 ?? 08 ?? ?? 3b 00
-		-- four bytes to cross locals, + four more for cert pointer and saved sp and 
+		-- four bytes to cross locals, + four more for cert pointer and saved sp and
 ROP:
 	00 79 f7    -- return to INT0_
 	21 0a       -- populate Z
@@ -1456,21 +1457,21 @@ ROP:
 	00 4e 8f    -- return to print_flag_or_die_4E8F
 
 Built:
-30 f4 80 09 52 69 73 63 61 72 20 43 41 81 88 4e 
-49 53 54 20 50 2d 31 39 32 01 02 03 04 05 06 07 
-08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17 
-18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27 
-28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37 
-38 39 3a 3b 3c 3d 3e 3f 40 41 42 43 44 45 46 47 
-48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57 
-58 59 5a 4a 09 88 08 00 79 f7 21 0a 27 26 25 24 
-23 22 21 20 13 37 00 00 00 00 80 00 01 00 35 14 
-ca fe ba be 00 4e 8f 82 08 ab ba 42 c0 ff ee 13 
-37 83 31 04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f 
-b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71 
-5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce 
-0d b7 26 7e 84 20 d9 00 3c ac af 5b 93 5f 9f cb 
-0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d 
+30 f4 80 09 52 69 73 63 61 72 20 43 41 81 88 4e
+49 53 54 20 50 2d 31 39 32 01 02 03 04 05 06 07
+08 09 0a 0b 0c 0d 0e 0f 10 11 12 13 14 15 16 17
+18 19 1a 1b 1c 1d 1e 1f 20 21 22 23 24 25 26 27
+28 29 2a 2b 2c 2d 2e 2f 30 31 32 33 34 35 36 37
+38 39 3a 3b 3c 3d 3e 3f 40 41 42 43 44 45 46 47
+48 49 4a 4b 4c 4d 4e 4f 50 51 52 53 54 55 56 57
+58 59 5a 4a 09 88 08 00 79 f7 21 0a 27 26 25 24
+23 22 21 20 13 37 00 00 00 00 80 00 01 00 35 14
+ca fe ba be 00 4e 8f 82 08 ab ba 42 c0 ff ee 13
+37 83 31 04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f
+b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71
+5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce
+0d b7 26 7e 84 20 d9 00 3c ac af 5b 93 5f 9f cb
+0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d
 a8 34 fc 8e 21 02
 
 
@@ -1698,6 +1699,30 @@ This is an accidental unlock request:
 So my challenge is: B3 53 DB 97 00 00 00 00
 	- little end first.
 
+### Message Fragmentation
+The message I've seen started with `10 25`, then fragments labelled `21` .. `25`.
+
+What we don't know:
+	- how can messages get turned into frames -> frame_read_25a0
+	- first 8 bytes of canframe are straight from CANBUS frame
+	- the "short" is wierd, return value from 2720, sometimes 0x500, or 0x0, appears to be SID
+	- last nibble is the number of live data bytes, counting from the beginning
+
+What we know:
+	- messages starting `0` are complete, shift the 0, process the rest.
+	- messages starting `1` begin a fragmented message set, next 3 nibbles are size
+	- messages starting `2` do a try_readMessageBuffer_2575, and get a 0x500 response (ref 2720)
+		- I think this is "got fragments without head, skipping"
+	- messages starting `3` are ignored
+	- messages starting with anything else are NYI? (ref 26e3, 2720)
+	- there's a relatively small fragment limit, orig+8, I think.
+
+Trying to understand again:
+	- 0xx: return size-1, put rest in 2720(arg0)
+	- 1xyz: return int(xyz)
+		- so `1025` -> 1, 0x025
+
+
 ### Happy Path
 Todo:
 	understand how main_loop_2c8b merges frames into messages
@@ -1709,21 +1734,27 @@ Todo:
 Phase 0: Unlock
 	1. send `665#022700`, get DH challenge
 		* response will start with `666#0x6700`, ignore that
+		* example `can0  666   [8]  10 0A 67 11 B3 53 DB 97   '..g..S..'`
 	2. find the discrete logarithm of it, power: 0x7a69, mod: 0xa59068ff
 		* I've written a ruby script, `./getResponse.rb <challenge>`
-	3. send `665#??2701{8-bytes)`
+		* example `./getResponse.rb B3 53 DB 97`
+	3. send `665#072701{4-bytes)`
+		* example `665#072701a918e901`
+		* breakdown: 0x07 bytes, 0x27 eeprom unlock message, 0x01 response, 0xa918e901 code
 	4. see a reply like `666#026701`
 
 Phase 1: Upload
 	1. send a message like `665#__3d...`
-		`__` -- total length above
-		`21` -- 2 byte eeprom address length, 1 byte content address length
-		`1040` -- eeprom address
-		`??` -- cert length
+		`__` -- fragment-related bytes
+		`3d` -- invoke eeprom_write_msg_cfc
+		`21` -- 2 byte eeprom address, 1 byte content length
+		`1040` -- eeprom address -- need to be swapped to little endian
+		`??` -- cert length -- also byte if length 2
 		`...` -- actual cert
-	2. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
+	2. I've written a script, `./makePayload.rb`, to generate the CAN frames
+	3. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
 
-Phase 2: Renew Session Key
+Phase 2: Invalidate Session Key, so it'll get regenerated
 	1. send `665#0431010143` to invalidate the session key at EEPROM:0x1028
 	2. see a reply like `666#057101014301`
 

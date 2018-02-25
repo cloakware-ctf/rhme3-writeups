@@ -46,11 +46,13 @@ begin
 		exit 1
 	end
 
-	challenge = ARGV[0].to_i
+	# challenge = ARGV[0].to_i
+	challenge = ARGV.reverse.join.to_i(16)
 
 	phi = modInv(Exponent, Phi)
 	response = modPower(challenge, phi, Modulus)
-	raise unless challenge == modPower(response, Exponent, Modulus)
-	puts ('%016x'%[response]).scan(/../).reverse.join
+	raise 'end check failed' unless challenge == modPower(response, Exponent, Modulus)
+	#puts ('%016x'%[response]).scan(/../).reverse.join
+	puts ('%08x'%[response]).scan(/../).reverse.join
 end
 
