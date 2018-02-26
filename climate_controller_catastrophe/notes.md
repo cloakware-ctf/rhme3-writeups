@@ -487,7 +487,7 @@ char eeprom_unlock_dc8(char *buffer, short arg1) {
 	// arg1 is at      Y+0x1e..0x1f
 
 	ret = 0x0087;
-	if (0 == (buffer[1] & 1)) {
+	if (0 != (buffer[1] & 1)) {
 		if (arg1 >= 0) {
 			dh_generate_challenge_9ac();
 			byte_1020f1 = 0x5a;
@@ -1267,6 +1267,21 @@ main_loop_2c8b
 	try_readMessageBuffer_2575
 		readMessageBuffer_29a7
 
+print_flag_or_die_4E8F
+	test_const_rng_69e5
+		JMB_init_6F9A
+			** should be skipped...
+			jj_test_rng_rx24_times
+		prob_get_rand_5FBF
+			rng_test_get_6ba7
+				printf("You seem to be attempting to influence the RNG")
+				j_random_word
+			jj_prob_busy_wait_6CCC
+		busy_mux_1742
+			jj_prob_busy_wait_6CCC
+			busy_mux_1742
+				jj_prob_busy_wait_6CCC
+
 ## EEPROM
 	1001: 8 bytes of ABBA42C0FFEE1337
 	100a: 24 bytes of
@@ -1732,31 +1747,33 @@ Todo:
 	develop a usable payload
 
 Phase 0: Unlock
-	1. send `665#022700`, get DH challenge
+	1. send `665#022701`, get DH challenge
 		* response will start with `666#0x6700`, ignore that
 		* example `can0  666   [8]  10 0A 67 11 B3 53 DB 97   '..g..S..'`
+                  `can0  666   [5]  21 00 00 00 00            '!....'`
 	2. find the discrete logarithm of it, power: 0x7a69, mod: 0xa59068ff
 		* I've written a ruby script, `./getResponse.rb <challenge>`
 		* example `./getResponse.rb B3 53 DB 97`
-	3. send `665#072701{4-bytes)`
+	3. send `665#072700{4-bytes)`
 		* example `665#072701a918e901`
 		* breakdown: 0x07 bytes, 0x27 eeprom unlock message, 0x01 response, 0xa918e901 code
-	4. see a reply like `666#026701`
+	4. see a reply like `666#026700`
 
 Phase 1: Upload
 	1. send a message like `665#__3d...`
 		`__` -- fragment-related bytes
 		`3d` -- invoke eeprom_write_msg_cfc
-		`21` -- 2 byte eeprom address, 1 byte content length
+		`12` -- 2 byte eeprom address, 1 byte content length
 		`1040` -- eeprom address -- need to be swapped to little endian
 		`??` -- cert length -- also byte if length 2
 		`...` -- actual cert
 	2. I've written a script, `./makePayload.rb`, to generate the CAN frames
 	3. eeprom_write_arbitrary_block_ca3 drops my cert to eeprom
+	4. see a reply like `666#057d12400020`
 
 Phase 2: Invalidate Session Key, so it'll get regenerated
-	1. send `665#0431010143` to invalidate the session key at EEPROM:0x1028
-	2. see a reply like `666#057101014301`
+	1. send `665#0431014301` to invalidate the session key at EEPROM:0x1028
+	2. see a reply like `666#057101430101`
 
 Phase 3:
 	1. reboot board
@@ -1767,4 +1784,83 @@ Phase 3:
 	5. return to ROM:3514 makes us leet
 	6. return to print_flag_or_die_4E8F and we win.
 	7. submit flag
+
+### Actual Play
+#### Phase 0
+```
+  can0  665   [3]  02 27 00                  '.'.'
+  can0  666   [2]  01 24                     '.$'
+```
+Error: bad if operator in decompile of dc8, fixed.
+
+```
+  can0  665   [7]  07 27 01 C0 E0 68 69      '.'...hi'
+  can0  666   [8]  10 0A 67 01 41 24 40 03   '..g.A$@.'
+  can0  666   [5]  21 00 00 00 00            '!....'
+  can0  665   [7]  07 27 00 CD 5D A2 8A      '.'..]..'
+  can0  666   [3]  02 67 00                  '.g.'
+```
+Result: Phase 0 complete.
+Note: the check response code is slow. Wait for it.
+
+#### Phase 1
+```
+  can0  665   [8]  10 25 3D 12 40 10 20 30   '.%=!@. 0'
+  can0  665   [8]  21 F4 80 09 52 69 73 63   '!...Risc'
+  can0  665   [8]  22 61 72 20 43 41 81 88   '"ar CA..'
+  can0  665   [8]  23 4E 49 53 54 20 50 2D   '#NIST P-'
+  can0  665   [8]  24 31 39 32 01 02 03 04   '$192....'
+  can0  665   [4]  25 05 06 07               '%...'
+  can0  666   [2]  01 31                     '.1'
+```
+Note: there was an error in makePayload.rb, length byte nibble-swapped fixed.
+Still doesn't work, though. Erroring in child.
+	-> because I was using the synthetic 0x1040 address, not the real 0x0040 addr
+	- fixed.
+
+```
+  can0  665   [8]  10 25 3D 12 40 00 20 30   '.%=.@. 0'
+  can0  665   [8]  21 F4 80 09 52 69 73 63   '!...Risc'
+  can0  665   [8]  22 61 72 20 43 41 81 88   '"ar CA..'
+  can0  665   [8]  23 4E 49 53 54 20 50 2D   '#NIST P-'
+  can0  665   [8]  24 31 39 32 01 02 03 04   '$192....'
+  can0  665   [4]  25 05 06 07               '%...'
+  can0  666   [6]  05 7D 12 40 00 20         '.}.@. '
+```
+Result: Phase 1 complete.
+
+#### Phase 2
+```
+  can0  665   [5]  04 31 01 43 01            '.1.C.'
+  can0  666   [6]  05 71 01 43 01 01         '.q.C..'
+```
+Note: LE byte swap fix.
+Result: Phase 2 complete.
+
+#### Phase 3
+```
+Initializing...
+
+You seem to be attempting to influence the RNG. If you believe this to be a false positive, you can retry doing what you did.
+```
+Well shit.
+
+Testing shows that everything seems to be in working order. It's possible I can't
+
+### Trying Again
+cansend can0 665#022701
+cansend can0 "665#072700$(./getResponse.rb 23 FB 6D 58)"
+	(wait)
+
+./makePayload.rb
+	(and copy-paste output)
+
+cansend can0 665#0431014301
+	(reboot)
+
+```
+Initializing...
+
+It's dangerous to go alone! take this.57a2ffb4aeaf9001be4eccd0672578bd
+```
 
