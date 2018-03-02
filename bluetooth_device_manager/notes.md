@@ -20,13 +20,18 @@ Bindiff picked up 39 / 97 functions. That's a really good start.
 	* device_count_102194 is a char, will wrap early
 	* connect_new_device_263() will copy some stack into device names/keys
 
+## Analysis of `malloc`/`free`
+	* malloc_word_10225D seems like the start of free space, mallocs will drop here unless they find a better place to do
+	* I think malloc_entries_10225F might be the free space list, made up of things that got free()d.
+
+
 ## Conditions for Victory
 	* must invoke `print_flag_182()`
 	* it will compare `RAM:0x2000 == 0xF00D` to clear flag_mask_102210
 	* it will compare `RAM:0x2002 == 0xBAAD` to print_flag_sub()
 	* but, if `stack_102192 < Y+1` it will complain about pivoting and bail.
 
-## Decompilation
+## Decompilation of normal functions
 ```c
 short broken_read_str_until_13b(void* usart, char* buffer, short length, char terminator) {
 	short i;       // Y+1..2
@@ -40,7 +45,7 @@ short broken_read_str_until_13b(void* usart, char* buffer, short length, char te
 		j_usart_send_byte(usart, c);
 		buffer[i] = c;
 		if (c == terminator) {
-			buffer[i] = '\0'; // XXX DEFECT
+			buffer[i] = '\0'; // XXX DEFECT only done if newline, not if i>=length
 			break;
 		}
 	}
@@ -79,8 +84,8 @@ DeviceLink *device_list_find_319(char id, DeviceLink **prev_out) {
 }
 
 struct DeviceList = {
-	DeviceLink *head;
-	DeviceLink *tail;
+	DeviceLink *head; // Z[0:1]
+	DeviceLink *tail; // Z[2:3]
 };
 
 struct DeviceLink = {
@@ -91,7 +96,9 @@ struct DeviceLink = {
 	char *key;        // Z[7:8]
 	DeviceLink *next; // Z[9:A]
 };
+```
 
+```c
 void print_all_connected_devices_3eb(void) {
 	DeviceLink *device; // Y+1..2
 	device = device_list_102190.head;
@@ -146,10 +153,10 @@ void disconnect_device_35c(char id) {
 			} else {
 				device_list_102190.tail = prev;
 			}
-			free(device.name);
-			free(device.key);
-			free(device);
 		}
+		free(device.name);
+		free(device.key);
+		free(device);
 
 	} else {
 		serial_printf("Error: Could not find device with this id!");
@@ -195,7 +202,7 @@ void cleanup_439(void) {
 	}
 }
 
-int main() {
+int main_546() {
 	short y1;    // Y+1..2
 	short y3;    // Y+3..4
 	short y5;    // Y+5..6
@@ -247,5 +254,187 @@ int main() {
 		}
 	}
 }
+```
 
+## Decompilation of Heap Functions
+```c
+struct Entry {
+	short length;
+	short unk23;
+}
+
+void *malloc(short length) {
+	Entry *X;
+	Entry *Y;
+	Entry *Z;
+
+	if (length <2) length = 2;
+	Z = malloc_entries_10225F;
+	Y = NULL;
+	rx18 = 0;
+	while (true) {
+		if (Z == NULL && rx18 == 0) {
+			if (malloc_word_10225D == NULL) {
+				malloc_word_10225D = p_bss_start_102016; // RAM:0x2261
+			}
+			rx18 = word_102014;
+			if (rx18 == NULL) { // always is? possibly different in live load
+				rx18 = $sp - off_102018; // 0x0020
+			}
+			Z = malloc_word_10225D;
+			if (Z >= rx18) {
+				return NULL; // out of memory
+			}
+			rx18 -= Z;
+			if (rx18 <= length) {
+				return NULL; // out of memory
+			}
+			rx20 = rx24 + 2;
+			if (rx18 <= rx20) {
+				return NULL; // out of memory
+			}
+			rx20 += Z;
+			malloc_word_10225D = rx20;
+			Z.length = length;
+			return Z+2;
+		}
+		if (Z == NULL && rx18 != 0) {
+			rx18 -= length;
+			if (rx18 >= 4) {
+				Z = X + rx18;
+				Z.length = length;
+				rx18 -= 2;
+				X.length = rx18;
+				return Z+2;
+			} else {
+				X += 2;
+				length = X.length
+				X -= 2;
+				if (rx22 == 0) {
+					malloc_entries_10225F = length;
+				} else {
+					Z = rx22;
+					Z.unk23 =  length;
+					Z = X;
+				}
+				return Z+2;
+			}
+		}
+		if (Z != NULL && Z.length == length) {
+			if (Y == 0) {
+				malloc_entries_10225F = Z.unk23
+			} else {
+				Y.unk23 = Z.unk23
+			}
+			return Z+2;
+		}
+		if (Z != NULL && Z.length > length) {
+			if (rx18 == 0 || rx20 < rx18) {
+				rx18 = rx20;
+				rx22 = Y;
+				X = Z;
+			}
+			Y = Z;
+			Z = Z.unk23;
+			continue;
+		}
+		if (Z !=  NULL && Z.length < length) {
+			Y = Z;
+			Z = Z.unk23;
+			continue;
+		}
+	}
+}
+
+void free(void *ptr) {
+	Entry Z;
+
+	if (ptr == NULL) return;
+	Z = ptr-2;
+	Z.unk23 = 0;
+	rx16 = malloc_entries_10225F;
+	if (rx16 == 0) {
+		ptr += Z.length
+		rx18 = malloc_word_10225D
+		if (malloc_word_10225D == 0) {
+			malloc_word_10225D = Z;
+		} else {
+			malloc_entries_10225F = Z;
+		}
+		return;
+	}
+
+	X = rx16;
+	rx20 = 0;
+	while (true) {
+		if (X >= Z) {
+			rx18 = X;
+			X = rx20;
+			Z.unk23 = rx18;
+			rx22 = Z.length;
+			ptr += Z.length;
+			if (ptr != rx18) {
+				Y = ptr;
+				rx18 = Y.length + rx22 + 2;
+				Z.length = rx18;
+				ptr = Y.unk23;
+				Z.unk23 = ptr;
+			}
+			if (rx20 == 0) {
+				malloc_entries_10225F = Z;
+				return;
+			} else {
+				break;
+			}
+		} else {
+			rx18 = X.unk23;
+			rx20 = X;
+			if (rx18 == NULL) {
+				break;
+			} else {
+				X = rx18;
+				continue;
+			}
+		}
+	}
+
+	// loc_138e
+	X.unk23 = Z
+	Y = X;
+	rx20 = Y.length;
+	Y+= 2;
+	rx18 = Y + rx20
+	if (Z == rx18) {
+		ptr = Z.length + rx20 + 2;
+		X.length = ptr;
+		ptr = Z.unk23;
+		X.unk23 = ptr;
+	}
+	Z = NULL;
+	while (true) {
+		X = rx16;
+		ptr = X.unk23;
+		if (ptr == NULL) break;
+		Z = rx16;
+		rx16 = ptr;
+	}
+
+	ptr = X.length
+	rx18 = rx16 + 2;
+	ptr += rx18;
+	rx18 =  malloc_word_10225D;
+	if (rx18 == ptr) {
+		if (Z == NULL) {
+			malloc_entries_10225F = 0;
+		} else {
+			Z.unk23 = 0;
+		}
+		malloc_word_10225D = rx16;
+		return;
+	} else {
+		return;
+	}
+}
+
+```
 
