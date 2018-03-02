@@ -29,6 +29,7 @@ Heap:
 	* so B.size += D.size, not C.size
 	* which means I can then malloc a new B, that overlaps on D.
 	* which lets me overwrite the malloc header
+	* or alternately, it means that previous string content is now a freelist node
 
 ## Analysis of `malloc`/`free`
 	* malloc_break_10225D seems like the start of free space, mallocs will drop here unless they find a better place to do
@@ -43,7 +44,13 @@ Heap:
 	* check global usage patterns
 
 ## Exploitation
-	* 
+	* Create a bogus heap chain inside a string body.
+	* (and two wrapper entries)
+	* delete the target entry
+	* now malloc a new entry
+	* it will use my chosen locations on stack and heap for name and key
+	* so name will overwrite DEADBEEF, key will overwrite return address
+	* flag.
 
 ## Conditions for Victory
 	* must invoke `print_flag_182()`
@@ -52,8 +59,6 @@ Heap:
 	* but, if `stack_102192 < Y+1` it will complain about pivoting and bail.
 
 ## Decompilation of normal functions
-Fred
-
 ```c
 short broken_read_str_until_13b(void* usart, char* buffer, short length, char terminator) {
 	short i;       // Y+1..2
