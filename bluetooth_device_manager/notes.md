@@ -13,6 +13,7 @@ Hmmmmmm.... strcpy.... strlen... this will be fun.
 Bindiff picked up 39 / 97 functions. That's a really good start.
 
 ## Ways this Program is Broken
+Main program:
 	* broken_read_str_until_13b() doesn't always null terminate strings it reads
 	* print_all_connected_devices_3eb() doesn't limit print length, might dump heap
 	* "such heap" -> heap attacks
@@ -20,10 +21,29 @@ Bindiff picked up 39 / 97 functions. That's a really good start.
 	* device_count_102194 is a char, will wrap early
 	* connect_new_device_263() will copy some stack into device names/keys
 
-## Analysis of `malloc`/`free`
-	* malloc_word_10225D seems like the start of free space, mallocs will drop here unless they find a better place to do
-	* I think malloc_entries_10225F might be the free space list, made up of things that got free()d.
+Heap:
+	* have multiple alloced elements A->B->C->D
+	* and I delete an element (C)
+	* then delete the previous one (B)
+	* instead of merging with the B with C, it merges B with D
+	* so B.size += D.size, not C.size
+	* which means I can then malloc a new B, that overlaps on D.
+	* which lets me overwrite the malloc header
 
+## Analysis of `malloc`/`free`
+	* malloc_break_10225D seems like the start of free space, mallocs will drop here unless they find a better place to do
+	* I think malloc_freelist_10225F might be the free space list, made up of things that got free()d.
+	* grabbed `malloc.c` from `apt source avr-libc`, it's a match.
+		* `malloc()` ... exact match.
+		* `free()` ...
+
+## Todo
+	* double check linked-list functions, look for a use-after-free
+	* reverse free
+	* check global usage patterns
+
+## Exploitation
+	* 
 
 ## Conditions for Victory
 	* must invoke `print_flag_182()`
@@ -32,6 +52,8 @@ Bindiff picked up 39 / 97 functions. That's a really good start.
 	* but, if `stack_102192 < Y+1` it will complain about pivoting and bail.
 
 ## Decompilation of normal functions
+Fred
+
 ```c
 short broken_read_str_until_13b(void* usart, char* buffer, short length, char terminator) {
 	short i;       // Y+1..2
@@ -45,7 +67,7 @@ short broken_read_str_until_13b(void* usart, char* buffer, short length, char te
 		j_usart_send_byte(usart, c);
 		buffer[i] = c;
 		if (c == terminator) {
-			buffer[i] = '\0'; // XXX DEFECT only done if newline, not if i>=length
+			buffer[i] = '\0'; // XXX DEFECT: only done if newline, not if i>=length
 			break;
 		}
 	}
@@ -260,7 +282,10 @@ int main_546() {
 ```c
 struct Entry {
 	short length;
-	short unk23;
+	union {
+		Entry *next;
+		void *body;
+	}
 }
 
 void *malloc(short length) {
@@ -269,167 +294,136 @@ void *malloc(short length) {
 	Entry *Z;
 
 	if (length <2) length = 2;
-	Z = malloc_entries_10225F;
-	Y = NULL;
-	rx18 = 0;
-	while (true) {
-		if (Z == NULL && rx18 == 0) {
-			if (malloc_word_10225D == NULL) {
-				malloc_word_10225D = p_bss_start_102016; // RAM:0x2261
+	Entry *Z = malloc_freelist_10225F;
+	Entry *prevEntry = NULL; // Y
+	Entry *bestEntry;        // X
+	Entry *bestPrevEntry;    // rx22
+	short bestEntrySize = 0; // rx18
+
+	for ( ; Z!=NULL; prevIter = freeIter, freeIter = freeIter.next) {
+		if (Z.length < length) continue;
+
+		if (Z.length == length) {
+			// exact hit, use it.
+			if (prevEntry == NULL) {
+				malloc_freelist_10225F = Z.next
+			} else {
+				prevEntry.next = Z.next
 			}
-			rx18 = word_102014;
-			if (rx18 == NULL) { // always is? possibly different in live load
-				rx18 = $sp - off_102018; // 0x0020
-			}
-			Z = malloc_word_10225D;
-			if (Z >= rx18) {
-				return NULL; // out of memory
-			}
-			rx18 -= Z;
-			if (rx18 <= length) {
-				return NULL; // out of memory
-			}
-			rx20 = rx24 + 2;
-			if (rx18 <= rx20) {
-				return NULL; // out of memory
-			}
-			rx20 += Z;
-			malloc_word_10225D = rx20;
+			return &Z.body;
+
+		} else if ((bestEntrySize == 0 || Z.length < bestEntrySize)) {
+			bestEntrySize = Z.length;
+			bestPrevEntry = prevEntry;
+			bestEntry = Z;
+		}
+	}
+
+	if (bestEntrySize == 0) {
+		// no place to put it, append.
+		if (malloc_break_10225D == NULL) {
+			malloc_break_10225D = malloc_heap_start_102016; // RAM:0x2261
+		}
+		void* end = malloc_heap_start_102014;
+		if (end == NULL) { // always is? possibly different in live load
+			end = $sp - malloc_margin_102018; // 0x0020 -- tiny...
+		}
+		Entry *brk = malloc_break_10225D;
+		if (brk >= end) {
+			return NULL; // out of memory
+		}
+		short avail = end - brk;
+		if (avail <= length || avail <= length + 2) {
+			return NULL; // out of memory
+		}
+		malloc_break_10225D += length + 2;
+		nextAlloc.length = length;
+		return &nextAlloc.body;
+
+	} else {
+		// no perfect fit, use closest match
+		short deltaSize = bestEntrySize - length;
+		if (deltaSize >= 4) {
+			// new entry in the space
+			Z = bestEntry + deltaSize;
 			Z.length = length;
-			return Z+2;
-		}
-		if (Z == NULL && rx18 != 0) {
-			rx18 -= length;
-			if (rx18 >= 4) {
-				Z = X + rx18;
-				Z.length = length;
-				rx18 -= 2;
-				X.length = rx18;
-				return Z+2;
+			bestEntry.length = deltaSize - 2;
+			return &Z.next;
+		} else {
+			// resize element to fill space
+			if (bestPrevEntry == NULL) {
+				malloc_freelist_10225F = bestEntry.next;
 			} else {
-				X += 2;
-				length = X.length
-				X -= 2;
-				if (rx22 == 0) {
-					malloc_entries_10225F = length;
-				} else {
-					Z = rx22;
-					Z.unk23 =  length;
-					Z = X;
-				}
-				return Z+2;
+				bestPrevEntry.next = bestEntry.next;
 			}
-		}
-		if (Z != NULL && Z.length == length) {
-			if (Y == 0) {
-				malloc_entries_10225F = Z.unk23
-			} else {
-				Y.unk23 = Z.unk23
-			}
-			return Z+2;
-		}
-		if (Z != NULL && Z.length > length) {
-			if (rx18 == 0 || rx20 < rx18) {
-				rx18 = rx20;
-				rx22 = Y;
-				X = Z;
-			}
-			Y = Z;
-			Z = Z.unk23;
-			continue;
-		}
-		if (Z !=  NULL && Z.length < length) {
-			Y = Z;
-			Z = Z.unk23;
-			continue;
+			return &bestEntry.next;
 		}
 	}
 }
 
 void free(void *ptr) {
-	Entry Z;
-
 	if (ptr == NULL) return;
-	Z = ptr-2;
-	Z.unk23 = 0;
-	rx16 = malloc_entries_10225F;
-	if (rx16 == 0) {
-		ptr += Z.length
-		rx18 = malloc_word_10225D
-		if (malloc_word_10225D == 0) {
-			malloc_word_10225D = Z;
+
+	Entry *entry = ptr-2; // Z
+	entry.body = 0;
+	if (malloc_freelist_10225F == NULL) {
+		if (malloc_break_10225D == ptr + entry.length) {
+			// free of last element, just subtract from end
+			malloc_break_10225D = entry;
 		} else {
-			malloc_entries_10225F = Z;
+			// create freed list
+			malloc_freelist_10225F = entry;
 		}
 		return;
 	}
 
-	X = rx16;
-	rx20 = 0;
-	while (true) {
-		if (X >= Z) {
-			rx18 = X;
-			X = rx20;
-			Z.unk23 = rx18;
-			rx22 = Z.length;
-			ptr += Z.length;
-			if (ptr != rx18) {
-				Y = ptr;
-				rx18 = Y.length + rx22 + 2;
-				Z.length = rx18;
-				ptr = Y.unk23;
-				Z.unk23 = ptr;
-			}
-			if (rx20 == 0) {
-				malloc_entries_10225F = Z;
-				return;
-			} else {
-				break;
-			}
-		} else {
-			rx18 = X.unk23;
-			rx20 = X;
-			if (rx18 == NULL) {
-				break;
-			} else {
-				X = rx18;
-				continue;
-			}
+	Entry *freeIter = malloc_freelist_10225F; // X
+	Entry *prevIter = NULL;                   // rx20
+	for ( ; freeIter != NULL; prevIter = freeIter, freeIter = freeIter.next) {
+		if (freeIter < entry) continue;
+
+		// we've found or passed the entry
+		entry.next = freeIter;
+		X = prevIter;
+		Entry *nextEntry = ptr + entry.length; // rx24
+
+		if (nextEntry != freeIter) {
+			entry.length += nextEntry.length + 2;
+				// XXX should be freeIter, not nextEntry
+			entry.next = nextEntry.next;
+				// XXX should be freeIter, not nextEntry
 		}
+
+		if (prevIter == NULL) {
+			malloc_freelist_10225F = entry;
+			return;
+		} else {
+			break;
+		}
+
 	}
 
 	// loc_138e
-	X.unk23 = Z
-	Y = X;
-	rx20 = Y.length;
-	Y+= 2;
-	rx18 = Y + rx20
-	if (Z == rx18) {
-		ptr = Z.length + rx20 + 2;
-		X.length = ptr;
-		ptr = Z.unk23;
-		X.unk23 = ptr;
-	}
-	Z = NULL;
-	while (true) {
-		X = rx16;
-		ptr = X.unk23;
-		if (ptr == NULL) break;
-		Z = rx16;
-		rx16 = ptr;
+	prevIter.next = entry;
+	if (entry == prevIter + 2 + prevIter.length) {
+		prevIter.length += entry.length + 2;
+		prevIter.next = entry.next;
 	}
 
-	ptr = X.length
-	rx18 = rx16 + 2;
-	ptr += rx18;
-	rx18 =  malloc_word_10225D;
-	if (rx18 == ptr) {
-		if (Z == NULL) {
-			malloc_entries_10225F = 0;
+	freeIter = malloc_freelist_10225F; // rx16, also X
+	prevIter = NULL;                   // Z
+	while ( freeIter.next != NULL) {
+		prevIter = freeIter;
+		freeIter = freeIter.next;
+	}
+
+	if (malloc_break_10225D == &(freeIter.next) + freeIter.length) {
+		if (entry == NULL) {
+			malloc_freelist_10225F = 0;
 		} else {
-			Z.unk23 = 0;
+			prevIter.next = 0;
 		}
-		malloc_word_10225D = rx16;
+		malloc_break_10225D = freeIter;
 		return;
 	} else {
 		return;
