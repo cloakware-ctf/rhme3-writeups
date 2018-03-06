@@ -37,7 +37,6 @@ Heap:
 	* which lets me overwrite the malloc header
 	* or alternately, it means that previous string content is now a freelist node
 
-
 ## Analysis of `malloc`/`free`
 	* malloc_break_10225D seems like the start of free space, mallocs will drop here unless they find a better place to do
 	* I think malloc_freelist_10225F might be the free space list, made up of things that got free()d.
@@ -158,8 +157,16 @@ Plan: Goals
 	2. 0x000182 to `modify_stored_device_476()`'s return address
 
 Plan: Details
-	TDB
-
+	* see heap-pro.rb
+	* key insight: I can reference stack_102192 to get the slide
+	* it works now, but complains about the pivot...
+	* to fix: I'm using the return to main, I need to use the return to modify_stored_device_476 from broken_read_str_until_13B
+	* RAM:0x2000: DA, DE, 3F B3 -> 0D, F0, AD, BA
+	* holy hell, I had them inverted. I was setting 0xBAADF00D, when I needed 0xF00DBAAD
+```
+such heap, much pr0!
+Your flag: 34ab43567e396c842d9e6c99a08723dc
+```
 
 ## Conditions for Victory
 	* must invoke `print_flag_182()`
@@ -170,13 +177,18 @@ Plan: Details
 		* stack ranges from $sp to 0x3FFF
 		* stack
 
--- 0x0 memory mapped io
--- 0x2000 .data
--- 0x2261 .bss / heap
--- 0x3d05 Y+1
--- 0x3d?? stack values
--- 0x3e0c stack_102192
--- 0x3FFF end of stack
+	0x0 memory mapped io
+	0x2000 .data
+	0x2261 .bss / heap
+	0x3d05 Y+1
+	0x3d?? stack values
+	0x3e0c stack_102192
+	0x3FFF end of stack
+
+Known Locations:
+	0x2192: stack_102192
+	0x2194: device_count_102194
+	0x2195: print buffer
 
 ## Decompilation of normal functions
 ```c

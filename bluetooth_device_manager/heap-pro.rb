@@ -167,7 +167,7 @@ def writeRAM(offset1, data1, offset2, data2)
 	$serial.send execute[2] # data1
 	waitForPrompt /: /
 	$serial.send execute[3] # data 2
-	flush()
+
 end
 
 begin
@@ -197,15 +197,10 @@ begin
 
 	# find return address
 	stackSkip = readRAM 0x2192, 0x2193
-	returnAddress = (stackSkip[1].ord << 8) + stackSkip[0].ord - 2
-
-	r = readRAM 0x2001, returnAddress
-	writeRAM 0x2000, char(0xBAADF00D), returnAddress, char(0x0190)
-	t = readRAM 0x2001, returnAddress
-	raise
-
-	puts hexdump r[0]; puts hexdump r[1];
-	puts hexdump t[0]; puts hexdump t[1];
+	returnAddress = (stackSkip[1].ord << 8) + stackSkip[0].ord - 5 - 10 - 2 # 5 is $pc+$sp, 10 is modify's frame, 2 is to get start of ret
+	writeRAM 0x2000, wswap(0xF00D)+wswap(0xBAAD), returnAddress, char(0x0182)
+	sleep 1
+	puts $serial.read
 
 	raise
 end
