@@ -218,6 +218,170 @@ This function is called by the `parse_and_maybe_set_flag_printer` function above
  	return illegal_rand_copy;
  }
 
+# Back at it
+
+Imported 6 or so functions from jonathan's work in the other challenges
+
+## `parse_and_maybe_set_flag_printer`
+
+parse_and_maybe_set_flag_printer(input){
+	input: Yx+0x4B
+	first_colon: Yx+2
+	saved_position: Yx+0x4A
+
+	first_colon = strchr(input, ':') || return -1
+	saved_position = 0
+
+
+	saved_position ^= 1
+	second_colon: Yx+4
+	second_colon = strchr(first_colon + 1, ':') || return -1
+
+
+	saved_position ^= 2
+	next_dash: Yx+6
+	next_dash = strchr(input, '-')
+
+
+	if (!next_dash) {
+		if (next_dash >= second_colon)
+			return -1;
+	}
+
+
+	saved_position ^= 4
+	first_colon_distance: Yx+8
+	first_colon_distance = first_colon - input - 1
+	weird_thing: Yx+0xA
+	weird_thing = 0
+	other_thing: Yx+0xC
+	other_thing = first_colon
+	first_colon_buffer = alloca(-(first_colon_distance + 1)) + 1
+	first_colon_buffer: Y+0xE
+
+	saved_position ^= 8
+	distance_between_colons: Y+0x10
+	distance_between_colons = second_colon - first_colon - 1
+	high_test: r0
+	high_test = (distance_between_colons & 0xff00) >> 8
+	high_test = high_test << 1
+	ya_weird_thing: Y+0x12
+	ya_weird_thing = 0
+
+	ya_distance_between_colons: Y+0x14
+	ya_distance_between_colons = distance_between_colons
+	second_colon_buffer = alloca(-(distance_between_colons + 1)) + 1
+	second_colon_buffer: Y+0x16
+	memcpy(first_colon_buffer, input, first_colon_distance)
+	first_colon_buffer[first_colon_distance] = 0
+	place_1: Y+0x28
+	first_number: Y+0x1A
+	after_1: Y+0x18
+	first_number = strtoi(first_colon_buffer, place_1, 10)
+	after_1=place_1
+
+	saved_position ^= 16
+	memcpy(second_colon_buffer, first_colon, distance_between_colons)
+	second_colon_buffer[distance_between_colons] = 0
+	second_number: Y+0x1E
+	after_2: Y+0x1C
+	second_number = strtoi(second_colon_buffer, place_1, 10)
+	after_2 = place_1
+
+	get_valid_rand(illegal_rand=saved_position)
+	saved_position ^= 32
+	before_second_digit_end = second_digit_end - 1
+	later_buffer = alloca(-second_digit_end) + 1
+
+	memcpy(name_field_buffer, input + first_colon_distance + distance_between_colons + 2, (uint16_t) first_digit_end)
+
+	if (saved_position != 0x3f)
+		die_and_remember
+
+	get_valid_rand(saved_position) // saved_position == 0x3f
+	y = 100
+	ret = 0
+	while (true)
+	{
+		if (y < 0) {
+			return 2 ; badUser
+		}
+
+		get_valid_rand(saved_position);
+		saved_position = 0;
+
+		//mallocd_ptr: global
+		if (mallocd_ptr[y * 34 + 32] == 0)
+			continue;
+
+		if ( (uint32_t) strlen(mallocd_prt[y * 34 + 32]) != (uint32_t) first_digit)
+			continue;
+
+		if ( !strncmp(mallocd_ptr[y * 34 + 32], name_field_buffer, (uint16_t) first_digit))
+			continue;
+
+		if ( saved_position != 0 )
+			die_and_remember();
+
+		get_valid_rand(saved_position);
+		saved_position++;
+
+		memcpy(later_buffer, input + first_colon_distance + distance_between_colons + first_digit + 2, second_digit);
+		saved_position++;
+
+		//hash: Y+42 (len == 32)
+		prob_sha56_pbkdf(hash, later_buffer, work_factor = second_digit * 8);
+		saved_position++;
+
+		get_valid_rand(saved_position);
+		if (saved_position == 3) {
+			if( strncmp(mallocd_ptr[y * 34], hash, 32) ) {
+				be_150_of_die_rng_artefact = 18 + 150;
+			}
+		}
+
+		get_valid_rand(saved_position);
+		saved_position++;
+		get_valid_rand(saved_position);
+
+		if (saved_position != 4)
+			return 2; /badPassword;
+
+		if( strncmp(mallocd_ptr[y * 34], hash, 32) ) {
+			saved_position++;
+			get_valid_rand(saved_position);
+			if (saved_position != 5)
+				die_and_remember();
+
+			be_150_of_die_rng_artefact -= 18;
+
+			fn_ptr_ptr_for247A = usart_send_byte_USARTC0;
+		}
+
+		y--;
+	}
+	return ret
+}
+
+## the function that initializes the mallocd_ptr
+
+setup_100_structs_and_one_backdoor() {
+	y == 100;
+	while (y > 0) {
+		mallocd_ptr + y*34 + 32 = 0
+		mallocd_ptr + y*34 + 33 = 0
+	}
+
+	starts_at_99 = 99;
+
+	memcpy(arg_0, copied_array, 32);
+
+	memcpy(malloc_ptr + 99 * 34, arg_0, 32);
+
+	mallocd_ptr + 99 * 34 + 32 = malloc(9);
+	memcpy(mallocd_ptr + 99 * 34 + 32, 'backdoor', 9);
+
+}
 
 
 
