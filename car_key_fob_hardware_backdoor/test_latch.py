@@ -9,7 +9,8 @@ import sys
 bitbang = GpioController()
 bitbang.open_from_url('ftdi:///1')
 
-DELAY = 0.00055
+DELAY = 0.000001 #strict worst-case delay is 0.55ms -- we can relax that due to lots of delays in the many layers of software between us.
+                 #on my machine this results in a minimum CLK pulse width of 200ms
 
 state = 0
 
@@ -48,41 +49,38 @@ MISO       = 2       # GREEN       | A5        | DO
 MOSI       = 1       # YELLOW      | A4        | DI
 CS         = 3       # BROWN       | A3        | LATCH
 CLK        = 0       # ORANGE      | A2        | CLK
+RESET      = 4       # GREY        | RESET     | RESET
 
-
-def shift_in_byte():
-    building_byte = 0
-    for i in range(0, 8):
-        pin_high(CLK)
-        sleep(DELAY)
-
-        #assuming MSB first for now
-        building_byte = building_byte | (get_pin(MISO) << (7 - i))
-
-        pin_low(CLK)
-        sleep(DELAY)
-
-    return building_byte
+def clock_pulse():
+    pin_low(CLK)
+    sleep(DELAY)
+    pin_high(CLK)
+    sleep(DELAY)
+    pin_low(CLK)
+    return
 
 def shift_in_and_out_byte(tx):
     building_byte = 0
     for i in range(0, 8):
+        pin_low(CLK)
+        #assuming MSB first for now
+        set_pin(MOSI, bool(tx & (1 << (7 - i))))
+        sleep(DELAY)
+
         pin_high(CLK)
         sleep(DELAY)
-
-        #assuming MSB first for now
         building_byte = building_byte | (get_pin(MISO) << (7 - i))
-        set_pin(MOSI, bool(tx & (1 << (7 - i))))
-
-        pin_low(CLK)
-        sleep(DELAY)
 
     return building_byte
 
-pin_high(CLK)
+pin_high(RESET)
+pin_output(RESET)
+pin_low(RESET)
+
+pin_low(CLK)
 pin_output(CLK)
 
-pin_high(CS)
+pin_low(CS)
 pin_output(CS)
 
 pin_high(MOSI)
@@ -90,39 +88,24 @@ pin_output(MOSI)
 
 pin_input(MISO)
 
-# results in shifting-out only 0xffs
-# pin_high(CLK)
-# pin_low(CS)
-# sleep(2 * DELAY)
-# 
-# pin_low(CLK)
-# sleep(2 * DELAY)
-# 
-# pin_high(CLK)
-# pin_high(CS)
+pin_high(RESET)
+sleep(2);
 
-# doing it this way results in only 00's
-# pin_high(CLK)
-# pin_low(CS)
-# sleep(2 * DELAY)
-# # leave it low for the 512 bit shift that follows...
-# ... then after all the clocks below
-# pin_high(CS)
-
-pin_high(CLK)
-pin_low(CS)
-sleep(2 * DELAY)
-
+blanksss = bytearray.fromhex('00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bytearray.fromhex('cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 
+pin_high(CS)
+clock_pulse()
+clock_pulse()
+pin_low(CS)
+
 for i in range(0, int(512 / 8)):
-    rx = shift_in_and_out_byte(sentinel[i])
+    rx = shift_in_and_out_byte(blanksss[i])
     sys.stdout.write("%02x " % rx)
     sys.stdout.flush()
 
-sys.stdout.write('\n')
 
-pin_high(CS)
+sys.stdout.write('\n')
 
 bitbang.close()
 
