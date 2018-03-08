@@ -46,3 +46,22 @@ Headed over to MPSSE programming;
 I coded up a script to pulse the LATCH based on the way that TDI+TMS are toggled wrt TCK in JTAG BYPASS scans. B/c I remember seeing the self-destruct message when running the BYPASS scan with the TDI/TMS swapped. `test_low_pulse.py` -- results in the self-destruct message but only a chain of ff's getting shifted-out
 
 Actually it seems more like I trigger the self-destruct on the second-time.
+
+## More Notes
+
+We found out there was a bug and a patched firmware. Some notes from above were lost in careless rsync'ing by me --but it doesn't matter now since there was a bug!
+
+Starting over: is this a JTAG scan chain? If so, then the rate-limiting patch on the JTAGulator FW should detect it
+
+### JTAGulating
+
+* I patched the jtagulator firmware to drive no fast than 1.8KHz
+
+* I connected A[5:2] in parallel to the JTAGulator CH[0:3] and Logic Analyzer[1:4] 
+
+* let er rip
+
+--> Sadly, same result. This is not a sacn-chain that understands IR codes -- or at least does not understand the BYPASS ircode. The logic capture taken during the BYPASS scan shows a signal on TDO that mirrors the TMS line; so it has the same behavior as before. Best bet is to poke it with slow-SPI as before.
+
+### Slow Poking
+

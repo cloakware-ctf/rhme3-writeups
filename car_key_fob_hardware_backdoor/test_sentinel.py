@@ -9,7 +9,8 @@ import sys
 bitbang = GpioController()
 bitbang.open_from_url('ftdi:///1')
 
-DELAY = 0.00055
+DELAY = 0.000001 #strict worst-case delay is 0.55ms -- we can relax that due to lots of delays in the many layers of software between us.
+                 #on my machine this results in a minimum CLK pulse width of 200ms
 
 state = 0
 
@@ -48,38 +49,27 @@ MISO       = 2       # GREEN       | A5        | DO
 MOSI       = 1       # YELLOW      | A4        | DI
 CS         = 3       # BROWN       | A3        | LATCH
 CLK        = 0       # ORANGE      | A2        | CLK
-
-
-def shift_in_byte():
-    building_byte = 0
-    for i in range(0, 8):
-        pin_high(CLK)
-        sleep(DELAY)
-
-        #assuming MSB first for now
-        building_byte = building_byte | (get_pin(MISO) << (7 - i))
-
-        pin_low(CLK)
-        sleep(DELAY)
-
-    return building_byte
+RESET      = 4       # GREY        | RESET     | RESET
 
 def shift_in_and_out_byte(tx):
     building_byte = 0
     for i in range(0, 8):
+        pin_low(CLK)
+        #assuming MSB first for now
+        set_pin(MOSI, bool(tx & (1 << (7 - i))))
+        sleep(DELAY)
+
         pin_high(CLK)
         sleep(DELAY)
-
-        #assuming MSB first for now
         building_byte = building_byte | (get_pin(MISO) << (7 - i))
-        set_pin(MOSI, bool(tx & (1 << (7 - i))))
-
-        pin_low(CLK)
-        sleep(DELAY)
 
     return building_byte
 
-pin_high(CLK)
+pin_high(RESET)
+pin_output(RESET)
+pin_low(RESET)
+
+pin_low(CLK)
 pin_output(CLK)
 
 pin_high(CS)
@@ -90,12 +80,20 @@ pin_output(MOSI)
 
 pin_input(MISO)
 
+pin_high(RESET)
+sleep(2);
+
+blanksss = bytearray.fromhex('00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bytearray.fromhex('cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 
 for i in range(0, int(512 / 8)):
-    rx = shift_in_and_out_byte(sentinel[i])
+    shift_in_and_out_byte(sentinel[i])
+
+for i in range(0, int(512 / 8)):
+    rx = shift_in_and_out_byte(blanksss[i])
     sys.stdout.write("%02x " % rx)
     sys.stdout.flush()
+
 
 sys.stdout.write('\n')
 

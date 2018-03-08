@@ -224,7 +224,7 @@ as above, and A4 -> D2 + A4 -> D3 => "inverted clock frequency is inconsistent"
 as above, and A0 -> D2 + A4 -> D3 => "inverted clock frequency is inconsistent"
 as above, and A4 -> D2 + A0 -> D3 => "inverted clock frequency is inconsistent"
 
-with nothing connected to D2; we get "unexpected clock frequency indicate"
+with nothing connected to D2; we get "unexpected clock frequency indicate" 
 
 with all other pins grounded: we get "unexpected clock frequency indicate"
 
@@ -244,7 +244,7 @@ A5 is the IO pulse inverted line (kinda like the inverse of D2), so that's weird
 
 removed grounds of other pins, unchanged
 
-scanned A5 across the remaining pins:
+scanned A5 across the remaining pins: 
 with A5 -> D6 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
 with A5 -> D12 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
 with A5 -> D13 (OC -> D2 etc. as above): "IO prepare line is not connected correctly"
@@ -324,7 +324,7 @@ Here's all the messages; listed in the order they are emitted
 | VCC -> D4  | [@1b] [@2a] | IO Prepare, Inverted Clock |
 | GND -> D4  | [@3a] [@2b] | Audio active, IO Pulse inverted |
 | VCC -> D3  | [@1a] ~[@1b] [@2a] | IO Prepare |
-| GND -> D3  | [@1c] [@3a] [@2b] | Audio activ, IO Pusle inverted |
+| GND -> D3  | [@1c] [@3a] [@2b] | Audio activ, IO Pusle inverted | 
 | VCC -> D2  | [@1a] ~[@1b] ~[@2b] | |
 | GND -> D2  | [@1a] ~[@1b] [@2b] [@3a] | Audio active, IO Pulse inverted |
 | VCC -> RX  | [@1a] ~[@1b] ~[@2b] | |
@@ -487,3 +487,19 @@ Again, with pullups. Last time around we managed to stop the @1c errors in some 
 | A4  |~A4  | '' | '' | '' | '' | A4  |     |     |     |     |     |                                |       |       |       | X     |       |       |       |       | ~     |  |
 |~A1  | A1  | '' | '' | '' | '' | ''  |     |     |     |     |     |                                |       |       |       | ~     |       |       |       |       | X     |  |
 
+## The Last Night
+
+My teamate-slash-beast pondered this challenge and noticed that AREF is very much the inversion of A0; connecting AREF->D2 and A0->D3 squashes all the clock errors.
+
+In hindsight I should have actually read the schematic; since AREF is nan analog reference at all, but rather pin PA0 whereas A0 is pin PA1; so AREF is really the first in the series of the bank of GPIO being used as outputs in this challenge
+
+
+| D2  | D3  | D4 | D5 | D6 | D9 | D10 | D11 | D12 | D13 | RX  | Vin |                                | [@1a] | [@1b] | [@3a] | [@2a] | [@2b] | [@2c] | [@2d] | [@2e] | [@1c] | Notes |
+|-----|-----|----|----|----|----|-----|-----|-----|-----|-----|-----|--------------------------------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-|
+| AREF| A0  | A1 | AS |    | A3 | A4  |     |     |     |     |     |                                |       |       |       |       |       |       |       |       |       | SOLVED |
+
+The system reads out a serial number at this point. As in phonic 1, it is a little hard to hear what the af the systems is saying
+
+3674a755ec3fda31819f83db9ee36a10 <- guess
+        ?   ?         ??         <- confidence mask
+3674a755ec3fba31819f83db9ee36a10 <- yep !
