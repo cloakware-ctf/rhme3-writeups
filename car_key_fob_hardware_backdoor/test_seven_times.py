@@ -54,6 +54,13 @@ CS         = 3       # BROWN       | A3        | LATCH
 CLK        = 0       # ORANGE      | A2        | CLK
 RESET      = 4       # GREY        | RESET     | RESET
 
+def clk_pulse():
+    pin_low(CLK)
+    sleep(DELAY)
+    pin_high(CLK)
+    sleep(DELAY)
+    return
+
 def shift_in_and_out_byte(tx):
     building_byte = 0
     for i in range(0, 8):
@@ -75,7 +82,7 @@ pin_low(RESET)
 pin_low(CLK)
 pin_output(CLK)
 
-pin_high(CS)
+pin_low(CS)
 pin_output(CS)
 
 pin_high(MOSI)
@@ -92,26 +99,26 @@ def print_any_serial():
     global ser
     count = ser.in_waiting
     if count > 0:
-        sys.stdout.write(ser.read(count).decode("utf-8"))
+        sys.stdout.write(ser.read(count))
         sys.stdout.flush()
     return
 
-blanksss = bytearray.fromhex('00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
+blanksss = bytearray.fromhex('ff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bytearray.fromhex('cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 
-for i in range(0, int(512 / 8)):
-    shift_in_and_out_byte(sentinel[i])
-    print_any_serial()
-
-for i in range(0, int(512 / 8)):
-    rx = shift_in_and_out_byte(blanksss[i])
-    sys.stdout.write("%02x " % rx)
-    sys.stdout.flush()
-    print_any_serial()
-
-
-sys.stdout.write('\n')
-
+for k in range(0,25):
+    for i in range(0, int(512 / 8)):
+        rx = shift_in_and_out_byte(blanksss[i])
+        print_any_serial()
+    sleep(DELAY)
+    pin_low(CLK)
+    pin_high(CS)
+    sleep(DELAY)
+    clk_pulse()
+    clk_pulse()
+    pin_low(CLK)
+    pin_low(CS)
+    sleep(DELAY)
 
 print_any_serial()
 ser.close()
