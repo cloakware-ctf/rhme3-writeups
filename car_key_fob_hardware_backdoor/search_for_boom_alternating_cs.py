@@ -10,10 +10,10 @@ import serial
 bitbang = GpioController()
 bitbang.open_from_url('ftdi:///1')
 
-ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=2)
+ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=None)
 
-DELAY = 0.000001 #strict worst-case delay is 0.55ms -- we can relax that due to lots of delays in the many layers of software between us.
-                 #on my machine this results in a minimum CLK pulse width of 200ms
+DELAY = 0.000005 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
+                 #on my machine this results in a minimum CLK pulse width of 0.58 ms on my machine
 
 state = 0
 
@@ -48,13 +48,11 @@ def get_pin(line):
     return bool(state & (1 << line))
 
 # SPI Name | MPSSE # | MPSSE Color | RHME3 Pin | Function Guess
-MISO       = 2       # GREEN 4     | A5        | DO
-MOSI       = 1       # YELLOW 3    | A4        | DI <-- I burned this output on my cable
-#MOSI       = 6       # WHITE 8     | A4        | DI
-CS         = 3       # BROWN 5     | A3        | LATCH <-- I burned this output on my cable
-#CS         = 5       # PURPLE 7    | A3        | LATCH
-CLK        = 0       # ORANGE 2    | A2        | CLK
-RESET      = 4       # GREY 6      | RESET     | RESET
+MISO       = 2       # GREEN       | A5        | DO
+MOSI       = 1       # YELLOW      | A4        | DI
+CS         = 3       # BROWN       | A3        | LATCH
+CLK        = 0       # ORANGE      | A2        | CLK
+RESET      = 4       # GREY        | RESET     | RESET
 
 def shift_in_and_out_byte(tx):
     building_byte = 0
@@ -91,8 +89,8 @@ def release_reset_and_wait():
     pin_low(RESET)
     pin_high(RESET)
     print(ser.readline())
-    ser.close()
-    ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0)
+    #ser.close()
+    #ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=0)
     return
 
 release_reset_and_wait()
@@ -101,14 +99,14 @@ def print_any_serial():
     global ser
     count = ser.in_waiting
     if count > 0:
-        sys.stdout.write(ser.read(count).decode("utf-8"))
+        print(ser.readline())
         sys.stdout.flush()
     return
 
 blanksss = bytearray.fromhex('00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bytearray.fromhex('cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 
-def test_one_roundtrip(test_sequence):
+def test_one_roundtrip(test_sequence, inter_frame_action):
     pin_high(CS)
     sleep(DELAY)
 
@@ -127,12 +125,11 @@ def test_one_roundtrip(test_sequence):
         sys.stdout.write("FAIL: not expected blank value")
     sys.stdout.write('\n')
 
-    pin_high(CS)
-    sleep(DELAY)
+    inter_frame_action()
 
     shifted_out = bytearray()
     for i in range(0, int(512 / 8)):
-        rx = shift_in_and_out_byte(blanksss[i])
+        rx = shift_in_and_out_byte(test_sequence[i])
         shifted_out.append(rx)
         sys.stdout.write("%02x " % rx)
         sys.stdout.flush()
@@ -146,7 +143,15 @@ def test_one_roundtrip(test_sequence):
     sys.stdout.write('\n')
     return
 
-test_one_roundtrip(sentinel)
+def single_clk_pulse():
+   pin_high(CLK)
+   sleep(DELAY)
+   pin_low(CLK)
+   sleep(DELAY)
+   return
+
+for rep in range(0,10):
+   test_one_roundtrip(sentinel, single_clk_pulse)
 
 print_any_serial()
 ser.close()
