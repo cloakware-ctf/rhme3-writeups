@@ -17,8 +17,8 @@ bitbang.open_from_url('ftdi:///1')
 
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=None)
 
-DELAY = 0.0000005 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
-                 #on my machine this results in a minimum CLK pulse width of 0.58 ms on my machine
+DELAY = 0.00001 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
+                 #on my machine this results in a minimum CLK pulse width of 0.69 ms on my machine
 HARD_DELAY = 0.00054 # for cases where strict delay adherence is necessary (e.g. when begining shift-out)
 
 state = 0
@@ -324,14 +324,6 @@ def aes_ctr(key_sequence):
 
    return AES.new(key_sequence.tobytes(), AES.MODE_CTR, counter=trivial)
 
-def hmacmd5(key, message):
-   return bitstring.BitString(hex=hmac.new(key.tobytes(), message.tobytes(), digestmod=hashlib.md5).hexdigest())
-
-def md5concat(password_sequence, challenge_sequence):
-   input_sequence = challenge_sequence.copy()
-   input_sequence.append(password_sequence)
-   return bitstring.BitString(hex=hashlib.md5(input_sequence.tobytes()).hexdigest())
-
 ################################################################################
 # Password Preparations
 
@@ -347,15 +339,30 @@ def md5_password(password_sequence):
 #################################################################################
 # Message Responders
 
-def get_trivial_responder(message_responder):
-   return message_responder
-
 def get_cipher_message_responder(cipher_operation, cipher):
    def cipher_message_responder(key_sequence, challenge_sequence):
       if key_sequence.len != 128 or challenge_sequence.len != 128:
          raise ValueError("only 128bit sequences supported. %d, %d" % (key_sequence.len, challenge_sequence.len))
       return cipher_operation(cipher(key_sequence), challenge_sequence)
    return cipher_message_responder
+
+def hmacmd5(key, message):
+   return bitstring.BitString(hex=hmac.new(key.tobytes(), message.tobytes(), digestmod=hashlib.md5).hexdigest())
+
+def md5concat(password_sequence, challenge_sequence):
+   input_sequence = challenge_sequence.copy()
+   input_sequence.append(password_sequence)
+   return bitstring.BitString(hex=hashlib.md5(input_sequence.tobytes()).hexdigest())
+
+def xor(password_sequence, challenge_sequence):
+  response_sequence = challenge_sequence ^ password_sequence
+  return response_sequence
+
+##################################################################################
+# Message Responder Modifiers
+
+def get_trivial_responder(message_responder):
+   return message_responder
 
 def get_rev_responder(message_responder):
    def rev_responder(password_sequence, challenge_sequence):
@@ -389,9 +396,16 @@ def get_setbit_responder(bits2set):
       return pad_out(message_response_sequence, 512) | bits2set
    return setbit_responder
 
+def get_offset_responder(offset):
+  def offset_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = blanksss.copy()
+    frame_response_sequence.overwrite(message_response_sequence, offset)
+    return frame_response_sequence
+  return offset_responder
+
 ##################################################################################
 
-for frame_responder in [get_setbit_responder(instigat), get_setbit_responder(sd_alone), get_setbit_responder(sd_count), get_setbit_responder(sd_alone | sd_count), get_setbit_responder(instigat | sd_alone | sd_count), get_setbit_responder(blanksss)]:
+for frame_responder in [get_offset_responder(384-24), get_offset_responder(384)]: # [get_setbit_responder(instigat), get_setbit_responder(sd_alone), get_setbit_responder(sd_count), get_setbit_responder(sd_alone | sd_count), get_setbit_responder(instigat | sd_alone | sd_count), get_setbit_responder(blanksss),get_offset_responder(128), get_offset_responder(256), get_offset_responder(384)]:
   for variant_responder in [get_trivial_responder, get_rev_responder, get_swp_responder, get_swprev_responder]:
       for password_prepare in [pad_password, md5_password]:
          for operation in [encrypt, decrypt]:
@@ -400,12 +414,13 @@ for frame_responder in [get_setbit_responder(instigat), get_setbit_responder(sd_
       for password_prepare in [trivial, pad_password]:
          for message_responder in [hmacmd5, md5concat]:
                try_responses(password_prepare, variant_responder(message_responder), frame_responder, name=str(password_prepare)+str(variant_responder)+str(message_responder)+str(frame_responder))
+      for password_prepare in [pad_password]:
+         try_responses(password_prepare, variant_responder(xor), frame_responder,name=str(password_prepare)+str(variant_responder)+str(xor)+str(frame_responder) )
 
 # TODO try AES-128 {encrypt,decrypt} of chalenge with key from password {null-padded, md5, pbkdf, pbkdf2} in ECB, CTR and CBC (null IV) modes
 # TODO send response AND set one of the 
 # TODO send the nonce back unchanged and set all the read only-bits
 # TODO consider what the bit positions of the read-only bits decode to
-# TODO try xor the password with the challenge
 
 print_any_serial()
 ser.close()
