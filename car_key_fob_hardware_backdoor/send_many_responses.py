@@ -17,9 +17,10 @@ bitbang.open_from_url('ftdi:///1')
 
 ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=None)
 
-DELAY = 0.00001 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
+SOFT_DELAY = 0.00001 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
                  #on my machine this results in a minimum CLK pulse width of 0.69 ms on my machine
 HARD_DELAY = 0.00054 # for cases where strict delay adherence is necessary (e.g. when begining shift-out)
+DELAY = SOFT_DELAY
 
 state = 0
 
@@ -54,11 +55,12 @@ def get_pin(line):
     return bool(state & (1 << line))
 
 # SPI Name | MPSSE # | MPSSE Color | RHME3 Pin | Function Guess
-MISO       = 2       # GREEN       | A5        | DO
-MOSI       = 1       # YELLOW      | A4        | DI
-CS         = 3       # BROWN       | A3        | LATCH
 CLK        = 0       # ORANGE      | A2        | CLK
+MOSI       = 1       # YELLOW      | A4        | DI
+MISO       = 2       # GREEN       | A5        | DO
+CS         = 3       # BROWN       | A3        | LATCH
 RESET      = 4       # GREY        | RESET     | RESET
+TRIG_OUT   = 5       # PURPLE      | N/A       | use this to trigger captures externally (e.g. CW)
 
 def shift_in_and_out_byte(tx):
     building_byte = 0
@@ -89,6 +91,9 @@ pin_high(MOSI)
 pin_output(MOSI)
 
 pin_input(MISO)
+
+pin_high(TRIG_OUT)
+pin_output(TRIG_OUT)
 
 def log(message):
    print(message)
@@ -129,100 +134,162 @@ def print_any_serial():
 blanksss = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bitstring.BitString(hex='cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 onesssss = bitstring.BitString(hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+#                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+ro_bits  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000020001e3000000000055500000000000000000000')
 instigat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000')
 sd_alone = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000')
 sd_count = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000')
+#                                   fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe000000
 
-def print_a_sequence(sequence):
-   for i in sequence:
-      sys.stdout.write("%02x " % i)
-   sys.stdout.flush()
-   return
+def test_shift_depth():
+  MAX_DEPTH = 8192
 
-def clock_in_clock_out(input_sequence, inter_frame_action, unexpected_output_action, serial_handler):
-    pin_high(CS)
-    sleep(HARD_DELAY)
-
-    output_sequence = bytearray()
-    for i in range(0, int(512 / 8)):
-        rx = shift_in_and_out_byte(input_sequence[i])
-        output_sequence.append(rx)
-
-    line = get_any_serial()
-    if not line == '':
-       if serial_handler(line):
-           log("FAIL: serial message on test-sequence:")
-           print_a_sequence(input_sequence)
-           log("")
-           return None
-
-    pin_low(CS)
-    sleep(DELAY)
-
-    if not output_sequence == blanksss.tobytes():
-        log("FAIL: expected all blanks, got:")
-        print_a_sequence(output_sequence)
-        log("")
-
-    inter_frame_action()
-
-    line = get_any_serial()
-    if not line == '':
-        if serial_handler(line):
-            log("FAIL: serial message on test-sequence:")
-            print_a_sequence(input_sequence)
-            log("\n")
-            return None
-
-    pin_high(CS)
-    sleep(HARD_DELAY)
-
-    output_sequence = bytearray()
-    for i in range(0, int(512 / 8)):
-        rx = shift_in_and_out_byte(blanksss.tobytes()[i])
-        output_sequence.append(rx)
-
-    line = get_any_serial()
-    if not line == '':
-        if serial_handler(line):
-           log("FAIL: serial message on test-sequence:")
-           print_a_sequence(input_sequence)
-           log("")
-           return None
-
-    pin_low(CS)
-    sleep(DELAY)
-
-    return output_sequence
-
-def send_and_receive(send_sequence):
-   def single_clk_pulse():
+  def test_miso_goes_high():
+    for i in range(0, MAX_DEPTH):
       pin_high(CLK)
       sleep(DELAY)
+      if get_pin(MISO):
+        log("MISO high on count %d, clk-rising" % i)
+        break
+
       pin_low(CLK)
       sleep(DELAY)
-      return
+      if get_pin(MISO):
+        log("MISO high on count %s, clk-falling" % i)
+        break
 
-   def unexpected_output_action(expected_sequence, unexpected_sequence):
-      return
+    if not get_pin(MISO):
+      log("MISO did not change state to high after %d CLKs" % MAX_DEPTH)
 
-   def serial_handler(line):
-      log(line)
-      if 'Self-destruct' in line.decode("utf-8"):
-         print_any_serial()
-         log("Resetting Target")
-         release_reset_and_wait()
-         print_any_serial()
-         return True
+    return
+
+  def test_miso_goes_low():
+    pin_low(MOSI)
+    for i in range(0, MAX_DEPTH):
+      pin_high(CLK)
+      sleep(DELAY)
+      if not get_pin(MISO):
+        log("MISO low on count %d, clk-rising" % i)
+        break
+
+      pin_low(CLK)
+      sleep(DELAY)
+      if not get_pin(MISO):
+        log("MISO low on count %s, clk-falling" % i)
+        break
+
+    if get_pin(MISO):
+      log("MISO did not change state to low after %d CLKs" % MAX_DEPTH)
+
+    return
+
+  if get_pin(MISO):
+    test_miso_goes_low()
+    test_miso_goes_high()
+  else:
+    test_miso_goes_high()
+    test_miso_goes_low()
+
+  return
+
+def print_a_sequence(sequence):
+  log(bitstring.BitString(sequence).hex)
+  return
+
+def enable_shift():
+  pin_high(CS)
+  sleep(HARD_DELAY)
+  return
+
+def disable_shift():
+  pin_low(CS)
+  sleep(HARD_DELAY)
+  return
+
+def single_clk_pulse():
+  pin_high(CLK)
+  sleep(HARD_DELAY)
+  pin_low(CLK)
+  sleep(HARD_DELAY)
+  return
+
+def clock_in_clock_out(first_input_sequence, second_input_sequence, inter_frame_action, unexpected_output_action, serial_handler):
+  enable_shift()
+
+  output_sequence = bytearray()
+  for i in range(0, int(512 / 8)):
+    rx = shift_in_and_out_byte(first_input_sequence.tobytes()[i])
+    output_sequence.append(rx)
+
+  line = get_any_serial()
+  if not line == '':
+    if serial_handler(line):
+      log("FAIL: serial message on test-sequence:")
+      print_a_sequence(first_input_sequence.tobytes())
+      log("")
+      return None
+
+  disable_shift()
+
+  if unexpected_output_action(output_sequence):
+    log("FAIL: unexpected output:")
+    print_a_sequence(output_sequence)
+    log("")
+
+  inter_frame_action()
+
+  line = get_any_serial()
+  if not line == '':
+    if serial_handler(line):
+      log("FAIL: serial message on test-sequence:")
+      print_a_sequence(first_input_sequence.tobytes())
+      log("\n")
+      return None
+
+  enable_shift()
+
+  output_sequence = bytearray()
+  for i in range(0, int(512 / 8)):
+    rx = shift_in_and_out_byte(second_input_sequence.tobytes()[i])
+    output_sequence.append(rx)
+
+  line = get_any_serial()
+  if not line == '':
+    if serial_handler(line):
+      log("FAIL: serial message. first input sequence:")
+      print_a_sequence(first_input_sequence.tobytes())
+      log("")
+      return None
+
+  disable_shift()
+
+  if unexpected_output_action(output_sequence):
+    log("FAIL: unexpected output:")
+    print_a_sequence(output_sequence)
+    log("")
+
+  return bitstring.BitString(output_sequence)
+
+def reset_on_sd_serial_handler(line):
+  log(line)
+  if 'Self-destruct' in line.decode("utf-8"):
+    print_any_serial()
+    log("Resetting Target")
+    release_reset_and_wait()
+    print_any_serial()
+    return True
+  return False
+
+def logging_serial_handler(line):
+  log(line)
+  return False
+
+default_serial_handler = reset_on_sd_serial_handler
+
+def send_and_receive(send_sequence):
+   def unexpected_output_action(test_bytes):
       return False
-
-   return bitstring.BitString(clock_in_clock_out(send_sequence.tobytes(), single_clk_pulse, unexpected_output_action, serial_handler))
-
-def read_challenge():
-   return send_and_receive(instigat)
-
-def send_response(response_sequence):
-   return send_and_receive(response_sequence)
+   return clock_in_clock_out(send_sequence, blanksss, single_clk_pulse, unexpected_output_action, logging_serial_handler)
 
 passwords = [
 b'princess',
@@ -273,29 +340,106 @@ b'des'
 ]
 
 def try_responses(password_prepare, message_responder, frame_responder,  name=None):
-   for password in passwords:
-      if name is None:
-         name = str(password_prepare)+str(message_responder)+str(frame_responder)
-      log("\n%s (%s):" % (password, name))
-      challenge_sequence = read_challenge()
-      log("challenge: %s" % challenge_sequence.hex)
+  for password in passwords:
+    if name is None:
+      name = str(password_prepare)+str(message_responder)+str(frame_responder)
 
-      password_sequence = password_prepare(bitstring.BitString(password))
-      message_response_sequence = message_responder(password_sequence, challenge_sequence[:128])
-      frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
-      log("response:  %s" % frame_response_sequence.hex)
+    log("\n%s (%s):" % (password, name))
 
-      result_sequence = send_response(frame_response_sequence)
-      if result_sequence != blanksss:
-         log("=====================================================================================")
-         log("FLAG (???)")
-         log("result   : %s" % result_sequence.hex)
-         log("=====================================================================================")
-         with open('flags.txt', 'a') as the_file:
-                the_file.write("\n%s (%s):\n" % (password, name))
-                the_file.write("challenge: %s\n" % challenge_sequence.hex)
-                the_file.write("response : %s\n" % frame_response_sequence.hex)
-                the_file.write("result   : %s\n" % result_sequence.hex)
+    def unexpected_output_action(test_bytes):
+      return False
+    challenge_instigate = instigat
+
+    challenge_sequence = clock_in_clock_out(challenge_instigate, blanksss, single_clk_pulse, unexpected_output_action, default_serial_handler)
+
+    log("challenge: %s" % challenge_sequence.hex)
+
+    password_sequence = password_prepare(bitstring.BitString(password))
+    message_response_sequence = message_responder(password_sequence, challenge_sequence[:128])
+    frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
+    log("response:  %s" % frame_response_sequence.hex)
+
+    def unexpected_output_action(test_bytes):
+      if not bitstring.BitString(test_bytes) == blanksss:
+        return True
+      return False
+
+    def anything_but_testmode_serial_handler(line):
+      log(line)
+      if 'Test mode activated' in line.decode("utf-8"):
+        return False
+      return True
+
+    result_sequence = clock_in_clock_out(frame_response_sequence, blanksss, single_clk_pulse, unexpected_output_action, anything_but_testmode_serial_handler)
+
+    if result_sequence != blanksss:
+      log("=====================================================================================")
+      log("FLAG (???)")
+      log("result   : %s" % result_sequence.hex)
+      log("=====================================================================================")
+      with open('flags.txt', 'a') as the_file:
+        the_file.write("\n%s (%s):\n" % (password, name))
+        the_file.write("challenge: %s\n" % challenge_sequence.hex)
+        the_file.write("response : %s\n" % frame_response_sequence.hex)
+        the_file.write("result   : %s\n" % result_sequence.hex)
+  return
+
+def test_roundtrip(expected_sequence):
+  actual_sequence = send_and_receive(expected_sequence)
+  if actual_sequence != expected_sequence:
+    log("sent    : %s" % expected_sequence.hex)
+    log("received: %s" % actual_sequence.hex)
+    return False
+  return True
+
+def explore_after_instigate():
+  enable_shift()
+  test_shift_depth()
+  disable_shift()
+
+  test_roundtrip(instigat)
+  enable_shift()
+  test_shift_depth()
+  disable_shift()
+
+#  changing_bits = blanksss.copy()
+#  for bit in range(0,512):
+#    log('')
+#    test_roundtrip(instigat)
+#
+#    test_sequence = blanksss.copy()
+#    test_sequence.set(1, [bit])
+#    if not test_roundtrip(test_sequence):
+#      changing_bits |= test_sequence
+#
+#  log("changing bits: %s" % changing_bits.hex)
+  return
+
+def walk_all_response_offset():
+  for offset in range(0,512):
+    log('')
+    test_roundtrip(instigat)
+    response_sequence = blanksss.copy()
+    response_sequence.overwrite(bitstring.BitString(bin='1'*128), offset)
+    test_roundtrip(response_sequence)
+  return
+
+def trigger_challenge_algorithm():
+  test_roundtrip(instigat)
+  response_sequence = onesssss.copy()
+  def unexpected_output_action():
+    return
+  test_roundtrip(response_sequence)
+  return
+
+def sustain_the_challenge():
+   def unexpected_output_action(test_bytes):
+      return False
+   clock_in_clock_out(instigat, instigat, single_clk_pulse, unexpected_output_action, logging_serial_handler)
+   clock_in_clock_out(instigat, instigat, single_clk_pulse, unexpected_output_action, logging_serial_handler)
+   return
+
+###########################################################################
 
 def pad_out(sequence, target_bit_length):
    output = sequence.copy()
@@ -335,6 +479,9 @@ def pad_password(password_sequence):
 
 def md5_password(password_sequence):
    return bitstring.BitString(hex=hashlib.md5(password_sequence.tobytes()).hexdigest())
+
+def ssl_password(password_sequence):
+  return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[:128]
 
 #################################################################################
 # Message Responders
@@ -380,13 +527,40 @@ def get_swp_responder(message_responder):
    return swp_responder
 
 def get_swprev_responder(message_responder):
-   def swprev_responder(password_sequence, challenge_sequence):
-      challenge_sequence = challenge_sequence.copy()
-      challenge_sequence.reverse()
-      response_sequence = message_responder(challenge_sequence[:128], password_sequence)
-      response_sequence.overwrite(response_sequence[:128].reverse(), 0)
-      return response_sequence
-   return swprev_responder
+ def swprev_responder(password_sequence, challenge_sequence):
+   challenge_sequence = challenge_sequence.copy()
+   challenge_sequence.reverse()
+   response_sequence = message_responder(challenge_sequence[:128], password_sequence)
+   response_sequence.overwrite(response_sequence[:128].reverse(), 0)
+   return response_sequence
+ return swprev_responder
+
+def bitswap(input_sequence):
+  input_sequence = input_sequence.copy()
+  for pos in range(0, input_sequence.len, 8):
+    byte_sequence = input_sequence[pos:pos+8]
+    byte_sequence.reverse()
+    input_sequence.overwrite(byte_sequence, pos)
+  return input_sequence
+
+def get_bitswapped_responder(message_responder):
+  def bitswapped_responder(password_sequence, challenge_sequence):
+    challenge_sequence = bitswap(challenge_sequence)
+    response_sequence = message_responder(password_sequence, challenge_sequence[:128])
+    response_sequence.overwrite(bitswap(response_sequence[:128]),0)
+    return response_sequence
+  return bitswapped_responder
+
+def get_rev_bitswapped_responder(message_responder):
+  def rev_bitswapped_responder(password_sequence, challenge_sequence):
+    challenge_sequence = challenge_sequence.copy()
+    challenge_sequence.reverse()
+    challenge_sequence = bitswap(challenge_sequence)
+    response_sequence = message_responder(password_sequence, challenge_sequence)
+    response_sequence = bitswap(response_sequence)
+    response_sequence.overwrite(response_sequence[:128].reverse(), 0)
+    return response_sequence
+  return rev_bitswapped_responder
 
 ##################################################################################
 # Frame responders
@@ -403,24 +577,73 @@ def get_offset_responder(offset):
     return frame_response_sequence
   return offset_responder
 
+def get_offset_ored_responder(offset):
+  def offset_ored_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = frame_challenge_sequence.copy()
+    frame_response_sequence.overwrite(message_response_sequence, offset)
+    return frame_response_sequence
+  return offset_ored_responder
+
 ##################################################################################
 
-for frame_responder in [get_offset_responder(384-24), get_offset_responder(384)]: # [get_setbit_responder(instigat), get_setbit_responder(sd_alone), get_setbit_responder(sd_count), get_setbit_responder(sd_alone | sd_count), get_setbit_responder(instigat | sd_alone | sd_count), get_setbit_responder(blanksss),get_offset_responder(128), get_offset_responder(256), get_offset_responder(384)]:
-  for variant_responder in [get_trivial_responder, get_rev_responder, get_swp_responder, get_swprev_responder]:
-      for password_prepare in [pad_password, md5_password]:
-         for operation in [encrypt, decrypt]:
-            for cipher in [aes_ecb, aes_ctr, aes_cbc]:
-               try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
-      for password_prepare in [trivial, pad_password]:
-         for message_responder in [hmacmd5, md5concat]:
-               try_responses(password_prepare, variant_responder(message_responder), frame_responder, name=str(password_prepare)+str(variant_responder)+str(message_responder)+str(frame_responder))
-      for password_prepare in [pad_password]:
-         try_responses(password_prepare, variant_responder(xor), frame_responder,name=str(password_prepare)+str(variant_responder)+str(xor)+str(frame_responder) )
+def try_all_challenges():
+  for frame_responder in [get_offset_responder(384-24), get_offset_responder(384)]: # [get_setbit_responder(instigat), get_setbit_responder(sd_alone), get_setbit_responder(sd_count), get_setbit_responder(sd_alone | sd_count), get_setbit_responder(instigat | sd_alone | sd_count), get_setbit_responder(blanksss),get_offset_responder(128), get_offset_responder(256), get_offset_responder(384)]:
+    for variant_responder in [get_trivial_responder, get_rev_responder, get_swp_responder, get_swprev_responder]:
+        for password_prepare in [pad_password, md5_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb, aes_ctr, aes_cbc]:
+                 try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+        for password_prepare in [trivial, pad_password]:
+           for message_responder in [hmacmd5, md5concat]:
+                 try_responses(password_prepare, variant_responder(message_responder), frame_responder, name=str(password_prepare)+str(variant_responder)+str(message_responder)+str(frame_responder))
+        for password_prepare in [pad_password]:
+           try_responses(password_prepare, variant_responder(xor), frame_responder,name=str(password_prepare)+str(variant_responder)+str(xor)+str(frame_responder) )
+  return
 
-# TODO try AES-128 {encrypt,decrypt} of chalenge with key from password {null-padded, md5, pbkdf, pbkdf2} in ECB, CTR and CBC (null IV) modes
-# TODO send response AND set one of the 
+def try_suggested_challenges():
+  for frame_responder in [get_offset_ored_responder(384-24), get_offset_ored_responder(128), get_offset_ored_responder(0)]:
+    for variant_responder in [get_bitswapped_responder, get_rev_bitswapped_responder, get_rev_responder]:
+        for password_prepare in [pad_password, md5_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                 try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+        for password_prepare in [trivial, pad_password]:
+           for message_responder in [hmacmd5, md5concat]:
+                 try_responses(password_prepare, variant_responder(message_responder), frame_responder, name=str(password_prepare)+str(variant_responder)+str(message_responder)+str(frame_responder))
+  return
+
+def try_jb_challenges():
+  for i in range(0,512-128-24):
+    frame_responder = get_offset_responder(i)
+    for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+        for password_prepare in [pad_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                 try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+  return
+
+def try_aes_challenges():
+  for frame_responder in [get_offset_ored_responder(356), get_offset_ored_responder(356-128), get_offset_responder(512-128-25-128)]:
+    for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+        for password_prepare in [ssl_password, pad_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                 try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+  return
+
+
+
 # TODO send the nonce back unchanged and set all the read only-bits
 # TODO consider what the bit positions of the read-only bits decode to
+
+#explore_after_instigate()
+#walk_all_response_offset()
+#trigger_challenge_algorithm()
+#sustain_the_challenge()
+
+#try_suggested_challenges()
+#try_jb_challenges()
+try_aes_challenges()
 
 print_any_serial()
 ser.close()
