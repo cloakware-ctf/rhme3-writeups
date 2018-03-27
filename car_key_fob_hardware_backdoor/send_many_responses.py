@@ -10,7 +10,7 @@ import bitstring
 import hmac
 import hashlib
 
-bitstring.bytealigned = True     # change the default behaviour
+#bitstring.bytealigned = True     # change the default behaviour
 
 bitbang = GpioController()
 bitbang.open_from_url('ftdi:///1')
@@ -77,6 +77,57 @@ def shift_in_and_out_byte(tx):
     pin_low(CLK)
     return building_byte
 
+def shift_in_and_out_sequence(tx):
+  shift_size = tx.len
+
+  log("  sending : %s" % tx.hex)
+  rx = bitstring.BitString(length=shift_size)
+  for i in range(0, shift_size):
+    pin_low(CLK)
+    #assuming MSB first
+    set_pin(MOSI, tx[i])
+    sleep(DELAY)
+
+    pin_high(CLK)
+    sleep(DELAY)
+    rx.set(get_pin(MISO), [i])
+
+  pin_low(CLK)
+  log("  received: %s" % rx.hex)
+  return rx
+
+def shift_in_and_out_sequence_until(match):
+  MAX_DEPTH = 1024
+  log("  shifting until: %s" % match.hex)
+  rx = bitstring.BitString(length=0)
+
+  i = 0
+  while True:
+    pin_low(CLK)
+    #assuming MSB first
+    set_pin(MOSI, match[i % match.len])
+    sleep(DELAY)
+
+    pin_high(CLK)
+    sleep(DELAY)
+    rx.append(bitstring.BitString(bin='%d' % get_pin(MISO)))
+
+    if rx.endswith(match):
+      break
+    i = i + 1
+    if i > MAX_DEPTH:
+      break
+
+  pin_low(CLK)
+
+  if rx.len % 4 == 0:
+    display = rx.hex
+  else:
+    display = rx.bin
+  log("  received: %s" % display)
+  return rx
+
+
 pin_high(RESET)
 pin_output(RESET)
 pin_low(RESET)
@@ -134,7 +185,7 @@ def print_any_serial():
 blanksss = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
 sentinel = bitstring.BitString(hex='cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 onesssss = bitstring.BitString(hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
-#                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+#                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD quadwords
 ro_bits  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000020001e3000000000055500000000000000000000')
 instigat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000')
 sd_alone = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000')
@@ -142,20 +193,25 @@ sd_count = bitstring.BitString(hex='00000000000000000000000000000000000000000000
 #                                   fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe000000
 
 def test_shift_depth():
-  MAX_DEPTH = 8192
+  MAX_DEPTH = 1024
 
   def test_miso_goes_high():
+    pin_high(MOSI)
     for i in range(0, MAX_DEPTH):
       pin_high(CLK)
       sleep(DELAY)
       if get_pin(MISO):
         log("MISO high on count %d, clk-rising" % i)
+        for j in range(i,MAX_DEPTH):
+          single_clk_pulse()
         break
 
       pin_low(CLK)
       sleep(DELAY)
       if get_pin(MISO):
         log("MISO high on count %s, clk-falling" % i)
+        for j in range(i,MAX_DEPTH):
+          single_clk_pulse()
         break
 
     if not get_pin(MISO):
@@ -170,12 +226,16 @@ def test_shift_depth():
       sleep(DELAY)
       if not get_pin(MISO):
         log("MISO low on count %d, clk-rising" % i)
+        for j in range(i,MAX_DEPTH):
+          single_clk_pulse()
         break
 
       pin_low(CLK)
       sleep(DELAY)
       if not get_pin(MISO):
         log("MISO low on count %s, clk-falling" % i)
+        for j in range(i,MAX_DEPTH):
+          single_clk_pulse()
         break
 
     if get_pin(MISO):
@@ -184,9 +244,11 @@ def test_shift_depth():
     return
 
   if get_pin(MISO):
+    shift_in_and_out_sequence(bitstring.BitString(bin='1'*MAX_DEPTH))
     test_miso_goes_low()
     test_miso_goes_high()
   else:
+    shift_in_and_out_sequence(bitstring.BitString(bin='0'*MAX_DEPTH))
     test_miso_goes_high()
     test_miso_goes_low()
 
@@ -212,6 +274,14 @@ def single_clk_pulse():
   pin_low(CLK)
   sleep(HARD_DELAY)
   return
+
+def single_frame_send_and_receive(send_sequence):
+  enable_shift()
+
+  receive_sequence = shift_in_and_out_sequence(send_sequence)
+
+  disable_shift()
+  return receive_sequence
 
 def clock_in_clock_out(first_input_sequence, second_input_sequence, inter_frame_action, unexpected_output_action, serial_handler):
   enable_shift()
@@ -483,6 +553,8 @@ def md5_password(password_sequence):
 def ssl_password(password_sequence):
   return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[:128]
 
+def ssl_password2(password_sequence):
+  return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[-128:]
 #################################################################################
 # Message Responders
 
@@ -584,6 +656,22 @@ def get_offset_ored_responder(offset):
     return frame_response_sequence
   return offset_ored_responder
 
+# short frame responders
+def get_quadA_responder():
+  def quadA_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = message_response_sequence.copy()
+    frame_response_sequence.append(bitstring.BitString(bin='0'*384))
+    return frame_response_sequence
+  return quadA_responder
+
+def get_quadB_responder():
+  def quadB_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = message_response_sequence.copy()
+    frame_response_sequence.append(bitstring.BitString(bin='0'*256))
+    frame_response_sequence.prepend(bitstring.BitString(bin='0'*128))
+    return frame_response_sequence
+  return quadB_responder
+
 ##################################################################################
 
 def try_all_challenges():
@@ -631,6 +719,156 @@ def try_aes_challenges():
                  try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
   return
 
+def get_and_handle_serial(serial_handler):
+  line = get_any_serial()
+  if not line == '':
+    if serial_handler(line):
+      log("fatal serial message. aborting.")
+      log("")
+      return False
+  return True
+
+def quick_instigate_challenge(serial_handler):
+  frameA_rx = single_frame_send_and_receive(instigat[-160:]) #minimum number of bits to instigate is 158, nearest multiple of 4 (for hex encoding printing) is 160
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  log("end frame")
+  single_clk_pulse()
+  if not get_and_handle_serial(serial_handler):
+    return None
+  return frameA_rx
+
+def try_just128bit_experiment():
+  #release_reset_and_wait()
+  serial_handler = logging_serial_handler
+
+  frameA_rx = quick_instigate_challenge(serial_handler)
+  if frameA_rx is None:
+    return None
+
+  frameB1_rx = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  frameB2_rx = single_frame_send_and_receive(bitstring.BitString(hex='CC'*16))
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  log("end frame")
+  single_clk_pulse()
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  frameC_rx = quick_instigate_challenge(serial_handler)
+  if frameC_rx is None:
+    return None
+
+  frameD1_rx = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  frameD2_rx = single_frame_send_and_receive(bitstring.BitString(hex='CC'*16))
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  log("end frame")
+  single_clk_pulse()
+  if not get_and_handle_serial(serial_handler):
+    return None
+  return
+
+def explore_frameB_shiftdepth():
+  serial_handler = logging_serial_handler
+
+  sentinel = bitstring.BitString(hex='DEFEA7ED55555555555555555555555555555555')
+
+  enable_shift()
+  rx = shift_in_and_out_sequence_until(sentinel)
+  log("frameA shift depth: %d" % (rx.len - sentinel.len))
+  get_and_handle_serial(serial_handler)
+  shift_in_and_out_sequence(instigat[-160:]) #quick instigate
+  disable_shift()
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  enable_shift()
+  rx = shift_in_and_out_sequence_until(sentinel)
+  get_and_handle_serial(serial_handler)
+  log("frameB shift depth: %d" % (rx.len - sentinel.len))
+  disable_shift()
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  enable_shift()
+  rx = shift_in_and_out_sequence_until(sentinel)
+  get_and_handle_serial(serial_handler)
+  log("frameC shift depth: %d" % (rx.len - sentinel.len))
+  disable_shift()
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  return
+
+def try_frameB_response(password_bytes, password_prepare, message_responder, frame_responder, name=None):
+  serial_handler = reset_on_sd_serial_handler
+  if name is None:
+    name = str(password_bytes)+str(password_prepare)+str(message_responder)
+
+  log("\n%s" % name)
+
+  frameA_rx = quick_instigate_challenge(serial_handler)
+  if frameA_rx is None:
+    return None
+
+  challenge_sequence = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
+  if not get_and_handle_serial(serial_handler):
+    return None
+  log("challenge:  %s" % challenge_sequence.hex)
+
+  password_sequence = password_prepare(bitstring.BitString(password_bytes))
+  log("prepared :  %s" % password_sequence.hex)
+
+  message_response_sequence = message_responder(password_sequence, challenge_sequence)
+  frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
+  log("response :  %s" % frame_response_sequence.hex)
+
+  single_frame_send_and_receive(frame_response_sequence)
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  log("end frame")
+  single_clk_pulse()
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  result_sequence = single_frame_send_and_receive(bitstring.BitString(bin='0'*512))
+  log("end frame")
+  single_clk_pulse()
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  if not result_sequence[-1*frame_response_sequence.len:] == frame_response_sequence & ~(ro_bits[-1*frame_response_sequence.len:]):
+    log("=====================================================================================")
+    log("FLAG (???)")
+    log("result   : %s" % result_sequence.hex)
+    log("=====================================================================================")
+    with open('flags.txt', 'a') as the_file:
+      the_file.write("\n%s\n" % name)
+      the_file.write("challenge: %s\n" % challenge_sequence.hex)
+      the_file.write("response : %s\n" % message_response_sequence.hex)
+      the_file.write("result   : %s\n" % result_sequence.hex)
+  return
+
+def try_aes_frameB_challenges():
+  for frame_responder in [get_quadA_responder()]:
+    for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
+        for password_prepare in [pad_password, ssl_password2, ssl_password, md5_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                for password in passwords:
+                  try_frameB_response(password, password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+  return
 
 
 # TODO send the nonce back unchanged and set all the read only-bits
@@ -643,7 +881,12 @@ def try_aes_challenges():
 
 #try_suggested_challenges()
 #try_jb_challenges()
-try_aes_challenges()
+#try_aes_challenges()
+
+#try_just128bit_experiment()
+#try_aes_frameB_challenges()
+
+explore_frameB_shiftdepth()
 
 print_any_serial()
 ser.close()
