@@ -1,4 +1,4 @@
-#!/usr/local/bin/rescue
+#!/usr/bin/ruby
 # encoding: ASCII-8BIT
 
 require 'pwn'
@@ -46,6 +46,4 @@ begin
 	plain = (0..15).map{|x| x.to_s 16}.join
 	cipher = encrypt plain
 	out = decrypt cipher
-
-	raise
 end

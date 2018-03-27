@@ -1,0 +1,81 @@
+Best correlation Key byte 1:
+0, Key byte candidate: 230 (0xE6), value:  0.4062, at position: 10120
+1, Key byte candidate:  40 (0x28), value: -0.1918, at position: 9230
+2, Key byte candidate: 126 (0x7E), value:  0.1835, at position: 9238
+3, Key byte candidate:  49 (0x31), value:  0.1681, at position: 9274
+Best correlation Key byte 2:
+0, Key byte candidate: 167 (0xA7), value:  0.2675, at position: 22442
+1, Key byte candidate: 119 (0x77), value:  0.1927, at position: 19682
+2, Key byte candidate: 166 (0xA6), value:  0.1762, at position: 20626
+3, Key byte candidate:  63 (0x3F), value: -0.1717, at position: 18034
+Best correlation Key byte 3:
+0, Key byte candidate:   6 (0x06), value:  0.3084, at position: 27394
+1, Key byte candidate: 216 (0xD8), value:  0.1717, at position: 25680
+2, Key byte candidate:  23 (0x17), value:  0.1656, at position: 27497
+3, Key byte candidate: 115 (0x73), value: -0.1587, at position: 27411
+Best correlation Key byte 4:
+0, Key byte candidate:  82 (0x52), value:  0.4462, at position: 8942
+1, Key byte candidate:   7 (0x07), value: -0.2126, at position: 37060
+2, Key byte candidate: 202 (0xCA), value:  0.1976, at position: 36984
+3, Key byte candidate:  22 (0x16), value: -0.1885, at position: 38062
+Best correlation Key byte 5:
+0, Key byte candidate: 116 (0x74), value: -0.3438, at position: 20368
+1, Key byte candidate:  19 (0x13), value:  0.1671, at position: 20488
+2, Key byte candidate:  16 (0x10), value:  0.1615, at position: 20488
+3, Key byte candidate: 137 (0x89), value:  0.1590, at position: 17793
+Best correlation Key byte 6:
+0, Key byte candidate: 143 (0x8F), value: -0.2483, at position: 25392
+1, Key byte candidate:  68 (0x44), value: -0.1821, at position: 29066
+2, Key byte candidate: 224 (0xE0), value:  0.1774, at position: 28288
+3, Key byte candidate:  91 (0x5B), value: -0.1743, at position: 24513
+Best correlation Key byte 7:
+0, Key byte candidate: 138 (0x8A), value:  0.5055, at position: 8842
+1, Key byte candidate:  41 (0x29), value:  0.1843, at position: 37622
+2, Key byte candidate: 149 (0x95), value: -0.1744, at position: 36732
+3, Key byte candidate:  73 (0x49), value: -0.1716, at position: 37734
+Best correlation Key byte 8:
+0, Key byte candidate:  20 (0x14), value: -0.3260, at position: 9868
+1, Key byte candidate:  90 (0x5A), value:  0.2087, at position: 9868
+2, Key byte candidate: 101 (0x65), value:  0.2044, at position: 9814
+3, Key byte candidate:  38 (0x26), value: -0.2042, at position: 10068
+Best correlation Key byte 9:
+0, Key byte candidate:  21 (0x15), value:  0.3232, at position: 26078
+1, Key byte candidate: 203 (0xCB), value:  0.1700, at position: 30626
+2, Key byte candidate: 120 (0x78), value:  0.1563, at position: 30673
+3, Key byte candidate:  87 (0x57), value: -0.1539, at position: 27000
+Best correlation Key byte 10:
+0, Key byte candidate: 119 (0x77), value:  0.3366, at position: 38410
+1, Key byte candidate: 121 (0x79), value: -0.1848, at position: 37392
+2, Key byte candidate:  84 (0x54), value: -0.1836, at position: 38394
+3, Key byte candidate: 196 (0xC4), value:  0.1774, at position: 37584
+Best correlation Key byte 11:
+0, Key byte candidate: 115 (0x73), value:  0.3007, at position: 9599
+1, Key byte candidate: 184 (0xB8), value:  0.2229, at position: 9724
+2, Key byte candidate:  15 (0x0F), value: -0.1890, at position: 9766
+3, Key byte candidate:  52 (0x34), value:  0.1740, at position: 9718
+Best correlation Key byte 12:
+0, Key byte candidate: 153 (0x99), value: -0.3285, at position: 22020
+1, Key byte candidate: 138 (0x8A), value: -0.1891, at position: 23893
+2, Key byte candidate:  46 (0x2E), value: -0.1880, at position: 18318
+3, Key byte candidate: 123 (0x7B), value:  0.1641, at position: 23928
+Best correlation Key byte 13:
+0, Key byte candidate:  79 (0x4F), value:  0.4303, at position: 37126
+1, Key byte candidate: 121 (0x79), value:  0.1954, at position: 38160
+2, Key byte candidate:  37 (0x25), value: -0.1943, at position: 37190
+3, Key byte candidate: 252 (0xFC), value:  0.1910, at position: 36268
+Best correlation Key byte 14:
+0, Key byte candidate:  39 (0x27), value: -0.4470, at position: 9088
+1, Key byte candidate: 157 (0x9D), value: -0.2014, at position: 9380
+2, Key byte candidate: 216 (0xD8), value: -0.1800, at position: 9546
+3, Key byte candidate: 201 (0xC9), value:  0.1779, at position: 9408
+Best correlation Key byte 15:
+0, Key byte candidate: 229 (0xE5), value:  0.5353, at position: 18082
+1, Key byte candidate:  53 (0x35), value:  0.1648, at position: 22686
+2, Key byte candidate:  52 (0x34), value:  0.1643, at position: 19890
+3, Key byte candidate:   4 (0x04), value:  0.1564, at position: 19968
+Best correlation Key byte 16:
+0, Key byte candidate: 187 (0xBB), value:  0.1089, at position: 34499
+1, Key byte candidate: 105 (0x69), value: -0.1076, at position: 12033
+2, Key byte candidate: 225 (0xE1), value: -0.1046, at position: 29829
+3, Key byte candidate: 224 (0xE0), value: -0.0999, at position: 24138
+AES key: AE 70 53 B4 E8 45 87 EC 66 A2 4F 88 06 A9 20 BA
