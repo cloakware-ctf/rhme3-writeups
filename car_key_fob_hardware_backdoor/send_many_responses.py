@@ -347,12 +347,12 @@ def reset_on_sd_serial_handler(line):
     log("Resetting Target")
     release_reset_and_wait()
     print_any_serial()
-    return True
-  return False
+    return True, line
+  return False, line
 
 def logging_serial_handler(line):
   log(line)
-  return False
+  return False, line
 
 default_serial_handler = reset_on_sd_serial_handler
 
@@ -437,8 +437,8 @@ def try_responses(password_prepare, message_responder, frame_responder,  name=No
     def anything_but_testmode_serial_handler(line):
       log(line)
       if 'Test mode activated' in line.decode("utf-8"):
-        return False
-      return True
+        return True, line
+      return False, line
 
     result_sequence = clock_in_clock_out(frame_response_sequence, blanksss, single_clk_pulse, unexpected_output_action, anything_but_testmode_serial_handler)
 
@@ -510,129 +510,7 @@ def sustain_the_challenge():
    return
 
 ###########################################################################
-
-def pad_out(sequence, target_bit_length):
-   output = sequence.copy()
-   padding_size_needed = target_bit_length - output.len
-   output.append(bitstring.BitString(bin='0'*padding_size_needed))
-   return output
-
-from Crypto.Cipher import AES
-def encrypt(cipher, clear_sequence):
-   response_sequence = bitstring.BitString(cipher.encrypt(clear_sequence.tobytes()))
-   return response_sequence
-
-def decrypt(cipher, cipher_sequence):
-   response_sequence = bitstring.BitString(cipher.decrypt(cipher_sequence.tobytes()))
-   return response_sequence
-
-def aes_ecb(key_sequence):
-   return AES.new(key_sequence.tobytes(), AES.MODE_ECB)
-
-def aes_cbc(key_sequence):
-   return AES.new(key_sequence.tobytes(), AES.MODE_CBC, IV=bitstring.BitString(bin='0'*128).tobytes())
-
-def aes_ctr(key_sequence):
-   def trivial():
-      return bitstring.BitString(bin='0'*128).tobytes()
-
-   return AES.new(key_sequence.tobytes(), AES.MODE_CTR, counter=trivial)
-
-################################################################################
-# Password Preparations
-
-def trivial(sequence):
-   return sequence
-
-def pad_password(password_sequence):
-   return pad_out(password_sequence, 128)
-
-def md5_password(password_sequence):
-   return bitstring.BitString(hex=hashlib.md5(password_sequence.tobytes()).hexdigest())
-
-def ssl_password(password_sequence):
-  return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[:128]
-
-def ssl_password2(password_sequence):
-  return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[-128:]
-#################################################################################
-# Message Responders
-
-def get_cipher_message_responder(cipher_operation, cipher):
-   def cipher_message_responder(key_sequence, challenge_sequence):
-      if key_sequence.len != 128 or challenge_sequence.len != 128:
-         raise ValueError("only 128bit sequences supported. %d, %d" % (key_sequence.len, challenge_sequence.len))
-      return cipher_operation(cipher(key_sequence), challenge_sequence)
-   return cipher_message_responder
-
-def hmacmd5(key, message):
-   return bitstring.BitString(hex=hmac.new(key.tobytes(), message.tobytes(), digestmod=hashlib.md5).hexdigest())
-
-def md5concat(password_sequence, challenge_sequence):
-   input_sequence = challenge_sequence.copy()
-   input_sequence.append(password_sequence)
-   return bitstring.BitString(hex=hashlib.md5(input_sequence.tobytes()).hexdigest())
-
-def xor(password_sequence, challenge_sequence):
-  response_sequence = challenge_sequence ^ password_sequence
-  return response_sequence
-
-##################################################################################
-# Message Responder Modifiers
-
-def get_trivial_responder(message_responder):
-   return message_responder
-
-def get_rev_responder(message_responder):
-   def rev_responder(password_sequence, challenge_sequence):
-      challenge_sequence = challenge_sequence.copy()
-      challenge_sequence.reverse()
-      response_sequence = message_responder(password_sequence, challenge_sequence)
-      response_sequence.overwrite(response_sequence[:128].reverse(), 0)
-      return response_sequence
-   return rev_responder
-
-def get_swp_responder(message_responder):
-   def swp_responder(password_sequence, challenge_sequence):
-      response_sequence = message_responder(challenge_sequence[:128], password_sequence)
-      return response_sequence
-   return swp_responder
-
-def get_swprev_responder(message_responder):
- def swprev_responder(password_sequence, challenge_sequence):
-   challenge_sequence = challenge_sequence.copy()
-   challenge_sequence.reverse()
-   response_sequence = message_responder(challenge_sequence[:128], password_sequence)
-   response_sequence.overwrite(response_sequence[:128].reverse(), 0)
-   return response_sequence
- return swprev_responder
-
-def bitswap(input_sequence):
-  input_sequence = input_sequence.copy()
-  for pos in range(0, input_sequence.len, 8):
-    byte_sequence = input_sequence[pos:pos+8]
-    byte_sequence.reverse()
-    input_sequence.overwrite(byte_sequence, pos)
-  return input_sequence
-
-def get_bitswapped_responder(message_responder):
-  def bitswapped_responder(password_sequence, challenge_sequence):
-    challenge_sequence = bitswap(challenge_sequence)
-    response_sequence = message_responder(password_sequence, challenge_sequence[:128])
-    response_sequence.overwrite(bitswap(response_sequence[:128]),0)
-    return response_sequence
-  return bitswapped_responder
-
-def get_rev_bitswapped_responder(message_responder):
-  def rev_bitswapped_responder(password_sequence, challenge_sequence):
-    challenge_sequence = challenge_sequence.copy()
-    challenge_sequence.reverse()
-    challenge_sequence = bitswap(challenge_sequence)
-    response_sequence = message_responder(password_sequence, challenge_sequence)
-    response_sequence = bitswap(response_sequence)
-    response_sequence.overwrite(response_sequence[:128].reverse(), 0)
-    return response_sequence
-  return rev_bitswapped_responder
+from cr_methods import *
 
 ##################################################################################
 # Frame responders
@@ -672,6 +550,20 @@ def get_quadB_responder():
     return frame_response_sequence
   return quadB_responder
 
+def get_quadA_andauth_responder():
+  def quadA_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = bitstring.BitString(hex='000000000000000000000000000000000000000000000000000000000000000000000000000000000000000055555555555555555555555555555555defea7ed') # worked once
+    frame_response_sequence.overwrite(message_response_sequence, 0)
+    return frame_response_sequence
+  return quadA_responder
+
+def get_quadB_andauth_responder():
+  def quadA_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = bitstring.BitString(hex='000000000000000000000000000000000000000000000000000000000000000000000000000000000000000055555555555555555555555555555555defea7ed') # worked once
+    frame_response_sequence.overwrite(frame_challenge_sequence[128:], 0)
+    frame_response_sequence.overwrite(message_response_sequence,128)
+    return frame_response_sequence
+  return quadA_responder
 ##################################################################################
 
 def try_all_challenges():
@@ -722,11 +614,11 @@ def try_aes_challenges():
 def get_and_handle_serial(serial_handler):
   line = get_any_serial()
   if not line == '':
-    if serial_handler(line):
+    if not serial_handler(line):
       log("fatal serial message. aborting.")
       log("")
-      return False
-  return True
+      return False, line
+  return True, line
 
 def quick_instigate_challenge(serial_handler):
   frameA_rx = single_frame_send_and_receive(instigat[-160:]) #minimum number of bits to instigate is 158, nearest multiple of 4 (for hex encoding printing) is 160
@@ -778,7 +670,7 @@ def try_just128bit_experiment():
     return None
   return
 
-def explore_frameB_shiftdepth():
+def explore_frames_shiftdepth():
   serial_handler = logging_serial_handler
 
   sentinel = bitstring.BitString(hex='DEFEA7ED55555555555555555555555555555555')
@@ -810,8 +702,53 @@ def explore_frameB_shiftdepth():
 
   return
 
+def guess_frameB_auth_bit():
+  serial_handler = logging_serial_handler
+
+  enable_shift()
+  shift_in_and_out_sequence(instigat[-160:]) #quick instigate
+  disable_shift()
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  trailer=bitstring.BitString(hex='55555555555555555555555555555555DEFEA7ED')
+  test_bit = bitstring.BitString(bin='0'*512)
+  test_bit.overwrite(trailer, 512-trailer.len)
+  enable_shift()
+  rx = shift_in_and_out_sequence(test_bit)
+  disable_shift()
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  sleep(1)
+  get_and_handle_serial(serial_handler)
+  return
+
+def explore_frameB_bits():
+  serial_handler = logging_serial_handler
+
+  for bit in range(512-128, 0, -1):
+    release_reset_and_wait()
+    enable_shift()
+    shift_in_and_out_sequence(instigat[-160:]) #quick instigate
+    disable_shift()
+    single_clk_pulse()
+    get_and_handle_serial(serial_handler)
+
+    test_bit = bitstring.BitString(bin='0'*512)
+    test_bit.set(1, [bit])
+    enable_shift()
+    rx = shift_in_and_out_sequence(test_bit)
+    disable_shift()
+    single_clk_pulse()
+    get_and_handle_serial(serial_handler)
+
+  return
+
 def try_frameB_response(password_bytes, password_prepare, message_responder, frame_responder, name=None):
   serial_handler = reset_on_sd_serial_handler
+  serial_output = bytearray(b'')
+
   if name is None:
     name = str(password_bytes)+str(password_prepare)+str(message_responder)
 
@@ -822,8 +759,10 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
     return None
 
   challenge_sequence = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
-  if not get_and_handle_serial(serial_handler):
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
     return None
+  serial_output.extend(line)
   log("challenge:  %s" % challenge_sequence.hex)
 
   password_sequence = password_prepare(bitstring.BitString(password_bytes))
@@ -834,21 +773,27 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
   log("response :  %s" % frame_response_sequence.hex)
 
   single_frame_send_and_receive(frame_response_sequence)
-  if not get_and_handle_serial(serial_handler):
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
     return None
+  serial_output.extend(line)
 
   log("end frame")
   single_clk_pulse()
-  if not get_and_handle_serial(serial_handler):
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
     return None
+  serial_output.extend(line)
 
   result_sequence = single_frame_send_and_receive(bitstring.BitString(bin='0'*512))
   log("end frame")
   single_clk_pulse()
-  if not get_and_handle_serial(serial_handler):
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
     return None
+  serial_output.extend(line)
 
-  if not result_sequence[-1*frame_response_sequence.len:] == frame_response_sequence & ~(ro_bits[-1*frame_response_sequence.len:]):
+  if not 'Authentication failed' in serial_output.decode('utf-8'):
     log("=====================================================================================")
     log("FLAG (???)")
     log("result   : %s" % result_sequence.hex)
@@ -858,10 +803,22 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
       the_file.write("challenge: %s\n" % challenge_sequence.hex)
       the_file.write("response : %s\n" % message_response_sequence.hex)
       the_file.write("result   : %s\n" % result_sequence.hex)
+      the_file.write("serial   : %s\n" % serial_output)
+  return
+
+def try_all_aes_frameB_challenges():
+  for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+    for password_prepare in [pad_password, ssl_password, md5_password]:
+      for frame_responder in [get_quadA_andauth_responder(), get_quadB_andauth_responder()]:
+        for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              for password in passwords:
+                try_frameB_response(password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(argsorder_responder)+str(operation)+str(cipher)+str(frame_responder))
   return
 
 def try_aes_frameB_challenges():
-  for frame_responder in [get_quadA_responder()]:
+  for frame_responder in [get_quadA_andauth_responder()]:
     for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
         for password_prepare in [pad_password, ssl_password2, ssl_password, md5_password]:
            for operation in [encrypt, decrypt]:
@@ -870,6 +827,33 @@ def try_aes_frameB_challenges():
                   try_frameB_response(password, password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
   return
 
+def continue_aes_frameB_challenges():
+  for frame_responder in [get_quadA_andauth_responder()]:
+    for variant_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password, ssl_password2, ssl_password, md5_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                for password in passwords:
+                  try_frameB_response(password, password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+  for frame_responder in [get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
+        for password_prepare in [pad_password, ssl_password2, ssl_password, md5_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                for password in passwords:
+                  try_frameB_response(password, password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
+  return
+
+def continue_swapped_aes_frameB_challenges():
+  for frame_responder in [get_quadB_andauth_responder(), get_quadA_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
+      for argsorder_responder in [get_swp_responder]: #get_trivial_responder
+        for password_prepare in [pad_password, ssl_password2, ssl_password, md5_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              for password in passwords:
+                try_frameB_response(password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, name=str(password)+str(password_prepare)+str(variant_responder)+str(argsorder_responder)+str(operation)+str(cipher)+str(frame_responder))
+  return
 
 # TODO send the nonce back unchanged and set all the read only-bits
 # TODO consider what the bit positions of the read-only bits decode to
@@ -885,8 +869,13 @@ def try_aes_frameB_challenges():
 
 #try_just128bit_experiment()
 #try_aes_frameB_challenges()
+#continue_aes_frameB_challenges()
+#continue_swapped_aes_frameB_challenges()
+try_all_aes_frameB_challenges()
 
-explore_frameB_shiftdepth()
+#explore_frames_shiftdepth()
+#explore_frameB_bits()
+#guess_frameB_auth_bit()
 
 print_any_serial()
 ser.close()
