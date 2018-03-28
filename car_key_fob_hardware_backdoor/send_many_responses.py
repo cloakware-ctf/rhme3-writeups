@@ -808,7 +808,7 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
 
 def try_all_aes_frameB_challenges():
   for argsorder_responder in [get_trivial_responder, get_swp_responder]:
-    for password_prepare in [pad_password, ssl_password, md5_password]:
+    for password_prepare in [pad_password, ssl_password, md5_password]: # pad_password
       for frame_responder in [get_quadA_andauth_responder(), get_quadB_andauth_responder()]:
         for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
           for operation in [encrypt, decrypt]:
