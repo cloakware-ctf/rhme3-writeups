@@ -793,6 +793,8 @@ def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
         return None
       serial_output.extend(line)
       log("challenge:  %s" % challenge_sequence.hex)
+    else:
+      log("reuse previous challenge: %s" % challenge_sequence.hex)
 
     password_sequence = password_prepare(bitstring.BitString(password_bytes))
     log("prepared :  %s" % password_sequence.hex)
@@ -827,6 +829,9 @@ def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
     if not ok:
       return None
     serial_output.extend(line)
+
+    if len(serial_output.decode('utf-8').strip(' \t\n\r')) == 0:
+      log("WARNING: no output on serial")
 
     if ((not 'Authentication failed' in serial_output.decode('utf-8')) and (not 'Self-destruct triggered' in serial_output.decode('utf-8'))) or (result_sequence != blanksss):
       log("=====================================================================================")
