@@ -108,8 +108,24 @@ void print_key(F2_128 &key, const char *sep=" ") {
 	printf("\n");
 }
 
+const int Forward = 1;
+const int Reverse = 2;
+void print_sched(F2_128 sched[11], int direction=Forward) {
+	if (direction == Forward) {
+		for (int i=0; i<11; i++) {
+			printf("round %2d: ", i+1);
+			print_key(sched[i]);
+		}
+	} else {
+		for (int i=10; i>=0; i--) {
+			printf("round %2d: ", i+1);
+			print_key(sched[i]);
+		}
+	}
+	printf("\n");
+}
 
-int test() {
+void test() {
 	// this key is from a known-answer test in FIPS-197
 	F2_128 key = { 0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf, 0x4f, 0x3c };
 	F2_128 key_sched[11];
@@ -138,8 +154,6 @@ int test() {
 	print_key(key);
 	printf("Rev: ");
 	print_key(rev_sched[0]);
-
-	return 0;
 }
 
 int main(int argc, char** argv) {
@@ -160,12 +174,14 @@ int main(int argc, char** argv) {
 	F2_128 sched[11];
 	memset(sched, 0, 11*sizeof(F2_128));
 	calc_aes128_rev_schedule(round_key, round_number, sched);
-	for (int i=10; i>=0; i--) {
-		printf("round %2d: ", i+1);
-		print_key(sched[i]);
-	}
+	print_sched(sched, Reverse);
 	printf("Your key is: ");
 	print_key(sched[0], "");
+
+	printf("\ndouble checking...\n");
+	F2_128 forward_sched[11];
+	calc_aes128_key_schedule(sched[0], forward_sched);
+	print_sched(forward_sched, Forward);
 
 	return 0;
 }
