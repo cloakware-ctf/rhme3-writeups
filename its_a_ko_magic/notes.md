@@ -145,3 +145,6 @@ On path 1, we did a bunch of trace preprocessing before we did the analysis. Tim
 
 Further testing showed that sub key byte 16 consistently did not correlate. We suspect that this is a bug in the challenge. We switched to a last-round attack which worked perfectly. We got the 2nd round key from that and used the key schedule reverser to get the key. Solved.
 
+```
+Your key is: 2c66704041a085fb735fc7013f5783ac
+```

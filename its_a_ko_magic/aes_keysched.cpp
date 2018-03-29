@@ -77,27 +77,29 @@ void calc_aes128_rev_schedule (
 	round_key[round_number] = rev_key;
 
 	for (int r = round_number-1; r>=0; r-=1) {
+		for (int b = 15; b >= 4; b--) {
+			round_key[r].x[b] = round_key[r + 1].x[b] ^ round_key[r + 1].x[b-4];
+		}
+		for (int b = 3; b >= 0; b--) {
+			round_key[r].x[b] = round_key[r + 1].x[b] ^ sbox[round_key[r].x[(b+1)%4 + 12]];
+		}
+		round_key[r].x[0] ^= rcon[r+1];
+	}
 
-		round_key[r].x[12] = round_key[r + 1].x[8]  ^ round_key[r + 1].x[12];
-		round_key[r].x[13] = round_key[r + 1].x[9]  ^ round_key[r + 1].x[13];
-		round_key[r].x[14] = round_key[r + 1].x[10] ^ round_key[r + 1].x[14];
-		round_key[r].x[15] = round_key[r + 1].x[11] ^ round_key[r + 1].x[15];
-
-		round_key[r].x[8]  = round_key[r + 1].x[4]  ^ round_key[r + 1].x[8];
-		round_key[r].x[9]  = round_key[r + 1].x[5]  ^ round_key[r + 1].x[9];
-		round_key[r].x[10] = round_key[r + 1].x[6] ^ round_key[r + 1].x[10];
-		round_key[r].x[11] = round_key[r + 1].x[7] ^ round_key[r + 1].x[11];
-
-		round_key[r].x[4] = round_key[r + 1].x[0] ^ round_key[r + 1].x[4];
-		round_key[r].x[5] = round_key[r + 1].x[1] ^ round_key[r + 1].x[5];
-		round_key[r].x[6] = round_key[r + 1].x[2] ^ round_key[r + 1].x[6];
-		round_key[r].x[7] = round_key[r + 1].x[3] ^ round_key[r + 1].x[7];
-
-		round_key[r].x[0] = round_key[r + 1].x[0] ^ sbox[round_key[r].x[13]] ^ rcon[r+1];
-		round_key[r].x[1] = round_key[r + 1].x[1] ^ sbox[round_key[r].x[14]];
-		round_key[r].x[2] = round_key[r + 1].x[2] ^ sbox[round_key[r].x[15]];
-		round_key[r].x[3] = round_key[r + 1].x[3] ^ sbox[round_key[r].x[12]];
-
+	uint8_t temp[4] = {
+		round_key[round_number].x[12],
+		round_key[round_number].x[13],
+		round_key[round_number].x[14],
+		round_key[round_number].x[15] };
+	for ( int r = round_number+1; r < 11; r = r + 1 ) {
+		uint8_t t0 = temp[0];
+		temp[0] = sbox[temp[1]] ^ rcon[r];
+		temp[1] = sbox[temp[2]];
+		temp[2] = sbox[temp[3]];
+		temp[3] = sbox[t0];
+		for ( int l = 0; l < 16; l = l + 1 ) {
+			temp[l % 4] = round_key[r].x[l] = round_key[r - 1].x[l] ^ temp[l % 4];
+		}
 	}
 }
 
@@ -174,14 +176,25 @@ int main(int argc, char** argv) {
 	F2_128 sched[11];
 	memset(sched, 0, 11*sizeof(F2_128));
 	calc_aes128_rev_schedule(round_key, round_number, sched);
-	print_sched(sched, Reverse);
-	printf("Your key is: ");
-	print_key(sched[0], "");
+	print_sched(sched, Forward);
 
-	printf("\ndouble checking...\n");
+	printf("double checking...");
+	bool fail=false;
 	F2_128 forward_sched[11];
 	calc_aes128_key_schedule(sched[0], forward_sched);
-	print_sched(forward_sched, Forward);
+    for(int r=0;r<11;r++) {
+		for(int b=0;b<16;b++) {
+			if (sched[r].x[b] != forward_sched[r].x[b]) {
+				printf("FATAL!");
+				fail=true;
+			}
+		}
+	}
+	if (!fail) {
+		printf("done.\n");
+		printf("Your key is: ");
+		print_key(sched[0], "");
+	}
 
 	return 0;
 }

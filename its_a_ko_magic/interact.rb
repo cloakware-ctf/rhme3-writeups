@@ -46,4 +46,7 @@ begin
 	plain = (0..15).map{|x| x.to_s 16}.join
 	cipher = encrypt plain
 	out = decrypt cipher
+
+	raise "WARNING: round-trip doesn't match" if plain != out
+
 end
