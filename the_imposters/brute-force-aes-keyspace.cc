@@ -51,6 +51,15 @@ const uint8_t bruteForceSpace[16][5] = {
 	{1, 0xff,    0,    0,    0},
 };
 
+void printKey(uint8_t key[11]) {
+	printf("Your key is: ");
+	for (int j=0; j<16; j++) {
+		printf("%02x", key[j]);
+	}
+	printf("\n");
+}
+
+
 int main(int argc, char** argv) {
 	const uint8_t *plaintext = testPlain;
 	const uint8_t *target = testEnc;
@@ -83,7 +92,8 @@ int main(int argc, char** argv) {
 			xxd(key, 16);
 			xxd(ciphertext, 16);
 			xxd(target, 16);
-			printf("--------");
+			printKey(key);
+			printf("\n--------");
 		} else {
 			printf("%8d", n++);
 		}
