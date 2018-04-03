@@ -346,6 +346,14 @@ def get_quadD_andauth_responder():
     frame_response_sequence = frame_response_sequence[-160:]
     return frame_response_sequence
   return quadD_responder
+
+def get_offet_and_auth_responder(offset):
+  def offset_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = authicat.copy()
+    frame_response_sequence.overwrite(message_response_sequence, offset-128)
+    return frame_response_sequence
+  return offset_responder
+
 ##################################################################################
 
 def quick_instigate_challenge(serial_handler):
