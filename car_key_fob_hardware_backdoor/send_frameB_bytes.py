@@ -21,12 +21,9 @@ def try_frameB_response(frameB_sequence):
 
   frameB_sequence = frameB_sequence.copy()
   frameB_sequence |= authicat
-
-  pin_high(TRIG_OUT) # interesting stuff happens in frameB here
-
+  frameB_sequence &= ~(sd_count | sd_alone)
   single_frame_send_and_receive(frameB_sequence)
 
-  pin_low(TRIG_OUT) # interesting area over now
 
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
@@ -34,7 +31,9 @@ def try_frameB_response(frameB_sequence):
   serial_output.extend(line)
 
   log("end frame")
+  pin_high(TRIG_OUT) # interesting stuff happens in frameB here
   single_clk_pulse()
+  pin_low(TRIG_OUT) # interesting area over now
 
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
@@ -57,14 +56,15 @@ import socketserver
 
 class FrameBHandler(socketserver.StreamRequestHandler):
   def handle(self):
-    line = self.rfile.readline().decode('utf-8')
-    to_send = bitstring.BitString(hex=line)
-    to_send = pad_out(to_send, 512)
+    while True:
+      line = self.rfile.readline().decode('utf-8')
+      to_send = bitstring.BitString(hex=line)
+      to_send = pad_out(to_send, 512)
 
-    challenge = try_frameB_response(to_send)
+      challenge = try_frameB_response(to_send)
 
-    out = "%s\n" % challenge.hex
-    self.wfile.write(out.encode('utf-8'))
+      out = "%s\n" % challenge.hex
+      self.wfile.write(out.encode('utf-8'))
 
 if __name__ == "__main__":
   server = socketserver.TCPServer(('', 32888), FrameBHandler)
