@@ -37,6 +37,22 @@ class TestAesAndSwappingAndReversing(unittest.TestCase):
     actual = get_cipher_message_responder(encrypt, aes_ecb)(this_key_sequence, this_plain_sequence)
     self.assertEqual(actual, this_cipher_sequence)
 
+  def test_aes_encrypt_with_pass_and_trivial(self):
+    this_key_sequence    = ssl_password(bitstring.BitString(b'password'))
+    this_plain_sequence  = bitstring.BitString(hex='61'*16)
+    this_cipher_sequence = bitstring.BitString(hex='0add 4657 3dd3 c5be aa9b 162d 4c7c 135c')
+
+    actual = get_trivial_responder(get_cipher_message_responder(encrypt, aes_ecb))(this_key_sequence, this_plain_sequence)
+    self.assertEqual(actual, this_cipher_sequence)
+
+  def test_aes_encrypt_with_pass_and_argswap(self):
+    this_key_sequence    = ssl_password(bitstring.BitString(b'password'))
+    this_plain_sequence  = bitstring.BitString(hex='61'*16)
+    this_cipher_sequence = bitstring.BitString(hex='0add 4657 3dd3 c5be aa9b 162d 4c7c 135c')
+
+    actual = get_swp_responder(get_cipher_message_responder(encrypt, aes_ecb))(this_plain_sequence, this_key_sequence)
+    self.assertEqual(actual, this_cipher_sequence)
+
   def test_aes_encrypt(self):
     actual = get_cipher_message_responder(encrypt, aes_ecb)(key_sequence, plain_sequence)
     self.assertEqual(actual, cipher_sequence)

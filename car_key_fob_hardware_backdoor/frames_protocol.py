@@ -182,9 +182,11 @@ blanksss = bitstring.BitString(hex='00000000000000000000000000000000000000000000
 sentinel = bitstring.BitString(hex='cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
 onesssss = bitstring.BitString(hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 #                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD quadwords
-specials = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000030001e3000000000055500002008000000000000')
 ro_bits  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000000001e3000000000055500000000000000000000')
 b_stuck  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000000001e3000000000055500000000000000000000') # stuck bits tested in frame B
+specials = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000030001e3000000000055500002008000000000000')
+#                                                    BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.......CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+#                                                                                     X                          X                                                  # bit 203 positions (counting both ways)
 instigat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000')
 authicat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000')
 sd_alone = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000')
@@ -347,12 +349,19 @@ def get_quadD_andauth_responder():
     return frame_response_sequence
   return quadD_responder
 
-def get_offet_and_auth_responder(offset):
-  def offset_responder(message_response_sequence, frame_challenge_sequence):
+def get_lsb_offet_and_auth_responder(offset):
+  def lsb_offset_responder(message_response_sequence, frame_challenge_sequence):
     frame_response_sequence = authicat.copy()
     frame_response_sequence.overwrite(message_response_sequence, offset-128)
     return frame_response_sequence
-  return offset_responder
+  return lsb_offset_responder
+
+def get_msb_offet_and_auth_responder(offset):
+  def msb_offset_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = authicat.copy()
+    frame_response_sequence.overwrite(message_response_sequence, offset)
+    return frame_response_sequence
+  return msb_offset_responder
 
 ##################################################################################
 
