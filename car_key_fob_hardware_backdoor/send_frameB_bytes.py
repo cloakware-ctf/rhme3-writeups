@@ -2,17 +2,41 @@ from frames_protocol import *
 import sys
 import socket
 
+target_count = -1
+
 def try_frameB_response(frameB_sequence):
+  global target_count
+
+  target_count = (target_count + 1) % 512
+
   serial_handler = reset_on_sd_serial_handler
   serial_output = bytearray(b'')
 
   log("\n")
+  enable_shift()
 
-  frameA_rx = quick_instigate_challenge(serial_handler)
+  frameA_rx = shift_in_and_out_sequence(instigat[-160:]) #minimum number of bits to instigate is 158, nearest multiple of 4 (for hex encoding printing) is 160
+
+  disable_shift()
+
+  if not get_and_handle_serial(serial_handler):
+    return None
+
+  log("end frame")
+  single_clk_pulse()
+
+  if not get_and_handle_serial(serial_handler):
+    return None
+
   if frameA_rx is None:
     return None
 
-  challenge_sequence = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
+  enable_shift()
+
+  challenge_sequence = shift_in_and_out_sequence(bitstring.BitString(hex='00'*16))
+
+  disable_shift()
+
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
     return None
@@ -22,8 +46,33 @@ def try_frameB_response(frameB_sequence):
   frameB_sequence = frameB_sequence.copy()
   frameB_sequence |= authicat
   frameB_sequence &= ~(sd_count | sd_alone)
-  single_frame_send_and_receive(frameB_sequence)
 
+  enable_shift()
+
+  tx = frameB_sequence
+  shift_size = tx.len
+
+  log("  sending : %s" % tx.hex)
+  rx = bitstring.BitString(length=shift_size)
+  for i in range(0, shift_size):
+    pin_low(CLK)
+    #assuming MSB first
+    set_pin(MOSI, tx[i])
+    sleep(DELAY)
+
+    if i == target_count:
+      log("triggering count %d" % i)
+      pin_high(TRIG_OUT)
+    pin_high(CLK)
+    sleep(DELAY)
+    if i == target_count:
+      pin_low(TRIG_OUT)
+    rx.set(get_pin(MISO), [i])
+
+  pin_low(CLK)
+  log("  received: %s" % rx.hex)
+
+  disable_shift()
 
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
@@ -31,9 +80,7 @@ def try_frameB_response(frameB_sequence):
   serial_output.extend(line)
 
   log("end frame")
-  pin_high(TRIG_OUT) # interesting stuff happens in frameB here
   single_clk_pulse()
-  pin_low(TRIG_OUT) # interesting area over now
 
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
@@ -66,7 +113,9 @@ class FrameBHandler(socketserver.StreamRequestHandler):
       out = "%s\n" % challenge.hex
       self.wfile.write(out.encode('utf-8'))
 
+
 if __name__ == "__main__":
+  pin_low(TRIG_OUT)
   server = socketserver.TCPServer(('', 32888), FrameBHandler)
   server.serve_forever()
 

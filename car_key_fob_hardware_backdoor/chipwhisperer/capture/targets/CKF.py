@@ -73,10 +73,8 @@ class CKFTarget(TargetTemplate):
         tx = "%s\n" % bitstring.BitString(self.input).hex
 
         self.conn.send(tx.encode('utf-8'))
-        rx=self.conn.recv(17)
-        rx=rx[0:15]
-
-        self.output = bytearray(bitstring.BitString(hex=rx.decode('utf-8')).tobytes())
-        sleep(2)
+        rx=self.conn.recv(32+1)
+        rx=rx[0:32]
+        self.output = bytearray(bitstring.BitString(hex=rx).tobytes())
         return
 

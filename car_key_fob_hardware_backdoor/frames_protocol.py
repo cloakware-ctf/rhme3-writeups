@@ -352,7 +352,7 @@ def get_quadD_andauth_responder():
 def get_lsb_offet_and_auth_responder(offset):
   def lsb_offset_responder(message_response_sequence, frame_challenge_sequence):
     frame_response_sequence = authicat.copy()
-    frame_response_sequence.overwrite(message_response_sequence, offset-128)
+    frame_response_sequence.overwrite(message_response_sequence, offset-127)
     return frame_response_sequence
   return lsb_offset_responder
 

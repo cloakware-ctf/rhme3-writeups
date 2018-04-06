@@ -41,7 +41,7 @@ def check_message_responder(password_prepare, message_responder, name):
 
 for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
     for argsorder_responder in [get_trivial_responder, get_swp_responder]:
-        for operation in [decrypt]:
+        for operation in [encrypt]:
             for cipher in [aes_ecb]:
                 for password_prepare in [pad_password, ssl_password, md5_password]:
                     check_message_responder(password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password_prepare.__name__))
