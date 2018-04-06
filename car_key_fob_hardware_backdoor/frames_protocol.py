@@ -360,6 +360,7 @@ def get_msb_offet_and_auth_responder(offset):
   def msb_offset_responder(message_response_sequence, frame_challenge_sequence):
     frame_response_sequence = authicat.copy()
     frame_response_sequence.overwrite(message_response_sequence, offset)
+    frame_response_sequence = frame_response_sequence[int(offset/4)*4:]
     return frame_response_sequence
   return msb_offset_responder
 
