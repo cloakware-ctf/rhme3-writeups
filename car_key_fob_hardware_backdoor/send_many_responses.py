@@ -1127,7 +1127,122 @@ def try_frameB_offsets_theotherotherway_notdecryptnow_lolwut():
               for password in passwords:
                 attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
 
-  start = 640
+  start = 10091
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_forgottenoffsets_dumbencrypt():
+  attempts = list()
+
+  offsets = list()
+  for candidate in [203, 202, 204]:
+    offsets.append(candidate - 127+8)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_letencrypt_ctr():
+  attempts = list()
+
+  offsets=list()
+  for candidate in [203, 202, 204]:
+    offsets.append(candidate-127)
+    offsets.append(candidate-127+8)
+    offsets.append(candidate-7)
+    offsets.append(candidate)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ctr]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_moreoffsets_letencrypt_ctr():
+  attempts = list()
+
+  offsets = list(range(512-160-128, 75, -4))
+  for candidate in [203]:
+    offsets.remove(candidate-127)
+    offsets.remove(candidate-127+8)
+    offsets.remove(candidate-7)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ctr]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_moreoffsets_letencrypt_ecb_md5():
+  attempts = list()
+
+  offsets = list(range(76, 512-160-128+1, 4))
+  for candidate in [203]:
+    offsets.remove(candidate-127)
+    offsets.remove(candidate-127+8)
+    offsets.remove(candidate-7)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [md5_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 3119
   for i in range(start, len(attempts)):
     password, password_prepare, message_responder, frame_responder, name = attempts[i]
     log("%d of %d" %(i, len(attempts)))
@@ -1179,7 +1294,12 @@ def try_frameB_offsets_theotherotherway_notdecryptnow_lolwut():
 
 #try_frameB_offsets_theotherotherway_notdecryptnow()
 #try_frameB_offsets_theotherotherway_notdecryptnow_therest()
-try_frameB_offsets_theotherotherway_notdecryptnow_lolwut()
+#try_frameB_offsets_theotherotherway_notdecryptnow_lolwut()
+#try_frameB_forgottenoffsets_dumbencrypt()
+
+#try_frameB_offsets_letencrypt_ctr()
+#try_frameB_moreoffsets_letencrypt_ctr()
+try_frameB_moreoffsets_letencrypt_ecb_md5()
 
 print_any_serial()
 ser.close()

@@ -23,7 +23,9 @@ def try_frameB_response(frameB_sequence):
     return None
 
   log("end frame")
+  pin_high(TRIG_OUT)
   single_clk_pulse()
+  pin_low(TRIG_OUT)
 
   if not get_and_handle_serial(serial_handler):
     return None
@@ -60,13 +62,13 @@ def try_frameB_response(frameB_sequence):
     set_pin(MOSI, tx[i])
     sleep(DELAY)
 
-    if i == target_count:
-      log("triggering count %d" % i)
-      pin_high(TRIG_OUT)
+#    if i == target_count:
+#      log("triggering count %d" % i)
+#      pin_high(TRIG_OUT)
     pin_high(CLK)
     sleep(DELAY)
-    if i == target_count:
-      pin_low(TRIG_OUT)
+#    if i == target_count:
+#      pin_low(TRIG_OUT)
     rx.set(get_pin(MISO), [i])
 
   pin_low(CLK)

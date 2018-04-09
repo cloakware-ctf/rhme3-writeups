@@ -57,6 +57,10 @@ class TestAesAndSwappingAndReversing(unittest.TestCase):
     actual = get_cipher_message_responder(encrypt, aes_ecb)(key_sequence, plain_sequence)
     self.assertEqual(actual, cipher_sequence)
 
+  def test_aes_encrypt_ctr(self):
+    actual = get_cipher_message_responder(encrypt, aes_ctr)(key_sequence, plain_sequence)
+    #TODO test vectors
+
   def test_aes_decrypt(self):
     actual = get_cipher_message_responder(decrypt, aes_ecb)(key_sequence, cipher_sequence)
     self.assertEqual(actual, plain_sequence)
