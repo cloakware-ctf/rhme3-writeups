@@ -82,8 +82,6 @@ def switchMode():
     return True
 
 if __name__ == "__main__":
-    print("HACK: STAYING ALIVE")
-    pinAccess()
     print("switching mode...")
     if (not switchMode()):
         print("failed.")
