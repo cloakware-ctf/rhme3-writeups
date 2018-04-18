@@ -18,13 +18,14 @@ avr_bss_emu(0x20b2, 0x2187)
 ```c
 void main_455() {
 	// basic init
+	clear_port_b();
 	serial_printf("CO2 level regulator booted.\n");
 	for (;;) {
 		flag_set_mask_d52(0);
 		set_deadword();
 		randomize_randomarray();
 		temp_1020bd = 0;
-		byte_102000 = 0xff;
+		missrate_102000 = 0xff;
 		change_filter();
 		serial_printf(" applied successfully.\n");
 	}
@@ -67,9 +68,9 @@ void change_filter() {
 	randomize_high_bytes(&array, 22);
 	serial_printf("What filter level do you want to apply?\n> ");
 	byte_1020bc = read_str_until_noecho(USARTC0, &array, 32, '\n'); // XXX OVERFLOW!
-	// XXX I'm squishy here, not sure it's right...
-	if (array[15] = '\0') {
-		array[15] = byte_1020bc;
+	if (array[13] = '\0') {
+		// this is a bizarre hack to let us see the RNG
+		array[13] = byte_1020bc;
 	}
 	missrate_102000 = almost_never_set_flag_mask(&array, 22); // what's with these sizes?
 	show_hit_rate(missrate_102000) ;
@@ -143,4 +144,71 @@ void show_hit_rate(char arg0) {
 }
 
 ```
+
+## Analysis
+
+On each loop we:
+	- set the flag mask
+	- set up the 0xdead word
+	- randomize the random array
+	- set temp global to 0
+	- set the missrate to -1
+	- invoke the target function
+
+Target function:
+	- will print the random value for us, if we ask
+	- has a vulnerable overflow into a buffer
+	- has a random 8-byte stack guard
+	- will then return wherever we ask
+
+Stack Check:
+	- sets PORTB 50 nops before it does the stack check.
+
+Attacks:
+	1. Pin the RNG. If we do that, we can capture the random value and use it to bypass
+	2. Skip the stack check, trigger on PORTB
+
+## Next Steps:
+	* Sim it up. Make sure we have the details right.
+	* Do actual FI.
+
+Breakpoints:
+	0591 serial_printf
+	03e5 read_str_until_noecho
+		- buffer at 0x3fe0
+		- size is 0x20 = 32
+	01d3 almost_never_set_flag_mask
+	0273 fateful branch
+	042b fateful RET
+
+Results:
+	Real return address from change_filter() is 0x489
+	Stack is
+	14 bytes of buffer
+	8 bytes of stack guard
+	2 bytes of pushed SP = 3ffa (BE)
+	3 bytes of return address = 000489
+
+Need to write:
+	14 bytes padding
+	8 bytes of noise
+	3f fa 00 02 ba
+
+Looks good.
+
+## Probing
+I search A0-5, and D0-15, nada.
+Reading the riscurino layout sheet, suggests it's actually the LED.
+Probed it... hit.
+
+## Happy Path:
+And analysis complete. Here's the drill:
+1. boot the board, flush the input
+2. send a string like 30313233343536373839616263643ffa0002ba0a (but bytes, not hex)
+3. wait for the LED to flash
+4. do FI
+
+Note:
+	the LED flash lasts about 3 microseconds. You won't see it, but it's there
+	Your offset from flash to injection is about 50 clocks.
 
