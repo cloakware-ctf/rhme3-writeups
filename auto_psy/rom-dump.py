@@ -88,11 +88,11 @@ def dumpRam(address, length, filename):
     elif (reply.data[1] == 0x7f):
         print("error")
         return False
-    blocks = reply.data[2]
+    blocks = (length+reply.data[3]-1) / reply.data[3]
 
     dump = open(filename, "w")
     try:
-        for block in range(0,blocks+1):
+        for block in range(0,blocks):
             getBlock = can.Message(arbitration_id=SendAID,
                     data=[0x02, 0x36, (block+1)%256, 0,0,0,0,0],
                     extended_id=False)
@@ -127,6 +127,10 @@ if __name__ == "__main__":
 
     print("using aid:",hex(SendAID))
     #scanRam();
-    for addr in range(0,0x10000,0x1000):
-        dumpRam(addr, 0x1000, "mem-dump-%03x-%04x.raw"%(SendAID,addr))
+
+    print("WARNING: there is a BUG in this code.")
+    print("you may have to re-run multiple times to get good dumps.")
+    width = 0x800
+    for addr in range(0,0x10000,width):
+        dumpRam(addr, width, "mem-dump-%03x-%04x.raw"%(SendAID,addr))
 
