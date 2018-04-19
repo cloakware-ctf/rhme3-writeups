@@ -11,6 +11,9 @@ https://en.wikipedia.org/wiki/Unified_Diagnostic_Services
 https://automotive.wiki/index.php/ISO_14229
 	- includes UDS error list
 
+http://lup.lub.lu.se/luur/download?func=downloadFile&recordOId=8871228&fileOId=8871229
+	- details on UDS communicatino sequences
+
 ## Candump
 Note: serial is empty. No traffic.
 
@@ -75,7 +78,7 @@ Format:
 	byte 10 = multi-frame
 	byte length, bytes data
 	byte 2x = fragment, bytes data
-	
+
 Examples:
 	7e0#01:28 -> service $28 - communications control
 	7e0#02:2701 - get seed for Security Access (possibly 2702?)
@@ -161,7 +164,7 @@ xx==9
 
 7DF: it seems like all three listeners are listening here
 	- 7DF is the standard diagnostic reader CAN ID
-	- OBD-II listen on [7E0:7E7] and send on [7E8:7EF] 
+	- OBD-II listen on [7E0:7E7] and send on [7E8:7EF]
 	- invalid sysIds generate errors
 	- all of 7E8, 7DB, 7ED reply to all messages
 	- for valid sysIds, some subId are ignored, no error
@@ -242,6 +245,7 @@ can0  7ED   [8]  23 00 00 00 00 00 00 00   '#.......'
 	13 - incorrectMessageLengthOrInvalidFormat
 	22 - conditionsNotCorrect (server isn't happy)
 	24 - requestSequenceError (do something else first)
+	31 - requestOutOfRange
 	33 - securityAccessDenied
 	35 - invalidKey
 	36 - exceedNumberOfAttempts
@@ -255,9 +259,24 @@ can0  7ED   [8]  23 00 00 00 00 00 00 00   '#.......'
 		- SUB 0x02: empty response
 	SID 11 - error 12
 	SID 27 - error 22 in mode 1, but in mode 2, works.
-	SID 35 - error 33
+	SID 35 - error 33, expects two bytes?
+		- SUB 0x00-0xFF: dataFormatIdentifier, use 00 for clear
+		- SUB 0x00-0xFF: addressAndLengthFormatIdentifier, two nibbles
+			- first nibble is memory size length
+			- second niddle is address length
+		- more bytes, for memory size and address
+		- response might give info about transfers
+			- first byte back is 0x10, not sure
+			- second byte is block size.
 	SID 36 - error 24
+		- SUB 0x00-0xFF: blockSequenceCounter
+		- might be optional, I think I just hit this over and over until out of data
+		- start at 1 and count up. Roll over and keep going.
+		- might send many bytes at once
 	SID 37 - error 13
+		- no subs.
+		- indicates end of transfer.
+		- use size 1: [01.37]
 	SID 3e - response -- likely just for 00
 
 #### Security Access
@@ -292,6 +311,42 @@ Can't try two keys for a single seed.
 	SID 27 - error 22
 	SID 3e - response
 
+### Security Access
+7d3:
+	98e5 -> 989f
+	f1bc -> f287
+7e5:
+	850b -> 840a
+7e0:
+	e859 -> e963
+
+### Request Upload
+If I specify a length < 3, I get code 13.
+With length = 3, I get code 31 for all, ALFIDs except 22
+ALFID 22 implies a length of 7. Giving the following template:
+	7d3#07.35.00.22.aa.bb.cc.dd
+Hit:
+We got a hit with:
+	7d3#07.35.00.22.80.00.00.04
+Ok, it's go time.
+	7d3#07.35.00.22.80.00.10.00
+	7db#03.75.10.fd
+
+
+#### Spec
+Actual Spec
+    1. 0x35 -- RequestUpload
+    2. 0x00 -- dataFormatIdentifier
+        high: "compressionMethod"  = 0x0, others are manufacturer specific
+        low: "encryptionMethod" = 0x0, others are manufacturer specific
+    3. 0x?? -- addressAndLengthFormatIdentifier
+        high: byte length of memorySize parameter
+        low: byte length of memoryAddress parameter
+    M-bytes -- memoryAddress[] = ... (MSB first)
+        obvious understanding
+    N-bytes -- memorySize[] = ... (MSB first)
+        obvious understanding (uncompressed size)
+
 ### Analysis of 7DF
 This is standard OBD-II
 Mode ~= SID ~= first byte after length
@@ -309,7 +364,7 @@ PID ~= second byte after length
 	PID 20 -- high PIDs supported
 		- 7ED: 00000001 -> supports 40
 	PID 40 -- higher PIDs supported
-		- 7ED: 40000010 -> pids 42, 5c 
+		- 7ED: 40000010 -> pids 42, 5c
 	PID 42 -- Control module voltage
 		- 7ED: 2EE0 -> 12.000 Volts (exactly)
 	PID 5c -- Engine oil temperature

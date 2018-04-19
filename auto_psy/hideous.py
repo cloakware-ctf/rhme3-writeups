@@ -5,7 +5,7 @@ import time
 
 Bus0 = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=49500)
 
-def saturate_loop():
+def saturateLoop():
     Counter = 0
     #for aid in [0x7e5, 0x7e8, 0x7ed, 0x7db, 0x7df]:
     #for aid in range(0, 0x800):
@@ -18,10 +18,10 @@ def saturate_loop():
                           extended_id=False)
                 Bus0.send(msg)
                 time.sleep(0.5)
-                flushprint()
+                flushPrint()
 
 SeenErrors = []
-def flushprint():
+def flushPrint():
     global SeenErrors
     dataLen = 0
     data = ""
@@ -119,16 +119,8 @@ def ignore(aid, sysid, subid):
             return True
     return False
 
-def pants():
-    sid = msg.data[1]
-    data = msg.data[2:]
-    (aid, sid, data) = parse(msg)
-    print(aid, sid, data, "\n")
-
 if __name__ == "__main__":
-    # recv_loop()
     print("ready")
-    saturate_loop()
-    #bridge()
+    saturateLoop()
 
 
