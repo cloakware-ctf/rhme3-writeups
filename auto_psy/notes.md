@@ -376,5 +376,181 @@ PID ~= second byte after length
 	PID 02 is VIN, as above
 	PID 0a is 20 bytes of ECU name as above
 
-## TODO
-Disconnect 7DF from rest of system, then try to security access
+## RE of image dump from 7E0
+I have successfully performed a file "upload", and gotten the image. It appears to be a standard AVR binary file. Reversing...
+
+## Initial Analysis
+loader:
+	Z = 3fd3
+	X = 2000
+	end = 2146
+bss:
+	X = 2146
+	end = 2243
+
+avr_loader_emu(0x3fd3, 0x2000-1, 0x2146)
+avr_bss_emu(0x2146, 0x2243)
+
+doesn't seem right. Likely, needed to add -1 correction above...
+
+Strings are in .rodata, harder to dref
+	1fb0
+	1fb3
+	1fc1
+	1fcb
+	1fd5
+	1fe1
+
+Victory function is accessible, and at 0xe85
+	- called from f12
+path:
+	- any of 7d3
+	- PID A0
+	- must_be_2_1021f5 must be 2
+	- msg length must be 2
+	- msg body must be 0 (but get no response if it's 0x80)
+
+First try:
+```sh
+cansend can0 7d3#02.a0.00.22.30.00.00.04
+can0  7DB   [8]  10 29 E0 00 46 4C 41 47   '.)..FLAG'
+can0  7DB   [8]  21 3A 00 06 00 00 00 00   '!:......'
+can0  7DB   [8]  22 00 18 39 06 00 00 00   '"..9....'
+can0  7DB   [8]  23 00 00 00 00 00 00 00   '#.......'
+can0  7DB   [8]  24 00 00 00 00 00 00 00   '$.......'
+can0  7DB   [8]  25 00 00 00 00 00 00 00   '%.......'
+```
+
+Clearly flag mask is wrong?
+00060000000000183906000000000000
+
+I tried reset and send: error 33, security access denied.
+
+## Simple RE
+Maybe what I need is just lying around?
+	00fe
+	0119
+	1fb3
+	1fb0 FLAG
+	1fdf
+What is at:
+	0x232
+
+
+## Disassembly
+```c                                                                              Z = 1)
+void victory_function_e85(buffer *msg, void b, short aid, char pid) {
+	rx16 = b;
+	rx22 = aid;
+	r20 = pid;
+	if (aid != 0x7d3) return error_7f_8e1(0x11);
+	if (must_be_2_1021f5 != 2) return error_7f_8e1(0x33);
+	if (access_7d3_102019 != 2) return error_7f_8e1(0x33);
+	if (msg[0x202] != 2) return error_7f_8e1(0x13);
+	if (msg[1]&0x7f != 0) return error_7f_8e1(0x12);
+	if (msg[1]&0x80 != 0) return 0; // no error
+	set_flag_mask_3e1(0xff);
+	print_flag_3ee(0x232); // binary at ROM:0x119
+}
+
+short check_key_12f8(short arg0, short arg1) {
+	// returns 0x0000 to indicate success
+	rx14 = bswap(arg0);
+	rx16 = arg1;
+	Y = [0x45, 0x71, 0x3D, 0x8B, 0x4F];
+	rx24 = 0;
+	for (int i=0; i<5; i++) {
+		rx24 = sub_1293(rx24, Y[i]);
+	}
+	rx24 = sub_1293(rx24, arg0/256);
+	rx24 = sub_1293(rx24, arg0%256);
+
+	// check arg1 against output
+	if (r25 != r17) return 0x0001; // fail
+
+	if (rx24 == 0x0000) r19 = 1; // probably 1
+	else r19 = 0;
+
+	if (rx16 != 0x0000) r18 = 1; // probably 0
+	else r18 = 0;
+
+	if (r18 == r19) return 0x0001; // fail
+	else return 0x0000; // success
+}
+
+char sub_1293(char r24, char r22) {
+	r24 ^= r22
+	r22 = r24
+	r22 = nswap(r22)
+	r22 ^= r24
+	r0 = r22
+	r22 >>= 2
+	r22 ^= r0
+	r09 = r22
+	r22 >>= 1
+	r22 ^= r0
+	r22 &= 7
+
+	r0 = r24
+	r24 = r25
+	r22 >>= 1
+	r0 <<= 1 (carry?)
+	r22 <<= 1 (carry?)
+	r25 = r0
+	r24 ^= r22
+	r0 >>= 1
+	r22 <<= 1 (carry?)
+	r25 ^= r0
+	r24 ^= r22
+}
+
+void print_flag_3ee(char *buffer[32]) {
+	char y1 = 0;
+	// inefficiency is at Y+2..3
+	// char = Y+4
+	// char = Y+5
+	// buffer is at Y+6..7
+	for (char y1=0; y1<32; y1++) {
+		y5 = 0x119[y1] ^ flag_xor_array_102159[y1];
+		buffer[y1] = y5 | flag_mask_102147;
+	}
+}
+```
+
+## Simulation
+It looks like print_flag is broken, doesn't use the buffers properly
+Try sim: Patches (note, I haven't byteswapped the belows)
+	2486:  92cf -> 9508
+	118a:  cffd -> 0000 (NOP it out)
+	27b0:  93cf -> 9508 (just ret, fuck it)
+
+data 0x2140  c7 a6 e8 24 f6 5a 00 00 00 83 36 44 b1 7e 6e 89  Ç¦è$öZ...ƒ6D±~n.
+data 0x2150  a5 9d 82 33 58 a2 ee 44 93 97 8c a3 a0 5f 87 27  ¥..3X¢îD“—Œ£ _.'
+data 0x2160  82 37 66 38 80 ab 83 f7 c2 46 86 c9 49 e2 b4 ee  .7f8€«ƒ÷ÂF.ÉIâ´î
+data 0x2170  12 7e ca 32 76 a2 ee 44 93 00 00 00 00 00 00 00  .~Ê2v¢îD“.......
+
+c7 a6 e8 24 f6 5a 00 00  00
+flag_array_102149:
+83 36 44 b1 7e 6e 89 a5  9d 82 33 58 a2 ee 44 93
+flag_xor_array_102159:
+97 8c a3 a0 5f 87 27 82  37 66 38 80 ab 83 f7 c2
+46 86 c9 49 e2 b4 ee 12  7e ca 32 76 a2 ee 44 93
+
+lpm_flag_array_119:
+B8F19996BE3CBB1F5401E65DBA98F692BE762AACD681708CFB184F53DD92F573
+
+If I byteswap 0x119, and xor into 2159, I get
+	f459c98962ef39e408eccbbbf1a9037f
+Note: we get ascii, it decodes to that.
+Doesn't check out. Maybe I broke the code with my 3 patches...
+
+Code is broken, like I suspected. It's trying to use 0x119 as a buffer, but when it does so, it correctly reads from program memory, but writes to RAM, and RAM that low is memory mapped I/O... so BS.
+
+```ruby
+s1='978ca3a05f87278237663880ab83f7c24686c949e2b4ee127eca3276a2ee4493'
+s2='B8F19996BE3CBB1F5401E65DBA98F692BE762AACD681708CFB184F53DD92F573'
+b1=s1.scan(/../).map{|x| x.to_i(16)};
+b2=s2.scan(/../).map{|x| x.to_i(16)}.each_slice(2).map{|a,b|[b,a]}.flatten;
+puts b1.zip(b2).map{|x,y| (x^y).chr}.join;
+```
+
