@@ -450,7 +450,16 @@ void victory_function_e85(buffer *msg, void b, short aid, char pid) {
 	if (msg[1]&0x7f != 0) return error_7f_8e1(0x12);
 	if (msg[1]&0x80 != 0) return 0; // no error
 	set_flag_mask_3e1(0xff);
-	print_flag_3ee(0x232); // binary at ROM:0x119
+	write_flag_to_buffer_3ee(0x232); // binary at ROM:0x119
+	{ // inlined function
+		...
+		memcpy_P($sp+?, 0x3f60, 6); // "FLAG:\0"
+		for (int i=0;i<32;i++) {
+			($sp+?+8)[i] = 0x232[i]; // the "flag" buffer, but wrong
+		}
+		sub_6ca(b, 0x7db, 0x29, $sp+?);
+	}
+	return 0;
 }
 
 short check_key_12f8(short arg0, short arg1) {
@@ -504,7 +513,7 @@ char sub_1293(char r24, char r22) {
 	r24 ^= r22
 }
 
-void print_flag_3ee(char *buffer[32]) {
+void write_flag_to_buffer_3ee(char *buffer[32]) {
 	char y1 = 0;
 	// inefficiency is at Y+2..3
 	// char = Y+4
@@ -553,4 +562,14 @@ b1=s1.scan(/../).map{|x| x.to_i(16)};
 b2=s2.scan(/../).map{|x| x.to_i(16)}.each_slice(2).map{|a,b|[b,a]}.flatten;
 puts b1.zip(b2).map{|x,y| (x^y).chr}.join;
 ```
+
+## Finale
+I was running against the old version. Grabbed the new one...
+
+7d3/7db doesn't respond to direct messages. Does respond to public ones.
+But not UDS...
+
+Gateway is on 7e0/7e8. I probably need to do something there...
+	- trying another rom-dump on 7e0, substantially different...
+
 

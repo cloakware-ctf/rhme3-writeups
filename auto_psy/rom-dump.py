@@ -33,7 +33,6 @@ def getReply(aid, pid):
             if (dataLen <= 0):
                 msg.data = data
                 return msg
-    # the pigfuckers lie. The last block does not correctly report size!
     if (storedMsg != None and dataLen != 0):
         storedMsg.data = data
         return storedMsg
