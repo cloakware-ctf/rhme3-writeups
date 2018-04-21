@@ -258,6 +258,8 @@ can0  7ED   [8]  23 00 00 00 00 00 00 00   '#.......'
 		- SUB 0x01: empty response
 		- SUB 0x02: empty response
 	SID 11 - error 12
+		- needs to be length 2,
+		- subfunction & 0x7f
 	SID 27 - error 22 in mode 1, but in mode 2, works.
 	SID 35 - error 33, expects two bytes?
 		- SUB 0x00-0xFF: dataFormatIdentifier, use 00 for clear
@@ -436,9 +438,8 @@ Maybe what I need is just lying around?
 What is at:
 	0x232
 
-
 ## Disassembly
-```c                                                                              Z = 1)
+```c
 void victory_function_e85(buffer *msg, void b, short aid, char pid) {
 	rx16 = b;
 	rx22 = aid;
@@ -469,10 +470,10 @@ short check_key_12f8(short arg0, short arg1) {
 	Y = [0x45, 0x71, 0x3D, 0x8B, 0x4F];
 	rx24 = 0;
 	for (int i=0; i<5; i++) {
-		rx24 = sub_1293(rx24, Y[i]);
+		rx24 = sub_460(rx24, Y[i]);
 	}
-	rx24 = sub_1293(rx24, arg0/256);
-	rx24 = sub_1293(rx24, arg0%256);
+	rx24 = sub_460(rx24, arg0/256);
+	rx24 = sub_460(rx24, arg0%256);
 
 	// check arg1 against output
 	if (r25 != r17) return 0x0001; // fail
@@ -487,7 +488,7 @@ short check_key_12f8(short arg0, short arg1) {
 	else return 0x0000; // success
 }
 
-char sub_1293(char r24, char r22) {
+char sub_460(char r24, char r22) {
 	r24 ^= r22
 	r22 = r24
 	r22 = nswap(r22)
@@ -495,7 +496,7 @@ char sub_1293(char r24, char r22) {
 	r0 = r22
 	r22 >>= 2
 	r22 ^= r0
-	r09 = r22
+	r0 = r22
 	r22 >>= 1
 	r22 ^= r0
 	r22 &= 7
@@ -503,12 +504,12 @@ char sub_1293(char r24, char r22) {
 	r0 = r24
 	r24 = r25
 	r22 >>= 1
-	r0 <<= 1 (carry?)
-	r22 <<= 1 (carry?)
+	r0 >>= 1 (carry?)
+	r22 >>= 1 (carry?)
 	r25 = r0
 	r24 ^= r22
 	r0 >>= 1
-	r22 <<= 1 (carry?)
+	r22 >>= 1 (carry?)
 	r25 ^= r0
 	r24 ^= r22
 }
@@ -524,6 +525,142 @@ void write_flag_to_buffer_3ee(char *buffer[32]) {
 		buffer[y1] = y5 | flag_mask_102147;
 	}
 }
+
+void ecuReset_542(...) {
+	if (length != 2) error_7f_8E1(..., 0x13);
+	if (subid < 3 && subid != 0x83) error_7f_8E1(..., 0x12);
+	if (subid & 0x80) {
+		sendUdsReply_1672(r16, r14+8, 2, Y+1==[0x40, 3]);
+		if (rx14 = 0x7E5) rx14 = can1_102095;
+		else rx14 = can2_10200b;
+		rx12 = rx16 + 0x206;
+		for (word_102154 = 0x64; word_102154 != 0 && r12[0] !=0; ) {
+			sub_15a3(r14, r16, 3);
+		}
+	}
+	sub_1176(can1_102095[0x84], can1_102095[0x86]);
+	sub_1176(can2_10200b[0x84], can2_10200b[0x86]);
+	// something funky with CPU control registers
+}
+
+```
+
+```c
+void main(void) {
+	init {
+		we init USART C -- aka serial
+		and PORTB -- might be lighting the LED, might be D7/D8
+		Note:
+			PORTD[1..2] is CAN#_RST
+			PORTE[0..3] is CAN#_INT, STBY,CLK
+		looks like:
+			* 0x7DF is enabled on both interfaces
+			* 0x7E5 is enabled on can1_102095
+			* 0x7E0 is enabled on can2_10200b
+			* if (ROM:0xbfe0 == 0) 0x7D3 is enabled on can2_10200b
+		sub_1420();
+		sub_1456(can1_102095);
+		sub_1456(can2_10200b);
+		sub_cfe(can1_102095, 0x7df, 0xfff); {
+			for (int i=0;i<=5;i++) sub_c81(r24, i, r22, r20);
+		}
+		sub_cfe(can2_10200b, 0x7df, 0xfff); {
+			for (int i=0;i<=5;i++) sub_c81(r24, i, r22, r20);
+		}
+		sub_c81(can1_102095, 2, 0x7e5, 0xfff);
+		sub_c81(can2_10200b, 2, 0x7e0, 0xfff);
+		if (ROM:0xbfe0 != 0) sub_c81(can2_10200b, 3, 0x7d3, 0xfff);
+	}
+
+	// r6 is something to do with how to send the reply, PORT?
+	// r10 is related to the message buffer, but possibly at a large offset? ~0x102?
+	loop {
+    	if (byte_10214a != 0 && Y+0x20e == 0 && r5 < 9) {
+			Z = (r5 + 0xfe) << 1
+			r24 = 1 << 1
+			...
+			some funky EIJMP
+		}
+
+		if ( sub_e4c(off_102095, r14) == 0 &&
+				(r14[0]&1) == 0 &&
+				(r14[2:1] == 0x7e5 || r14[2:1] == 0x7df)) {
+			sub_1491(r10, r14);
+		}
+
+		if ( sub_e4c(off_10200b, r14) == 0 &&
+				(r14[0]&1) == 0 &&
+				(r14[2:1] == 0x7d3 || r14[2:1] == 0x7df)) {
+			sub_1491(r12, r14);
+		}
+
+		starting from 0x3D3;
+		if (Y+0x520[3] == 2) {
+			if (Y+0x520[1:0] == 0x7df) {
+				Y+0x520[1:0] = 0x7e5;
+				process_uds_f12(r10, r6, 1);
+				Y+0x520[1:0] = 0x7df;
+			} else {
+				process_uds_f12(r10, r6, 0);
+			}
+			Y+0x520[3] = 0;
+		}
+		if (Y+0x419[3] == 2) {
+			if (Y+0x419[1:0] == 0x7df) {
+				Y+0x419[1:0] == 0x7e0;
+				process_uds_f12(r12, r16, 1);
+				Y+0x419[1:0] == 0x7d3;
+				process_uds_f12(r12, r2, 1);
+				Y+0x419[1:0] = 0x7df;
+			} else {
+				process_uds_f12(r12, r16, 0);
+			}
+			Y+419[3] = 0;
+		}
+		if (byte_10214B != 0) {
+			byte_10214B = 0;
+			sub_15a3(off_10200b, r16, 1);
+			sub_15a3(off_10200b, r2, 1);
+			sub_15a3(off_10200b, r6, 1);
+		}
+	}
+}
+
+void error_7f_8e1(r24, r22_aid, r20_sid, r18_code);
+void sendUdsReply_1672(r24, r22_aid, r20_length, char r18_buffer[r20_length]);
+
+```
+
+```c
+// This is the reverse path to sub_d30, which might enable 7D3
+void sub_d30(short arg0) {
+	for (Y = 0; Y != 6; Y++) {
+		short rx20 = arg0[0] - 1;
+
+        Z = rx20*4
+		if (Y < 2) Z += 2
+		rx18 = array_102003[Z:Z+1]; // four elements, all 0xFFF
+
+		Z = 12 * rx20 + 2 * Y;
+		rx20 = array_10216d[Z:Z+1]
+
+		sub_c81(arg0, Y, rx20, rx18);
+	}
+}
+
+void sub_146b(short arg0) {
+	sub_bdf(arg0);
+	sub_c42(arg0, 1);
+	sub_d30(arg0);
+}
+
+void sub_f2e() {
+}
+
+void sub_15a3(void*can_ptr, short r22, char r20=1|3) {
+	// r20 is 3 if called from ecuReset(), is 1 if called from main()
+}
+
 ```
 
 ## Simulation
@@ -571,5 +708,41 @@ But not UDS...
 
 Gateway is on 7e0/7e8. I probably need to do something there...
 	- trying another rom-dump on 7e0, substantially different...
+
+Updated offsets:
+	avr_loader_emu(0x35b4, 0x2000, 0x2146)
+	avr_bss_emu(0x2146, 0x220f)
+
+Holy crap serial is enabled. It's printing helpful messages:
+	- Strings are now base 0x3000
+	- look for 0x6000, 0x6006, 0x6036, 0x604a, 0x605e
+	- "FLAG:" is at 0x6000.
+	- actual flag is up at around 0x5ff0, outside our memory dump.
+
+Reversing from Flag:
+	- all traffic to 7d3 is filtered. I need to open that filter.
+	- need session_7d3_102000 == 2, easy with $10 session control
+	- need access_7d3_102156 == 2, easy by brute force, unless that changed.
+	- and length == 2, and payload == 0. All easy.
+	- need to crack open `main()`.
+
+Access Flags:
+	- there are two per ECU. Low, and High.
+	- High controls access to $35, $36, $37, (and $A0).
+
+Possbiles:
+	- need to issue a command to the gateway to open access to FlxCap_Ctrl
+		- need to invoke sub_c81(can2_10200b, ?, 0x7d3, 0xfff)
+		- is invoked from sub_d30 <- sub_146b <- sub_f2e <3- sub_15A3
+			- called by main and ecuReset...
+
+	- need to mess around physically.
+		- use SPI to enable the missing pins
+	- ECU reset?
+		- worth trying...
+		- if we can affect ROM:0xBFE0 -> 0x5ff0, and reset, db3 opens up...
+			- Harvard, there's no SPM anywhere...
+			- but why have the test if it's impossible?
+			-
 
 
