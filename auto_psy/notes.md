@@ -12,7 +12,7 @@ https://automotive.wiki/index.php/ISO_14229
 	- includes UDS error list
 
 http://lup.lub.lu.se/luur/download?func=downloadFile&recordOId=8871228&fileOId=8871229
-	- details on UDS communicatino sequences
+	- details on UDS communication sequences
 
 ## Candump
 Note: serial is empty. No traffic.
@@ -125,6 +125,27 @@ System 0x01
 System 0x09
 	subs: 00, 0a
 
+## UDS SIDs of interest
+	SID 10 - Diagnostic Session Control!
+	SID 11 - ECU reset
+	SID 27 - Security Access
+	SID 35 - Request Upload
+	SID 36 - Transfer Data
+	SID 37 - Request Transfer Exit
+	SID 3e - Tester Present (I'm still here...)
+
+## UDS Errors
+	11 - serviceNotSupported, (whole SID is bad)
+	12 - subFunctionNotSupported
+	13 - incorrectMessageLengthOrInvalidFormat
+	22 - conditionsNotCorrect (server isn't happy)
+	24 - requestSequenceError (do something else first)
+	31 - requestOutOfRange
+	33 - securityAccessDenied
+	35 - invalidKey
+	36 - exceedNumberOfAttempts
+	37 - requiredTimeDelayNotExpired
+
 ## Fuzzing
 7df#02090a0000000000
 	- is a valid system/sub pair, but gets triple responses
@@ -230,27 +251,6 @@ can0  7E8   [8]  23 00 00 00 00 00 00 00   '#.......'
 can0  7DB   [8]  23 00 00 00 00 00 00 00   '#.......'
 can0  7ED   [8]  23 00 00 00 00 00 00 00   '#.......'
 
-### UDS SIDs of interest
-	SID 10 - Diagnostic Session Control!
-	SID 11 - ECU reset
-	SID 27 - Security Access
-	SID 35 - Request Upload
-	SID 36 - Transfer Data
-	SID 37 - Request Transfer Exit
-	SID 3e - Tester Present (I'm still here...)
-
-### UDS Errors
-	11 - serviceNotSupported, (whole SID is bad)
-	12 - subFunctionNotSupported
-	13 - incorrectMessageLengthOrInvalidFormat
-	22 - conditionsNotCorrect (server isn't happy)
-	24 - requestSequenceError (do something else first)
-	31 - requestOutOfRange
-	33 - securityAccessDenied
-	35 - invalidKey
-	36 - exceedNumberOfAttempts
-	37 - requiredTimeDelayNotExpired
-
 ### Sending as 7D3 -> 7DB -- FlxCap_Ctrl
 7db:[01:00] < 00000002
 7db:[01:1f] < 2c0d  ,
@@ -260,6 +260,8 @@ can0  7ED   [8]  23 00 00 00 00 00 00 00   '#.......'
 	SID 11 - error 12
 		- needs to be length 2,
 		- subfunction & 0x7f
+		- 0x01 should be "hard reset"
+		- 
 	SID 27 - error 22 in mode 1, but in mode 2, works.
 	SID 35 - error 33, expects two bytes?
 		- SUB 0x00-0xFF: dataFormatIdentifier, use 00 for clear
@@ -543,6 +545,54 @@ void ecuReset_542(...) {
 	// something funky with CPU control registers
 }
 
+void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
+	rx8 = arg0;
+	rx12 = arg1;
+	rx16 = aid;
+	r5 = 0x35;
+	if (aid == 0x7e0) {
+		r14 = session_7e0_102001
+		r15 = access_7e0_102159
+		memcpy_P(Y+0x1d, ROM:0x301b , 0x20); // "FlxCap_Gateway"
+		rx10 = 0x2165;
+		rx24 = 0x8000; // max
+		rx20 = 0;      // min
+	} else if (aid == 0x7d3) {
+		r14 = session_7d3_102000
+		r15 = access_7d3_102019
+		memcpy_P(Y+0x1d, ROM:0x3011 , 0x20); // "FlxCap_Ctrl"
+		rx10 = 0x215f;
+		rx24 = 0xC000; // max
+		rx20 = 0x8000; // min
+	} else {
+		error_7f_8e1(..., 0x11);
+	}
+
+	if (r14 != 2) error_7f_8e1(..., 0x33); // session
+	if (r15 != 2) error_7f_8e1(..., 0x33); // access
+	if (r10[4] != 0) error_7f_8e1(..., 0x22); // state bundle -> conditions...
+	if (arg0[0x102] < 3) error_7f_8e1(..., 0x13); // length
+	if (arg0[0x1] != 0) error_7f_8e1(..., 0x31); // subf -> out of range? XXX verify
+	if (arg0[0x2] != 0x22) error_7f_8e1(..., 0x31); // len:len
+	if (arg0[0x102] != 7) error_7f_8e1(..., 0x31); // length (again)
+
+	rx14 = arg0[3:4] // request offset
+	rx6 = arg0[5:6] // request length
+	if (rx14 < rx20) error_7f_8e1(..., 0x31); // below range
+	if (rx14 >= rx24) error_7f_8e1(..., 0x31); // above range
+	if (rx24 < rx14 + rx6) error_7f_8e1(..., 0x31); // end if above range
+	// XXX what about negative lengths?
+
+	memcpy(Y+1, ROM:0x3003, 0x1c); // "Accessing %s Mem Space..."
+	serial_printf(USARTC0, Y+1, Y+1d); // obvious
+
+	rx10[0:1] = rx14; // request start
+	rx10[2:3] = rx14+rx6; // request end
+	rx10[4] = 2;
+	rx10[5] = 0;
+	sendUdsReply_1672(arg1, aid+8, 3, Y+31=[0x75,0x10, 0xFD]);
+	return 0;
+}
 ```
 
 ```c
@@ -570,16 +620,46 @@ void main(void) {
 		sub_c81(can1_102095, 2, 0x7e5, 0xfff);
 		sub_c81(can2_10200b, 2, 0x7e0, 0xfff);
 		if (ROM:0xbfe0 != 0) sub_c81(can2_10200b, 3, 0x7d3, 0xfff);
+
+		sub_140b()
+		sub_142e()
+
+		rx14 = Y+0x524 // bzero(rx14, 14)
+		rx10 = Y+0x41d // bzero(rx10, 263)
+		rx12 = Y+0x316 // bzero(rx12, 263)
+		rx6  = Y+0x20f // bzero(rx6,  263)
+		rx16 = Y+0x108 // bzero(rx16, 263)
+		rx4  = 0
+		rx2  = Y+0x1   // bzero(rx2,  263)
+		// below is sorted for sanity
+		Y+0x532 = dword_102138 = [0,1,5,7]; // random state to choose...
+		Y+0x536:7 = 9, 0x0a; // these are valid OBD-II
+		Y+0x538:9 = 9, 0x00;
+		Y+0x53a:b = 1, 0x0d;
+		Y+0x53c:d = 1, 0x42;
+		Y+0x53e:f = 1, 0x40;
+		Y+0x540:1 = 1, 0x20;
+		Y+0x542:3 = 1, 0x00;
+		// missing Y+0x544..7, whole dword, used in an ISR...
+		Y+0x548:9 = &Y+0x536;
+		Y+0x54a:b = &Y+0x538;
+		Y+0x54c:d = &Y+0x53a
 	}
 
 	// r6 is something to do with how to send the reply, PORT?
 	// r10 is related to the message buffer, but possibly at a large offset? ~0x102?
 	loop {
     	if (byte_10214a != 0 && Y+0x20e == 0 && r5 < 9) {
-			Z = (r5 + 0xfe) << 1
-			r24 = 1 << 1
-			...
-			some funky EIJMP
+			// these are the randomish entry points on the right
+			// they cause the random OBD2 messages that idle through the system.
+			EIJMP *((0xfe + r5) << 1);
+			switch (r5) {
+				case 0x309:
+					Y+0x544 = dword_102146;
+					erx22 += r4 * r14[6] + dword_102146;
+					r4 = sub_478() & 3;
+					r5 = Y+0x532[r4]
+			}
 		}
 
 		if ( sub_e4c(off_102095, r14) == 0 &&
@@ -613,6 +693,9 @@ void main(void) {
 				process_uds_f12(r12, r2, 1);
 				Y+0x419[1:0] = 0x7df;
 			} else {
+				// so the reason that we don't process
+				// 7d3 messages properly, must be the lack of r2 below...
+				// I think it means it doesn't reply to me, need tap?
 				process_uds_f12(r12, r16, 0);
 			}
 			Y+419[3] = 0;
@@ -628,7 +711,6 @@ void main(void) {
 
 void error_7f_8e1(r24, r22_aid, r20_sid, r18_code);
 void sendUdsReply_1672(r24, r22_aid, r20_length, char r18_buffer[r20_length]);
-
 ```
 
 ```c
@@ -708,6 +790,8 @@ But not UDS...
 
 Gateway is on 7e0/7e8. I probably need to do something there...
 	- trying another rom-dump on 7e0, substantially different...
+	- most of the bindiff carried over, lots of minor changes
+	- victory() isn't broken anymore
 
 Updated offsets:
 	avr_loader_emu(0x35b4, 0x2000, 0x2146)
@@ -730,7 +814,7 @@ Access Flags:
 	- there are two per ECU. Low, and High.
 	- High controls access to $35, $36, $37, (and $A0).
 
-Possbiles:
+###  Possbiles:
 	- need to issue a command to the gateway to open access to FlxCap_Ctrl
 		- need to invoke sub_c81(can2_10200b, ?, 0x7d3, 0xfff)
 		- is invoked from sub_d30 <- sub_146b <- sub_f2e <3- sub_15A3
@@ -738,6 +822,8 @@ Possbiles:
 
 	- need to mess around physically.
 		- use SPI to enable the missing pins
+		- probe lines, look for signals
+
 	- ECU reset?
 		- worth trying...
 		- if we can affect ROM:0xBFE0 -> 0x5ff0, and reset, db3 opens up...
@@ -745,4 +831,37 @@ Possbiles:
 			- but why have the test if it's impossible?
 			-
 
+### PIDs
+	3e tester present: requres subf=0; does nothing; doesn't reply if subf&0x80
+	10 session control: requires subf=[1..2]; alter control; if (subf&0x80) skip reply;
+	11 ecu reset: requires subf=[1..2]; branch on 0x7e5;
+		- if (~ subf&0x80) reply; 64.times{ sub_15a3() }; sub_1176(each can)
+	27 security access: as well described, references 2146
+	35 request upload: 7e0/7d3; bunch of reqs above; serial_printf(); reply.
+	36 transfer data: 7e0/7d3; bunch of probably known details
+	37 transfer exit: 7e0/7d3; bunch of probably known details
 
+Note:
+	session mode for 7e5 is only used in security access
+	session mode for 7e0 is used in access, and request/transfer/exit sequence
+	session mode for 7d3 is used in the above, and victory function
+	security access for 7e5 is implemented but unused.
+	security access for 7e0 is used for request/transfer/exit 
+	security access for 7d3 is used for request/transfer/exit + victory
+
+About can[12]_1020XX:
+	- can1_102095 is used for 7e5/PwrTrain
+		- PORTE_INT0_ references
+		- called by an external interrupt?
+	- can2_10200b is used for both 7e0/FlxCap, and 7d3/FlxCap
+		- sub_10c7 references
+		- called by an external interrupt?
+	- both
+		- extensive references in main(), for obvious reasons
+		- ecuReset_542 calls sub_15a3() with them, then calls sub_1176() shortly after
+		- sub_1431 references
+
+### Diff Analysis
+process_uds() -- nothing consequential
+victory_function() -- now working properly
+ecuReset() -- irrelevants
