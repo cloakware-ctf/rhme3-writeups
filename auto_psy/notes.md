@@ -145,6 +145,8 @@ System 0x09
 	35 - invalidKey
 	36 - exceedNumberOfAttempts
 	37 - requiredTimeDelayNotExpired
+	71 - transferDataSuspended
+	73 - wrongBlockSequenceCounter
 
 ## Fuzzing
 7df#02090a0000000000
@@ -448,8 +450,8 @@ void victory_function_e85(buffer *msg, void b, short aid, char pid) {
 	rx22 = aid;
 	r20 = pid;
 	if (aid != 0x7d3) return error_7f_8e1(0x11);
-	if (must_be_2_1021f5 != 2) return error_7f_8e1(0x33);
-	if (access_7d3_102019 != 2) return error_7f_8e1(0x33);
+	if (session_7d3_102000 != 2) return error_7f_8e1(0x33);
+	if (access_7d3_102156 != 2) return error_7f_8e1(0x33);
 	if (msg[0x202] != 2) return error_7f_8e1(0x13);
 	if (msg[1]&0x7f != 0) return error_7f_8e1(0x12);
 	if (msg[1]&0x80 != 0) return 0; // no error
@@ -565,7 +567,7 @@ void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
 		rx20 = 0;      // min
 	} else if (aid == 0x7d3) {
 		r14 = session_7d3_102000
-		r15 = access_7d3_102019
+		r15 = access_7d3_102156
 		memcpy_P(Y+0x1d, ROM:0x3011 , 0x20); // "FlxCap_Ctrl"
 		rx10 = 0x215f;
 		rx24 = 0xC000; // max
@@ -587,7 +589,7 @@ void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
 	if (rx14 < rx20) error_7f_8e1(..., 0x31); // below range
 	if (rx14 >= rx24) error_7f_8e1(..., 0x31); // above range
 	if (rx24 < rx14 + rx6) error_7f_8e1(..., 0x31); // end if above range
-	// XXX what about negative lengths?
+	// what about negative lengths? nope. Ordering is correct
 
 	memcpy(Y+1, ROM:0x3003, 0x1c); // "Accessing %s Mem Space..."
 	serial_printf(USARTC0, Y+1, Y+1d); // obvious
@@ -598,6 +600,91 @@ void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
 	rx10[5] = 0;
 	sendUdsReply_1672(arg1, aid+8, 3, Y+31=[0x75,0x10, 0xFD]);
 	return 0;
+}
+
+struct transferSession { 
+	short requestStart; // [0:1]
+	short requestEnd;   // [2:3]
+	char state;         // [4]   1 or 2
+	char blockCounter;  // [5]   starts at 0, goes up to 0xFD
+}
+
+void transferData_71a(void* arg0, short arg1, short aid, short r18=0x36) {
+	X = arg0;
+	rx24 = arg1;
+	rx22 = aid;
+	r20 = 0x36;
+	if (aid == 0x7e0) {
+		r19 = session_7e0_102001;
+		r18 = access_7e0_102159;
+		Z = 0x2165;
+	} else if (aid == 0x7d3) {
+		r19 = session_7d3_102000
+		r18 = access_7d3_102156
+		Z = 0x215f;
+	} else {
+		error_7f_8e1(..., 0x11);
+	}
+
+	if (r19 != 2) error_7f_8e1(..., 0x24); // session
+	if (r18 != 2) error_7f_8e1(..., 0x24); // access
+	if (Z.state != [1:2]) error_7f_8e1(..., 0x24); // state bundle -> conditions...
+	if (arg0[0x102] != 2) error_7f_8e1(..., 0x13); // length
+
+	// slightly re-ordered
+	r21 = Z.state
+    r19 = Z.blockCounter 
+	r17 = Z.state-1
+
+	rx14 = X = r19 = Z.blockCounter
+	r16 = -1
+	rx14 = Z.blockCounter + 1
+
+	r18 = arg0[1]; // block requested
+	if (arg0[1] != Z.blockCounter + 1 && r17 == 2) {
+		// re-request
+		if (arg0[1] != Z.blockCounter) error_7f_8e1(..., 0x73); // wrong block sequence...
+		if (arg0[1] == 0) error_7f_8e1(..., 0x73); // wrong block sequence...
+		if (Z.state&0xfd != 1) error_7f_8e1(..., 0x73); // wrong block sequence...
+		X -= 1
+		rx16 = Z.blockCounter * 0xfd + Z[1:0]; // block to read
+	} else {
+		rx16 = r19 * 0xfd + Z[0:1]; // block to read
+		Z.blockCounter = r19 + 1;
+		if (Z.state == 2) {
+			Z.state = 1;
+		}
+	}
+
+	if (Z.requestEnd < rx16) error_7f_8e1(..., 0x71); // transfer suspended
+	if (rx16 >= Z.requestEnd) error_7f_8e1(..., 0x71); // transfer suspended 
+	X = rx14 - rx16
+	if (X >= 0xfe) {
+		r19 = 0xfd;
+		r14 = 0xfd;
+	} else {
+		r19 = 3
+		Z.state = 3;
+		r14 -= r16;
+	}
+	sub_6d2();
+	return 0;
+}
+
+void sub_6d2() {
+	X = r14 + 2
+	rx10 = r14 + 1
+	X = stack_alloc(r14+2);
+	r20 |= 0x40; // likely PID
+	X[0] = r18;
+	rx18 = &X[3];
+	{
+		rx20 = rx18 - X;
+		if (rx10 < rx20) {
+			sendUdsReply_1672(rx24, rx22+8, r14+2, X);
+		}
+		*rx18++ = lpm(rx16++);
+	}
 }
 ```
 
@@ -941,6 +1028,20 @@ About can[12]_1020XX:
 		- extensive references in main(), for obvious reasons
 		- ecuReset_542 calls sub_15a3() with them, then calls sub_1176() shortly after
 		- sub_1431 references
+
+### Probing Lines
+A0-A5: nothing
+D:
+	9. sig -- D9/SS/PC4 -- CAN2
+	10. sig -- D10/MOSI/PC5 -- CAN2
+	MISO/SCK are not exported are PC6, PC7.
+
+	6. sig -- D6/SS/PD4 -- CAN1
+	11. sig -- D11/MOSI/PD5 -- CAN1
+	12. sig -- D12/MISO/PD6 -- CAN1
+	13. sig -- D13/SCK/PD7 --CAN1
+
+
 
 ### Diff Analysis
 process_uds() -- nothing consequential

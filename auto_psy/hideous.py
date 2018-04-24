@@ -7,29 +7,33 @@ Bus0 = can.interface.Bus(bustype='socketcan', channel='can0', bitrate=49500)
 
 def saturateLoop():
     Counter = 0
-    #for aid in [0x7e5, 0x7e8, 0x7ed, 0x7db, 0x7df]:
+    #for aid in [0x7d3, 0x7e5, 0x7e8, 0x7ed, 0x7db, 0x7df]:
     #for aid in range(0, 0x800):
-    for aid in [0x7e0]:
+    for aid in [0x7e0, 0x7e5]:
         print("Fuzzing AID: 0x%03X#"%(aid))
-        for sysId in range(0x12, 0x40):
-            for subId in range(0,1):
+        for sysId in range(0x12, 0x80):
+            for subId in range(0,256):
                 msg = can.Message(arbitration_id=aid,
                           data=[0x02, sysId, subId, 0,0,0,0,0],
                           extended_id=False)
                 Bus0.send(msg)
                 time.sleep(0.5)
-                flushPrint()
+                flushPrint(subId)
 
 SeenErrors = []
-def flushPrint():
+def flushPrint(arg):
     global SeenErrors
     dataLen = 0
     data = ""
     inProgress = False
+    seenSomething = False
     while(True):
         msg = Bus0.recv(0)
         if (msg==None):
+            if (seenSomething == False):
+                print("No reply:",arg)
             return
+        seenSomething = True
         aid = msg.arbitration_id
         frame = msg.data[0]>>4
 

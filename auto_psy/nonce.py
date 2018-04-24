@@ -82,8 +82,9 @@ def test_check_key_4b8(arg0, arg1):
     else:
         print("FAILURE")
 
-test_check_key_4b8(0x98e5, 0x989f)
-test_check_key_4b8(0xf1bc, 0xf287)
-test_check_key_4b8(0x850b, 0x840a)
-test_check_key_4b8(0xe859, 0xe963)
+if __name__ == "__main__":
+    test_check_key_4b8(0x98e5, 0x989f)
+    test_check_key_4b8(0xf1bc, 0xf287)
+    test_check_key_4b8(0x850b, 0x840a)
+    test_check_key_4b8(0xe859, 0xe963)
 
