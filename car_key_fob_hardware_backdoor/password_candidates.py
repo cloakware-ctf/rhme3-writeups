@@ -46,4 +46,30 @@ b'aes',
 b'des'
 ]
 
+def get_16byte_pair_passwords():
+    password_candidates = list()
 
+    for password1 in passwords:
+        for password2 in passwords:
+            if password1 == password2:
+                continue
+            test_password = bytearray()
+            test_password.extend(password1)
+            test_password.extend(password2)
+            if len(test_password) == 16:
+                password_candidates.append(bytes(test_password))
+
+    return password_candidates
+
+def get_16byte_pair_password_repeats():
+    password_candidates = list()
+
+    for password1 in passwords:
+        password2 = password1
+        test_password = bytearray()
+        test_password.extend(password1)
+        test_password.extend(password2)
+        if len(test_password) == 16:
+            password_candidates.append(bytes(test_password))
+
+    return password_candidates

@@ -10,7 +10,6 @@ def pad_out(sequence, target_bit_length):
    output.append(bitstring.BitString(bin='0'*padding_size_needed))
    return output
 
-from Crypto.Cipher import AES
 def encrypt(cipher, clear_sequence):
    response_sequence = bitstring.BitString(cipher.encrypt(clear_sequence.tobytes()))
    return response_sequence
@@ -25,10 +24,9 @@ def aes_ecb(key_sequence):
 def aes_cbc(key_sequence):
    return AES.new(key_sequence.tobytes(), AES.MODE_CBC, IV=bitstring.BitString(bin='0'*128).tobytes())
 
+from Crypto.Util import Counter
 def aes_ctr(key_sequence):
-   def trivial():
-      return bitstring.BitString(bin='0'*128).tobytes()
-
+   trivial = Counter.new(128, initial_value=0)
    return AES.new(key_sequence.tobytes(), AES.MODE_CTR, counter=trivial)
 
 ################################################################################
@@ -45,6 +43,17 @@ def md5_password(password_sequence):
 
 def ssl_password(password_sequence):
   return bitstring.BitString(hex=hashlib.sha256(password_sequence.tobytes()).hexdigest())[:128]
+
+def pkcs(password_sequence):
+  BS = 16
+  password_bytes = password_sequence.tobytes()
+  remaining = BS - len(password_bytes) % BS
+  pad = bytes( [remaining] * remaining)
+
+  result = bytearray()
+  result.extend(password_bytes)
+  result.extend(pad)
+  return result
 
 #################################################################################
 # Message Responders
@@ -67,6 +76,13 @@ def md5concat(password_sequence, challenge_sequence):
 def xor(password_sequence, challenge_sequence):
   response_sequence = challenge_sequence ^ password_sequence
   return response_sequence
+
+from Crypto.Hash import CMAC
+
+def aes_cmac(password_sequence, challenge_sequence):
+  cobj = CMAC.new(password_sequence.tobytes(), ciphermod=AES)
+  cobj.update(challenge_sequence.tobytes())
+  return bitstring.BitString(hex=cobj.hexdigest())
 
 ##################################################################################
 # Message Responder Modifiers
@@ -102,10 +118,10 @@ def get_swprev_responder(message_responder):
    return response_sequence
  return swprev_responder
 
-def bitswap(input_sequence):
+def bitswap(input_sequence, size=8):
   input_sequence = input_sequence.copy()
-  for pos in range(0, input_sequence.len, 8):
-    byte_sequence = input_sequence[pos:pos+8]
+  for pos in range(0, input_sequence.len, size):
+    byte_sequence = input_sequence[pos:pos + size]
     byte_sequence.reverse()
     input_sequence.overwrite(byte_sequence, pos)
   return input_sequence
@@ -120,14 +136,54 @@ def get_bitswapped_responder(message_responder):
 
 def get_rev_bitswapped_responder(message_responder):
   def rev_bitswapped_responder(password_sequence, challenge_sequence):
+    bitswapped_responder = get_bitswapped_responder(message_responder)
+
     challenge_sequence = challenge_sequence.copy()
     challenge_sequence.reverse()
-    challenge_sequence = bitswap(challenge_sequence)
-    response_sequence = message_responder(password_sequence, challenge_sequence)
-    response_sequence = bitswap(response_sequence[:128])
+    response_sequence = bitswapped_responder(password_sequence, challenge_sequence)
     response_sequence.reverse()
     response_sequence.overwrite(response_sequence, 0)
     return response_sequence
   return rev_bitswapped_responder
+
+def get_wordbitswapped_responder(message_responder):
+  def wordbitswapped_responder(password_sequence, challenge_sequence):
+    challenge_sequence = bitswap(challenge_sequence, size=16)
+    response_sequence = message_responder(password_sequence, challenge_sequence[:128])
+    response_sequence.overwrite(bitswap(response_sequence[:128], size=16),0)
+    return response_sequence
+  return wordbitswapped_responder
+
+def get_rev_wordbitswapped_responder(message_responder):
+  def rev_wordbitswapped_responder(password_sequence, challenge_sequence):
+    bitswapped_responder = get_wordbitswapped_responder(message_responder)
+
+    challenge_sequence = challenge_sequence.copy()
+    challenge_sequence.reverse()
+    response_sequence = bitswapped_responder(password_sequence, challenge_sequence)
+    response_sequence.reverse()
+    response_sequence.overwrite(response_sequence, 0)
+    return response_sequence
+  return rev_wordbitswapped_responder
+
+def get_longbitswapped_responder(message_responder):
+  def longbitswapped_responder(password_sequence, challenge_sequence):
+    challenge_sequence = bitswap(challenge_sequence, size=32)
+    response_sequence = message_responder(password_sequence, challenge_sequence[:128])
+    response_sequence.overwrite(bitswap(response_sequence[:128], size=32),0)
+    return response_sequence
+  return longbitswapped_responder
+
+def get_rev_longbitswapped_responder(message_responder):
+  def rev_longbitswapped_responder(password_sequence, challenge_sequence):
+    bitswapped_responder = get_longbitswapped_responder(message_responder)
+
+    challenge_sequence = challenge_sequence.copy()
+    challenge_sequence.reverse()
+    response_sequence = bitswapped_responder(password_sequence, challenge_sequence)
+    response_sequence.reverse()
+    response_sequence.overwrite(response_sequence, 0)
+    return response_sequence
+  return rev_longbitswapped_responder
 
 
