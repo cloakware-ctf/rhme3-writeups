@@ -1,4 +1,6 @@
+import binascii
 from _base import TargetTemplate
+from chipwhisperer.common.utils import pluginmanager
 from simpleserial_readers.cwlite import SimpleSerial_ChipWhispererLite
 import socket
 import bitstring
@@ -7,6 +9,7 @@ import logging
 import time
 from chipwhisperer.common.utils.timer import nonBlockingDelay
 from chipwhisperer.common.api.CWCoreAPI import CWCoreAPI
+from chipwhisperer.common.utils.parameter import setupSetParam
 from chipwhisperer.common.utils import util
 
 class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
@@ -14,22 +17,16 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
 
     def __init__(self):
         TargetTemplate.__init__(self)
-        self.ser = None
-        self.params.addChildren([
-            {'name':'Baud', 'key':'baud', 'type':'list', 'values':{'38400':38400, '19200':19200}, 'value':38400},
-            {'name':'Port', 'key':'port', 'type':'list', 'values':['Hit Refresh'], 'value':'Hit Refresh'},
-            {'name':'Refresh', 'type':'action', 'action':self.updateSerial}
-        ])
+
+        ser_cons = pluginmanager.getPluginsInDictFromPackage("chipwhisperer.capture.targets.simpleserial_readers", True, False)
+        self.ser = ser_cons[SimpleSerial_ChipWhispererLite._name]
+        self.ser.setBaud(115200)
+
         self._pin = "tio3"
         self._default_state = True
         self._active_ms = 10
         self._delay_ms = 0
-
-    def updateSerial(self, _=None):
-        serialnames = serialport.scan()
-        self.findParam('port').setLimits(serialnames)
-        if len(serialnames) > 0:
-            self.findParam('port').setValue(serialnames[0])
+        return
 
     def getConnection(self):
         return None
@@ -50,19 +47,16 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
         pass
 
     def textLen(self):
-        return 
+        return 0
 
     def loadInput(self, inputtext):
         return
 
     def readOutput(self):
-        return self.output
+        return ''
 
     def isDone(self):
         return True
-
-    def hardware_write(self, string):
-        return self.ser.write(bytearray(string.encode('utf-8')))
 
     def hardware_read(self, num, timeout=100):
         return self.ser.read(num)
@@ -72,21 +66,27 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
             self.ser.close()
             self.ser = None
 
-    def con(self, scope = None):
-        if self.ser == None:
-            # Open serial port if not already
-            self.ser = serial.Serial()
-            self.ser.port     = self.findParam('port').getValue()
-            self.ser.baudrate = self.findParam('baud').getValue()
-            self.ser.timeout  = 2     # 2 second timeout
-            self.ser.open()
+    @setupSetParam("Connection")
+    def setConnection(self, con):
+        self.ser = con
+        self.params.append(self.ser.getParams())
+
+        self.ser.connectStatus.setValue(False)
+        self.ser.connectStatus.connect(self.connectStatus.emit)
+        self.ser.selectionChanged()
+
+    def _con(self, scope = None):
+        if not scope or not hasattr(scope, "qtadc"): Warning("You need a scope with OpenADC connected to use this Target")
+
+        self.outstanding_ack = False
+
+        self.ser.con(scope)
+        # 'x' flushes everything & sets system back to idle
+        self.ser.write("xxxxxxxxxxxxxxxxxxxxxxxx")
+        self.ser.flush()
 
     def go(self):
-        self.hardware_write("0123456789abcd"+"stuvwxyz" + "\x3f\xfa\x00\x02\xba")
-        #tx = "%s\n" % bitstring.BitString(self.input).hex
-
-        #self.conn.send(tx.encode('utf-8'))
-        #rx=self.conn.recv()
+        self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\r\n')
         rx = self.hardware_read(43)
         print(rx)
         return
