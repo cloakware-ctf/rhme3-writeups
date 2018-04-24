@@ -183,10 +183,9 @@ sentinel = bitstring.BitString(hex='cafeabad1deadeadbeefdefea7edd00dcafeabad1dea
 onesssss = bitstring.BitString(hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
 #                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD quadwords
 ro_bits  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000000001e3000000000055500000000000000000000')
+specials = bitstring.BitString(hex='000000000000000000000000000000000000350500000000287e00000c05000000000000000000000000000030001e3000000000055500002008000000000000')
 b_stuck  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000000001e3000000000055500000000000000000000') # stuck bits tested in frame B
-specials = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000030001e3000000000055500002008000000000000')
-#                                                    BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB.......CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
-#                                                                                     X                          X                                                  # bit 203 positions (counting both ways)
+led      = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000')
 instigat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000')
 authicat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000')
 sd_alone = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000')
@@ -363,6 +362,21 @@ def get_msb_offet_and_auth_responder(offset):
     frame_response_sequence = frame_response_sequence[int(offset/4)*4:]
     return frame_response_sequence
   return msb_offset_responder
+
+def get_msb_offset_and_auth_avoidstuckbits_by_bit(offset):
+  def msb_offset_and_auth_avoidstuckbits_by_bit_responder(message_response_sequence, frame_challenge_sequence):
+    frame_response_sequence = authicat.copy()
+
+    target_index = offset
+    for source_index in range(0, 128):
+      while b_stuck[target_index]:
+        target_index += 1
+      frame_response_sequence[target_index] = message_response_sequence[source_index]
+      target_index += 1
+
+    frame_response_sequence = frame_response_sequence[int(offset/4)*4:]
+    return frame_response_sequence
+  return msb_offset_and_auth_avoidstuckbits_by_bit_responder
 
 ##################################################################################
 
