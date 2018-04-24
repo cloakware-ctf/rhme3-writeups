@@ -70,7 +70,417 @@ can1: (4194.247) 7ED#04:41422ee0000000
 PS: scapy does UDS, I'm seeing fragments of a ISO-TP
 
 ## UDS research
-BLG-Notes.pptx, page 63-6
+
+### BLG-Notes.pptx
+
+#### Vehicle Diagnostics: ISO 15765-2 Frames
+
+Four Types of Frames:
+	Single Frame
+	Multi-Frame
+	Consecutive Frame
+	Flow Control Frame
+
+First Byte of CAN Frame is Byte One of the PCI Data.
+
+Byte One has Two Parts:
+	High Nibble
+	Low Nibble
+
+If High Nibble is:
+	0 = Single Frame
+	1 = Multi-Frame
+	2 = Consecutive Frame
+	3 = Flow Control
+
+Examples:
+	7E0 02 01 03 00 0 00 00 00 00
+	7E0 10 14 09 02 01 31 31 31 31
+	7E0 21 32 33 34 35 36 37 38
+	7E0 30 00 0A 00 00 00 00 00
+
+Low nibble is the data length ***of the message itself not of transport-level request/response*** e.g low-nibble==2 for 7e0 02 01 03 00 0 00 00 00 00
+
+Above 01 03  is the request PID. e.g 09 02 for VIN
+
+OBDII mandates +8 arb id for response. But response ID rules vary for OEMs in extended diagnostics.
+
+OBDII mandates that adding 0x40 to the original request ID indicates success
+e.g. 
+Request 7e0 02 09 02 000…
+Response 7e8 10 14 49 02 01 XX XX XX
+(0 14 is multi-frame message length)
+(01 is VIN-specific format)
+
+[Then the requested sends a flow-control frame within 100ms]
+Request 7e0 3Y ZZ WW 00 00 00
+	(Y is CTS/DNS: 0 is clear to send, 1 is stop)
+	(ZZ is frame separation. How many more response frames to send before expecting another flow control frame)
+	(WW is separation time. How many ms to wait between each response frame send)
+
+Response 7e8 2R XX XX XX XX
+	(R is a rolling counter, 1 for this response ++ for each after)
+
+#### Vehicle Diagnostics: Diagnostic Response Messages
+
+Response Messages come back on a Different Arbitration ID
+
+This ID is typically +8 of the Request ID, but does not have to be
+
+Three Types of Responses:
+	Positive Response
+	Negative Response
+	No Response
+
+Responses Usually will come within 100ms or less of the request
+
+Response Types – Positive Response Example: 
+	Rqst: 0x7E0 02 01 2F
+	Rsp:  0x7E8 03 41 2F FF
+
+Response Types – Negative Response Example:
+	Rqst: 0x7E0 02 01 2E
+	Rsp:  0x7E8 03 7F 01 12
+
+Response Types – No Response Example:
+	Rqst: 0x7E0 02 7E 01
+	Rsp:  (None)
+
+“No Response” is the worst because you have to wait the mandatory 100ms delay. This can really slow down fuzzing.
+
+Imagine if
+request 7e0 02 15 7f
+	(15 as a service doesn’t mean anything in diags)
+Response 7e8 03 7f 15 XX 
+	(15 is echoed in the error)
+	(XX is an NRC – negative response code)
+
+#### Vehicle Diagnostics: Hands On – OBDII (J1979)
+
+Using Scripts and Transmit Messages:
+	Find what Modes are Supported
+	Find what PIDs are Supported for those Modes
+
+HINT: 0x7E0 is to Address and 0x7E8 is the Response Address
+
+ALSO: Don’t Forget Message Format: 0x7E0 02 01 00 
+
+REMBER: Stop at Mode 0x0F
+
+List of OBDII Modes (Services):
+	01 – Request Current Powertrain Diagnostic Data
+	02 – Request Powertrain Freeze Frame Data
+	03 – Request Emission-Related DTCs
+	04 – Clear/Reset Emission-Related DTCs
+	05 – Request O2 Sensor Monitoring Test Results
+	06 – Request On-Board Monitoring Test Results for Specific Monitored Systems
+	07 – Request Emission-Related DTCs Detected During Current or Last Completed Driving Cycle
+	08 – Request Control of On-Board Systems, Test or Component
+	09- Request Vehicle Information
+	0A – Request Emission-Related DTCs with Permanent Status
+
+Goal: see which services this controller supports
+
+Create a new Transmit message. In messages editor. Set 7e0 as arb id. Name fuxx for services.
+
+Set B1 01 B2 00. We will use B2 as the service for fuzzing. We will increment B2 by using a script.
+
+Create a new script. Add a new function block. Called fuzz for services
+
+1 set value B2 to 00 [ select the tx message and select the Message B2 property. Assign to 0 ]
+2 start a loop 256 times
+3 Transmit  the message
+4 wait for 10ms
+5 set value B2 + 1 [ select as above. Set expression to the same as value and append “ + 1 “ ]
+6 end the last loop
+7 stop
+
+Go back to messages view and use 8e? As a filter to see responses.
+
+Lab: make that script work and use the results to answer: what services are supported?
+
+We got one weird response: “03 7f 3d 11 55 55 55 55”. Others were clearly errors with NRCs
+
+Instructor solution: filter “?? 7F *” shows only negative responses. 
+
+Instructor solution: finding only negative responses with NRC 11. Make a message filter. Message editor receive. Add . Name it. Set the bytes of interest. Then go to filter and select the new messaeg we created. The filter can be used by first checking ‘networking’ to select something first and then exclude the filter.
+
+There were services that had non-11 NRCs there was also one positive response. “02 7e 00 55 55 55 55 55” ; therefore service 7e – 40 == 3e is supported.
+
+#### * Vehicle Diagnostics: ISO 14229 a.k.a. Universal Diagnostic Services
+
+List of Services support by UDS
+	10 – Diagnostic Session Control - YES
+	11 – ECU Reset - YES
+	14 – Clear DTCs
+	19 – Read DTCs
+	22 – Read Data by ID - YES
+	23 – Read Memory by Address - YES
+	24 – Read Scaling by ID
+	27 – Security Access* - YES
+	28 – Communication Control - YES
+	2A – Read Data by DID
+	2C – Dynamically Controlled ID
+	2E – Write Data by ID
+	2F – Input Output Control* - YES
+	31 – Routine Control
+	34 – Request Download
+	35 – Request Upload
+	37 – Request Transfer Exit
+	3D – Write Memory by Address
+	BA - YES
+	3E - YES
+	And more…
+
+#### Vehicle Diagnostics: Hands On: ISO 14229
+
+Scan for Supported Services (10-FF)
+
+Scan for Supported PIDs on Service 22
+
+Note the differences between these PIDs and the PIDs found with OBDII Scans
+
+Document the Services that are supported, you’ll need them later
+
+Let’s take a specific service and drill down to see what sub functions are supported.
+
+On the desktop of the lab PC there is a iso 14229 spec. The simulator here in the lab is using it. There is a list of all services. Let’s look at “read data by identifier”
+
+Read Data by id takes a subfuinction “dataIdentifier” which is 6 bytes long. All bytes can take all possible values in 00-ff.
+
+We are going to brute-force all the possible subfunction values.
+
+Make a new trans message in the message editor. Set Arb id 7e0. 8 byte length. Single frame request. B1 03 B2 22 B3 XX B4 XX. We want to group XXXX. We need to add a signal to this message. Add 16bit signal , drag to bytes 3-4. Name it ‘PID’. Thus as we increment ‘PID’ spy will handle high and low bytes.
+
+Make a script.
+
+1 Set Value of the new tx message PID signal to 0
+2 loop 65536
+3 transmit new message
+4 wait for 10ms
+5 set value of the new tx message PID to PID + 1
+6 end loop
+7 stop
+
+Go back to messages view, make it clear. 
+
+Set the start type of the scripts to manual.
+
+Look through for positive reponses.
+
+---
+
+We had to increase the messages buffer to 900000 by clicking the ‘setup…’ button in messages view. Ran the script and set a filter for “?? 62 *” . ?? To accept any response length. 62 because it is 22 + 40. We got three matching frames:
+
+“04 62 00 0d 51 55 55 55”
+“06 62 10 01 00 00 00 55”
+“06 62 32 50 00 00 01 55”
+
+#### Vehicle Diagnostics: Service $10 – Start Diagnostics
+
+Used to change Diagnostic Mode.
+	Typically between three unique modes:
+		Standard OBDII
+		Programming Mode
+		Enhanced Mode
+
+Required for most enhanced diagnostic request
+
+Programming Mode is used for Reflashing the Controller
+
+For nearly all enh diagnostics you *must* set the $10 service request first. 
+
+***NB: If ECU reset is not available as a service. You can reset the controller by commanding the controller into and then out of programming mode.***
+
+#### Vehicle Diagnostics: Service $2E or $3B – Write Data by ID
+
+Used for:
+	Programming configuration information like VIN and Simple Calibrations
+	Clearing non-volatile memory
+	Setting Options
+
+UDS and KWP: Service ID $2E
+	7E0 05 2E 12 34 FE DC 00 00
+
+GMLAN: Service ID $3B
+	7E0 04 3B 12 FE DC 00 00 00
+
+NB: some writable regions are locked based on the number of ignition key cycles. i.e. new cars can have theirs re-written  up until a point where they cross the threshold.
+
+#### Vehicle Diagnostics: Service $23 – Read Memory by Address
+
+Used to Read the Values stored in RAM or ROM
+
+Service ID $23 for UDS, KWP and GMLAN
+
+UDS 
+	1 Byte (Sub) Variabe Address and Length Format (e.g. 0x14 = 1 byte for Size of Memory. 4 bytes for Memory Address Size)
+	2-4 Bytes (as specified) for Memory Address
+	1-2 Byte (as specified) for byte to be returned by request
+
+	7E0 07 23 14 12 34 56 78 FE
+
+KWP
+	3 Bytes for Memory Address (Typically a pseudo address)
+	1 Byte for Bytes returned by request
+
+	7E0 04 23 12 34 56 FE 00 00
+
+GMLAN
+	3 or 4 Bytes for Memory Address
+	2 Bytes for Bytes returned by request
+
+	7E0 06 23 12 34 56 FE DC 00
+	7E0 07 23 12 34 56 78 FE DC
+
+e.g. 7e0 DD 23 XY A…A L…L
+DD – variable length
+X size of memory request – size in bytes of how many bytes you want returned back
+Y size of memory address in bytes (this width influences the DD variable length field)
+A address (number of bytes as per Y)
+L length of read (number of bytes as per X)
+
+NB: If you try an XY that is not supported you will get a response 13 (inv format) or 31 (request out of range)
+
+A good response might be something like 7e8 05 63 00 00 00 00
+
+NB: this does not include the address requested in the response
+NB: for some XY the $23 request is a multi-frame message . E.g. X=2 Y=4
+---
+
+Lab: 1) figure out to correct value for XY for the given controller.
+
+Create a transmit message. Call it ‘memory read’ . Length 8 B1 01 B2 23 B3 00 B4 00 B5 00 B6 00 B7 00 B8 00 (all init 00 because they are variable). Select ISO15765-2 for multi column. Update the B’s now – 01 above is part of ISO-TP, omit it. B1 23 B2 00 B4 00 …. Now also the message size is the ISO-TP size. 
+
+***NB: b/c vehicle spy doesn’t pad automatically for ISO-TP messages you must click multiframe-setup button and select padding for 00.***
+
+We’ll make a script. Call it ‘find memory read sub function’ (sub function == ‘sizes’). We want to do two tings. 1) set the memory read initially to 0x11 and 2) update the message size . Create two signals: B1 high and low nibbles. Called “Return Size” and “Memory address size”, respectively.
+
+1 set value B2 high to 1
+2 set value B2 low to 1
+3 start a loop , run 4 times
+4 start a loop, run 4 times
+5 transmit the memory read message
+6 increment “return size”
+7 increment “memory address size”
+8 wait 10ms
+9 End loop
+9 end loop
+10 stop
+
+You’ve detected the right size parameters when you get a 31 (out of range) error instead of the 13 (invalid request error)
+
+---
+
+Make a script to dump memory using ‘12’ parameters
+
+We found that the region 0x8000 to 0x8100 and there was one non-zero value at 0x8074 of 0xCf24
+
+#### Vehicle Diagnostics: Service $11 – ECU Reset
+
+Service ID $11
+
+Often a source of initialization Errors
+
+Needed for Reflashing
+
+UDS:
+	1 Byte Subfunction:
+		0x01 – Hard Reset
+		0x02 – KeyOnOffReset
+		0x03 – Soft Reset
+
+KWP
+	1 Byte Subfunction
+	0x01 – Power ON Reset
+	0x82 – NVR Reset
+
+GMLAN
+	No Such Function
+	Reset occurs after Reflash
+
+#### Hands On: Input Output Control
+
+Device Control Service on UDS is 2F
+
+Make a new tx msg. 7e0 8 length “04 2F 00 00 03”
+
+03 is temporary turn-on
+
+NB: positive resp on “?? 6f*” b/c service is 2f
+
+A 7f is ‘service not supported in active session’ . We need to send a ‘start diagnostics’ command. We need to send for an extended diagnostics session
+
+Make a new tx msg. “start enh diag” “7e0” length 8  “02 10 03”
+
+Make a script that send the start enh diag and also fuzzes the IO control
+
+We found that IO code 0x2150 gave a positive result. As well as 0x3250
+
+#### Hands On: Security Access
+
+Use Service 27 to Send a Seed Request to the Module
+
+Did you get the Seed?
+
+Was the Seed Static or Dynamic?
+
+How Many Bytes was the Seed?
+
+Did you get a Negative Response?
+
+There can be multiple levels of security
+
+First thing we need to do is get the seed. There will be seed requests for the different levels.
+
+7E0 02 27 01
+
+02 is ‘get seed’
+01 is the level
+
+Response 
+7e8 04 67 01 YYYYYYY
+
+01 is an echo of the level request
+
+Then apply some secret alg of YYYYYY to get the right unlock response ZZZZZ
+
+Then send the next even number with the key
+e.g. 7e0 04 27 02 ZZZZZ
+
+Then either correct “7e8 02 67 02” or incorrect “7e8 03 7f 27”
+
+What happens when you send a bad key? The NRC is definitely the first. There is tracking of the number of attempts and if you exceed this number then you get a 37 code exceedNummberOfAttempts. You may need to reset the ECU at this point.
+
+Remember that if you get a 7f error , you need to start diagnostics
+--- Lab 
+
+Send a seed request. Make a new tx message “7e0 “ len 8 “ 04 27 02 00 00”
+
+I got a response “7e8 04 67 01 3d 1b 55 55 55” so got seed 0x3d1b
+
+I did a memory dump and found 3d 1b cf 24 in memory at 0x8074
+
+So the seed is there. Could cf 24 be the key?
+
+### day2 labs.vs3 
+
+A vehicle spy save file; I used it during the class to win the class challenge. This was 1) dump memory without a security session 2) idenfity interesting values in the memory space , one ended up being a key 2) initiate a security session ; xor the key with the seed and use that as a response 3) win
+
+Extracting some CAN frame bytes from the vehicle spy XML:
+* seed request message: `7E0 02 27 01`
+* send key: `7E0 04 27 02 00 00`
+* enhanced diagnostics enable: `7E0 02 10 03`
+* IO control fuzzer: `7E0 04 2F 00 00 03`
+* mem read fuzzer: `7E0 05 23 12 00 00 04`
+* memory read: `7E0 23 00 00 00 00`
+* svcs subfunction fuzzer: `7E0 03 22 00 00`
+* svcs enum: `7E0 01 00`
+* seed: `7E8 XX 67 01 XX XX'
+* mem read error: `7E8 03 7F 23 13 XX XX XX XX`
+* neg response: `7E8 03 7F XX 11`
+
+### BLG-Notes.pptx, page 63-6
 
 Format:
 	byte length, bytes data
