@@ -4,6 +4,11 @@ from ._base import SimpleSerialTemplate
 import socket
 import bitstring
 from time import sleep
+import logging
+import time
+from _base import AuxiliaryTemplate
+from chipwhisperer.common.utils.timer import nonBlockingDelay
+from chipwhisperer.common.api.CWCoreAPI import CWCoreAPI
 
 class BenzeneGateTarget(SimpleSerialTemplate):
     _name = 'BenzeneGate'
@@ -16,6 +21,10 @@ class BenzeneGateTarget(SimpleSerialTemplate):
             {'name':'Port', 'key':'port', 'type':'list', 'values':['Hit Refresh'], 'value':'Hit Refresh'},
             {'name':'Refresh', 'type':'action', 'action':self.updateSerial}
         ])
+        self._pin = "tio3"
+        self._default_state = True
+        self._active_ms = 10
+        self._delay_ms = 0
 
     def updateSerial(self, _=None):
         serialnames = serialport.scan()
@@ -82,3 +91,13 @@ class BenzeneGateTarget(SimpleSerialTemplate):
         rx = self.hardware_read(43)
         print(rx)
         return
+
+    def ResetPin(self)
+        self.setPin(scope, self._pin, not self._default_state)
+        nonBlockingDelay(self._active_ms)
+        self.setPin(scope, self._pin, self._default_state)
+        return
+
+    def setPin(self, scope, pin, state):
+        """Call like self.setPin(scope, "tio1", True)"""
+        setattr(scope.io, pin, state)
