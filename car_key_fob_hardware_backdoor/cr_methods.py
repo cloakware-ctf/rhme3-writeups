@@ -10,6 +10,7 @@ def pad_out(sequence, target_bit_length):
    output.append(bitstring.BitString(bin='0'*padding_size_needed))
    return output
 
+from Crypto.Cipher import AES
 def encrypt(cipher, clear_sequence):
    response_sequence = bitstring.BitString(cipher.encrypt(clear_sequence.tobytes()))
    return response_sequence
@@ -24,9 +25,10 @@ def aes_ecb(key_sequence):
 def aes_cbc(key_sequence):
    return AES.new(key_sequence.tobytes(), AES.MODE_CBC, IV=bitstring.BitString(bin='0'*128).tobytes())
 
-from Crypto.Util import Counter
 def aes_ctr(key_sequence):
-   trivial = Counter.new(128, initial_value=0)
+   def trivial():
+      return bitstring.BitString(bin='0'*128).tobytes()
+
    return AES.new(key_sequence.tobytes(), AES.MODE_CTR, counter=trivial)
 
 ################################################################################
