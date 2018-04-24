@@ -11,6 +11,7 @@ from chipwhisperer.common.utils.timer import nonBlockingDelay
 from chipwhisperer.common.api.CWCoreAPI import CWCoreAPI
 from chipwhisperer.common.utils.parameter import setupSetParam
 from chipwhisperer.common.utils import util
+import chipwhisperer as cw
 
 class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
     _name = 'BenzineGate'
@@ -81,22 +82,35 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
         self.outstanding_ack = False
 
         self.ser.con(scope)
-        # 'x' flushes everything & sets system back to idle
-        self.ser.write("xxxxxxxxxxxxxxxxxxxxxxxx")
-        self.ser.flush()
+        return
+
+    def read_line(self):
+        res = ''
+        char = self.ser.read(1)
+        while char != '\n':
+            res = res + char
+            char = self.ser.read(1)
+
+        return res
 
     def go(self):
-        self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\r\n')
-        rx = self.hardware_read(43)
+        self.release_and_wait()
+        self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
+        rx = self.read_line()
         print(rx)
         return
 
-    def ResetPin(self):
+    def release_and_wait(self):
+        scope = cw.scope()
+
         self.setPin(scope, self._pin, not self._default_state)
         nonBlockingDelay(self._active_ms)
         self.setPin(scope, self._pin, self._default_state)
+        print(self.read_line())
+        print(self.read_line())
         return
 
     def setPin(self, scope, pin, state):
         """Call like self.setPin(scope, "tio1", True)"""
         setattr(scope.io, pin, state)
+
