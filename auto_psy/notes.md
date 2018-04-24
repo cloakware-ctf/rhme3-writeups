@@ -441,6 +441,7 @@ What is at:
 	0x232
 
 ## Disassembly
+### Pids
 ```c
 void victory_function_e85(buffer *msg, void b, short aid, char pid) {
 	rx16 = b;
@@ -528,21 +529,26 @@ void write_flag_to_buffer_3ee(char *buffer[32]) {
 	}
 }
 
-void ecuReset_542(...) {
-	if (length != 2) error_7f_8E1(..., 0x13);
-	if (subid < 3 && subid != 0x83) error_7f_8E1(..., 0x12);
-	if (subid & 0x80) {
-		sendUdsReply_1672(r16, r14+8, 2, Y+1==[0x40, 3]);
+void ecuReset_542(void* arg0, short arg1, short aid, short r18=0x11) {
+	r16 = arg1
+	r14 = aid
+	r20 = 0x11
+	Z = arg0
+
+	if (Z[0x102] != 2) error_7f_8E1(..., 0x13); // packet length
+	if (Z[1]&0x7f - 1 >= 2) error_7f_8E1(..., 0x12); // sub-function 1 or 2, doesn't matter
+	if (Z[1] & 0x80 == 0) {
+		sendUdsReply_1672(arg1, aid+8, 2, Y+1==[0x51, subf]);
 		if (rx14 = 0x7E5) rx14 = can1_102095;
 		else rx14 = can2_10200b;
 		rx12 = rx16 + 0x206;
-		for (word_102154 = 0x64; word_102154 != 0 && r12[0] !=0; ) {
-			sub_15a3(r14, r16, 3);
+		for (word_102154 = 0x64; word_102154 != 0 && arg1[0x106] !=0; /**/) {
+			sub_15a3(r14, r16, 3); // delay reset long enough to reply?
 		}
 	}
-	sub_1176(can1_102095[0x84], can1_102095[0x86]);
+	sub_1176(can1_102095[0x84], can1_102095[0x86]); // possible disable CAN?
 	sub_1176(can2_10200b[0x84], can2_10200b[0x86]);
-	// something funky with CPU control registers
+	software_reset();
 }
 
 void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
@@ -595,6 +601,7 @@ void requestUpload_5db(void* arg0, short arg1, short aid, short r18=0x35) {
 }
 ```
 
+### Mains
 ```c
 void main(void) {
 	init {
@@ -713,8 +720,67 @@ void error_7f_8e1(r24, r22_aid, r20_sid, r18_code);
 void sendUdsReply_1672(r24, r22_aid, r20_length, char r18_buffer[r20_length]);
 ```
 
+### ISRs
 ```c
+void TCC2_LUNF_(void) {
+	if (dword_102191 != 0) dword_102191 -= 1; // sub_147c
+	TCC_count_102146 += 1; // used for random seeds
+
+	word_102152 += 1;
+	if (word_102152&1 == 1) time_to_canreply_10214b = 1;
+	if (word_102152 == 500) {
+		time_to_cansend_10214a = 1;
+		word_102152 = 0;
+		per_kilo_102150 += 1;
+		if (per_kilo_102150&1 == 1) uptime_secs_10214C += 1;
+	}
+
+	if (word_102154 != 0) word_102154 -= 1; // ecuReset
+}
+
+```
+
+### Commms
+```c
+struct can_interface {
+	char 1;
+	short ports[4];
+	short 0x101;
+	...
+}
+
+void sub_bd4(struct can_inf, char arg1) {
+	r20 = arg1;
+	Z = can_inf;
+	sub_114c(can_inf[0x84:0x85], can_inf[0x86:0x87], 0xf, 0xe0, (swap(arg1)<<1)&0xe0);
+	for (Y=0xc350; /**/; Y--) {
+		sub_1104(can_inf[0x84:0x85], can_inf[0x86:0x87], 0xe);
+		if ( (swap(arg1)<<1)&0x7 ) return;
+		if (Y==0) {
+			sub_1431();
+			Y=0xffff;
+		}
+	}
+}
+
 // This is the reverse path to sub_d30, which might enable 7D3
+void sub_c81(struct can_inf, char arg1, short aid, short mask=0xfff) {
+	sub_bd4(can_inf, 4);
+
+	if (arg1 < 2) r20 = 4; else r20 = 0;
+	r20 += arg1 * 4; // arg1 + (0 or 16).
+	sub_121e(can_inf[0x84:0x85], can_inf[0x86:0x87], r20, 0, aid, 0); // not sure about endianess
+
+	if (arg1 > 1) r4 = 1; else r4 = 0;
+	r20 = (r4+8)*4; // 32 or 36.
+	sub_121e(can_inf[0x84:0x85], can_inf[0x86:0x87], r20, 0, mask, 0); // not sure about endianess
+
+	sub_bd4(can_inf, 0);
+
+	0x2003[ 4*(can_inf[0] - 1) + 2*rx4 ] = mask; // size 8 array
+	0x216d[ 12*(can_inf[0] - 1) + 2*arg1 ] = aid; // size 36 array
+}
+
 void sub_d30(short arg0) {
 	for (Y = 0; Y != 6; Y++) {
 		short rx20 = arg0[0] - 1;
@@ -726,7 +792,7 @@ void sub_d30(short arg0) {
 		Z = 12 * rx20 + 2 * Y;
 		rx20 = array_10216d[Z:Z+1]
 
-		sub_c81(arg0, Y, rx20, rx18);
+		sub_c81(arg0, Y, rx20, rx18); // can_inf, mode, aid, mask
 	}
 }
 
@@ -817,8 +883,16 @@ Access Flags:
 ###  Possbiles:
 	- need to issue a command to the gateway to open access to FlxCap_Ctrl
 		- need to invoke sub_c81(can2_10200b, ?, 0x7d3, 0xfff)
-		- is invoked from sub_d30 <- sub_146b <- sub_f2e <3- sub_15A3
-			- called by main and ecuReset...
+		- is invoked from sub_d30 <- sub_146b <- sub_f2e <- sub_15A3 <- ecuReset
+			- ignoring setup calls in main()
+			- looks like that path is to reset to defaults...
+		- what about things that reference can2_10200B?
+			- other than main() and ecuReset()
+			- sub_10c7 -- is an ISR -> sub_1697(), sub_fd9()
+			- sub_1431
+		- what about things that invoke CCP?
+			- sub_1431 mucks with the cans then software resets...
+		- what about word 214c?
 
 	- need to mess around physically.
 		- use SPI to enable the missing pins
@@ -830,6 +904,13 @@ Access Flags:
 			- Harvard, there's no SPM anywhere...
 			- but why have the test if it's impossible?
 			-
+	
+	- ISRs?
+		- I think they might be doubled... nope
+			- we have TCC0_INT_BASE -- timer/counter on port C
+				- there's a TC pair for each port, 
+			- we have PORTE_INT0, and PORTE_INT1
+				-> these interrupts driven by CAN1_INT/CAN2_INT
 
 ### PIDs
 	3e tester present: requres subf=0; does nothing; doesn't reply if subf&0x80
@@ -865,3 +946,4 @@ About can[12]_1020XX:
 process_uds() -- nothing consequential
 victory_function() -- now working properly
 ecuReset() -- irrelevants
+
