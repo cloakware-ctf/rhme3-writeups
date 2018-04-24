@@ -1,20 +1,19 @@
-from chipwhisperer.capture.targets._base import TargetTemplate
+from _base import TargetTemplate
 from simpleserial_readers.cwlite import SimpleSerial_ChipWhispererLite
-from ._base import SimpleSerialTemplate
 import socket
 import bitstring
 from time import sleep
 import logging
 import time
-from _base import AuxiliaryTemplate
 from chipwhisperer.common.utils.timer import nonBlockingDelay
 from chipwhisperer.common.api.CWCoreAPI import CWCoreAPI
+from chipwhisperer.common.utils import util
 
-class BenzeneGateTarget(SimpleSerialTemplate):
-    _name = 'BenzeneGate'
+class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
+    _name = 'BenzineGate'
 
     def __init__(self):
-        SimpleSerialTemplate.__init__(self)
+        TargetTemplate.__init__(self)
         self.ser = None
         self.params.addChildren([
             {'name':'Baud', 'key':'baud', 'type':'list', 'values':{'38400':38400, '19200':19200}, 'value':38400},
@@ -92,7 +91,7 @@ class BenzeneGateTarget(SimpleSerialTemplate):
         print(rx)
         return
 
-    def ResetPin(self)
+    def ResetPin(self):
         self.setPin(scope, self._pin, not self._default_state)
         nonBlockingDelay(self._active_ms)
         self.setPin(scope, self._pin, self._default_state)
