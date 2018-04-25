@@ -45,7 +45,7 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         return
 
     def readOutput(self):
-        return ''
+        return self.output
 
     def isDone(self):
         return True
@@ -98,20 +98,24 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         return
 
     def go(self):
+        self.output = bytearray()
         self.ser.flush()
 
         self.release_and_wait()
 
         self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
-        print(self.read_line())
+
+        then = time.time()
+        while time.time() - then < 0.100:
+            self.output.extend(self.ser.read(1).encode('utf-8'))
+
+        print(self.output)
         return
 
     def release_and_wait(self):
         self.scope.io.tio3 = "gpio_low"
         nonBlockingDelay(self._active_ms)
         self.scope.io.tio3 = "gpio_high"
-        print(self.read_line())
-        print(self.read_line())
         self.read_until('>')
         return
 
