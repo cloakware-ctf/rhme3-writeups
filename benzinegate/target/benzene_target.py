@@ -13,7 +13,7 @@ from chipwhisperer.common.utils.parameter import setupSetParam
 from chipwhisperer.common.utils import util
 import chipwhisperer as cw
 
-class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
+class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
     _name = 'BenzineGate'
 
     def __init__(self):
@@ -27,12 +27,6 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
         self._default_state = True
         self._active_ms = 10
         self._delay_ms = 0
-        return
-
-    def getConnection(self):
-        return None
-
-    def setConnection(self, con):
         return
 
     def init(self):
@@ -59,13 +53,11 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
     def isDone(self):
         return True
 
-    def hardware_read(self, num, timeout=100):
-        return self.ser.read(num)
-
     def close(self):
         if self.ser is not None:
             self.ser.close()
             self.ser = None
+        return
 
     @setupSetParam("Connection")
     def setConnection(self, con):
@@ -75,13 +67,23 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
         self.ser.connectStatus.setValue(False)
         self.ser.connectStatus.connect(self.connectStatus.emit)
         self.ser.selectionChanged()
+        return
 
     def _con(self, scope = None):
-        if not scope or not hasattr(scope, "qtadc"): Warning("You need a scope with OpenADC connected to use this Target")
-
-        self.outstanding_ack = False
+        if not scope or not hasattr(scope, "qtadc"):
+            Warning("You need a scope with OpenADC connected to use this Target")
 
         self.ser.con(scope)
+
+        self.ser.findParam('baud').setValue(115200)
+
+        self.scope = scope
+
+        self.scope.io.tio1 = "serial_tx"
+        self.scope.io.tio2 = "serial_rx"
+        self.scope.io.tio3 = "gpio_high"
+        self.scope.io.tio4 = "high_z"
+
         return
 
     def read_line(self):
@@ -101,16 +103,10 @@ class BenzeneGateTarget(TargetTemplate, util.DisableNewAttr):
         return
 
     def release_and_wait(self):
-        scope = cw.scope()
-
-        self.setPin(scope, self._pin, not self._default_state)
+        self.scope.io.tio3 = "gpio_low"
         nonBlockingDelay(self._active_ms)
-        self.setPin(scope, self._pin, self._default_state)
+        self.scope.io.tio3 = "gpio_high"
         print(self.read_line())
         print(self.read_line())
         return
-
-    def setPin(self, scope, pin, state):
-        """Call like self.setPin(scope, "tio1", True)"""
-        setattr(scope.io, pin, state)
 
