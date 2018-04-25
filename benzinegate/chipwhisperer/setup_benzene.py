@@ -33,11 +33,11 @@ scope.io.glitch_hp = 0
 scope.io.glitch_lp = 1
 
 #also set by BenzineGate target
-scope.io.tio1 = 'serial_tx'
-scope.io.tio2 = 'serial_rx'
-scope.io.tio3 = 'gpio_low'
-scope.io.tio4 = 'high_z'
-scope.io.pdic = 'high'
+#scope.io.tio1 = 'serial_tx'
+#scope.io.tio2 = 'serial_rx'
+#scope.io.tio3 = 'gpio_low'
+#scope.io.tio4 = 'high_z'
+#scope.io.pdic = 'high'
 
 scope.glitch.clk_src = 'clkgen'
 scope.glitch.trigger_src = 'ext_single'
@@ -82,7 +82,7 @@ glitch_iterator = IterateGlitchWidthOffset(self.glitch_explorer)
 self.aux_list.register(glitch_iterator.change_glitch_parameters, "before_trace")
 self.aux_list.register(glitch_iterator.reset_glitch_to_default, "before_capture")
 
-self.api.setParameter(['Glitch Explorer', 'Normal Response', u"'Regulator status: [XXXXXXXX]' in s"])
+self.api.setParameter(['Glitch Explorer', 'Normal Response', u"s == ' \\nRegulator status: [XXXXXXXX]\\n'"])
 self.api.setParameter(['Glitch Explorer', 'Successful Response', u"'Your flag:' in s"])
 
 self.api.setParameter(['Generic Settings', 'Project Settings', 'Trace Format', 'None'])

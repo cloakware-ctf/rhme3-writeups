@@ -45,7 +45,8 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         return
 
     def readOutput(self):
-        return self.output
+        self.newInputData.emit(self.output)
+        return None
 
     def isDone(self):
         return True
