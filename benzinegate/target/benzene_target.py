@@ -21,10 +21,7 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
         ser_cons = pluginmanager.getPluginsInDictFromPackage("chipwhisperer.capture.targets.simpleserial_readers", True, False)
         self.ser = ser_cons[SimpleSerial_ChipWhispererLite._name]
-        self.ser.setBaud(115200)
 
-        self._pin = "tio3"
-        self._default_state = True
         self._active_ms = 10
         self._delay_ms = 0
         return
@@ -56,7 +53,6 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
     def close(self):
         if self.ser is not None:
             self.ser.close()
-            self.ser = None
         return
 
     @setupSetParam("Connection")
@@ -95,11 +91,19 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
         return res
 
+    def read_until(self, prompt_char):
+        char = self.ser.read(1)
+        while char != prompt_char:
+            char = self.ser.read(1)
+        return
+
     def go(self):
+        self.ser.flush()
+
         self.release_and_wait()
+
         self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
-        rx = self.read_line()
-        print(rx)
+        print(self.read_line())
         return
 
     def release_and_wait(self):
@@ -108,5 +112,6 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         self.scope.io.tio3 = "gpio_high"
         print(self.read_line())
         print(self.read_line())
+        self.read_until('>')
         return
 
