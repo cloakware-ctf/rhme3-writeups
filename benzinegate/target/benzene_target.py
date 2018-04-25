@@ -77,8 +77,9 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
         self.scope.io.tio1 = "serial_tx"
         self.scope.io.tio2 = "serial_rx"
-        self.scope.io.tio3 = "gpio_high"
+        self.scope.io.tio3 = "gpio_low"
         self.scope.io.tio4 = "high_z"
+        self.scope.io.pdic = "high"
 
         return
 
@@ -103,19 +104,22 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
         self.release_and_wait()
 
+
+        self.scope.io.tio3 = "gpio_high"
         self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
 
         then = time.time()
         while time.time() - then < 0.100:
             self.output.extend(self.ser.read(1).encode('utf-8'))
+        self.scope.io.tio3 = "gpio_low"
 
         print(self.output)
         return
 
     def release_and_wait(self):
-        self.scope.io.tio3 = "gpio_low"
+        self.scope.io.pdic = "low"
         nonBlockingDelay(self._active_ms)
-        self.scope.io.tio3 = "gpio_high"
+        self.scope.io.pdic = "high"
         self.read_until('>')
         return
 
