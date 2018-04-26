@@ -1,197 +1,6 @@
 #!/usr/bin/env python3
 
-# deps can be satisfied on Linux with `sudo pip3 install pyftdi`
-
-from pyftdi.gpio import GpioController, GpioException
-from time import sleep
-import sys
-import serial
-import bitstring
-import hmac
-import hashlib
-
-#bitstring.bytealigned = True     # change the default behaviour
-
-bitbang = GpioController()
-bitbang.open_from_url('ftdi:///1')
-
-ser = serial.Serial('/dev/ttyUSB0', 115200, timeout=None)
-
-SOFT_DELAY = 0.00001 #strict worst-case delay is 0.54ms -- we can relax that due to lots of delays in the many layers of software between us.
-                 #on my machine this results in a minimum CLK pulse width of 0.69 ms on my machine
-HARD_DELAY = 0.00054 # for cases where strict delay adherence is necessary (e.g. when begining shift-out)
-DELAY = SOFT_DELAY
-
-state = 0
-
-def pin_output(line):
-    bitbang.set_direction(1 << line, 1 << line)
-    return
-
-def pin_input(line):
-    bitbang.set_direction(1 << line, 0)
-    return
-
-def pin_high(line):
-    global state
-    state = state | (1 << line)
-    bitbang.write_port(state)
-    return
-
-def pin_low(line):
-    global state
-    state = state & ~(1 << line)
-    bitbang.write_port(state)
-    return
-
-def set_pin(line, val):
-    if val:
-        pin_high(line)
-    else:
-        pin_low(line)
-
-def get_pin(line):
-    state = bitbang.read_port()
-    return bool(state & (1 << line))
-
-# SPI Name | MPSSE # | MPSSE Color | RHME3 Pin | Function Guess
-CLK        = 0       # ORANGE      | A2        | CLK
-MOSI       = 1       # YELLOW      | A4        | DI
-MISO       = 2       # GREEN       | A5        | DO
-CS         = 3       # BROWN       | A3        | LATCH
-RESET      = 4       # GREY        | RESET     | RESET
-TRIG_OUT   = 5       # PURPLE      | N/A       | use this to trigger captures externally (e.g. CW)
-
-def shift_in_and_out_byte(tx):
-    building_byte = 0
-    for i in range(0, 8):
-        pin_low(CLK)
-        #assuming MSB first for now
-        set_pin(MOSI, bool(tx & (1 << (7 - i))))
-        sleep(DELAY)
-
-        pin_high(CLK)
-        sleep(DELAY)
-        building_byte = building_byte | (get_pin(MISO) << (7 - i))
-
-    pin_low(CLK)
-    return building_byte
-
-def shift_in_and_out_sequence(tx):
-  shift_size = tx.len
-
-  log("  sending : %s" % tx.hex)
-  rx = bitstring.BitString(length=shift_size)
-  for i in range(0, shift_size):
-    pin_low(CLK)
-    #assuming MSB first
-    set_pin(MOSI, tx[i])
-    sleep(DELAY)
-
-    pin_high(CLK)
-    sleep(DELAY)
-    rx.set(get_pin(MISO), [i])
-
-  pin_low(CLK)
-  log("  received: %s" % rx.hex)
-  return rx
-
-def shift_in_and_out_sequence_until(match):
-  MAX_DEPTH = 1024
-  log("  shifting until: %s" % match.hex)
-  rx = bitstring.BitString(length=0)
-
-  i = 0
-  while True:
-    pin_low(CLK)
-    #assuming MSB first
-    set_pin(MOSI, match[i % match.len])
-    sleep(DELAY)
-
-    pin_high(CLK)
-    sleep(DELAY)
-    rx.append(bitstring.BitString(bin='%d' % get_pin(MISO)))
-
-    if rx.endswith(match):
-      break
-    i = i + 1
-    if i > MAX_DEPTH:
-      break
-
-  pin_low(CLK)
-
-  if rx.len % 4 == 0:
-    display = rx.hex
-  else:
-    display = rx.bin
-  log("  received: %s" % display)
-  return rx
-
-
-pin_high(RESET)
-pin_output(RESET)
-pin_low(RESET)
-
-pin_low(CLK)
-pin_output(CLK)
-
-pin_low(CS)
-pin_output(CS)
-
-pin_high(MOSI)
-pin_output(MOSI)
-
-pin_input(MISO)
-
-pin_high(TRIG_OUT)
-pin_output(TRIG_OUT)
-
-def log(message):
-   print(message)
-   with open('send_many_responses.log', 'a') as log_file:
-      log_file.write(str(message))
-      log_file.write('\n')
-   return
-
-def release_reset_and_wait():
-    global ser
-    log("Resetting Target...")
-    pin_low(RESET)
-    sleep(2 * HARD_DELAY)
-    pin_high(RESET)
-    while True:
-       line = ser.readline()
-       log(line)
-       if 'Test mode activated' in line.decode("utf-8"):
-          return
-    return
-
-release_reset_and_wait()
-
-def get_any_serial():
-    global ser
-    count = ser.in_waiting
-    if count > 0:
-        return ser.readline()
-    return ''
-
-def print_any_serial():
-   line = get_any_serial()
-   if not line == '':
-      log(line)
-      sys.stdout.flush()
-   return
-
-blanksss = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000')
-sentinel = bitstring.BitString(hex='cafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00dcafeabad1deadeadbeefdefea7edd00d')
-onesssss = bitstring.BitString(hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
-#                                   AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD quadwords
-ro_bits  = bitstring.BitString(hex='000000000000000000000000000000000000350500000000286e00000c05000000000000000000000000000020001e3000000000055500000000000000000000')
-instigat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000')
-authicat = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000')
-sd_alone = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002000000000000000')
-sd_count = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000')
-#                                   fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe000000
+from frames_protocol import *
 
 def test_shift_depth():
   MAX_DEPTH = 1024
@@ -254,113 +63,6 @@ def test_shift_depth():
     test_miso_goes_low()
 
   return
-
-def print_a_sequence(sequence):
-  log(bitstring.BitString(sequence).hex)
-  return
-
-def enable_shift():
-  pin_high(CS)
-  sleep(HARD_DELAY)
-  return
-
-def disable_shift():
-  pin_low(CS)
-  sleep(HARD_DELAY)
-  return
-
-def single_clk_pulse():
-  pin_high(CLK)
-  sleep(HARD_DELAY)
-  pin_low(CLK)
-  sleep(HARD_DELAY)
-  return
-
-def single_frame_send_and_receive(send_sequence):
-  enable_shift()
-
-  receive_sequence = shift_in_and_out_sequence(send_sequence)
-
-  disable_shift()
-  return receive_sequence
-
-def clock_in_clock_out(first_input_sequence, second_input_sequence, inter_frame_action, unexpected_output_action, serial_handler):
-  enable_shift()
-
-  output_sequence = bytearray()
-  for i in range(0, int(512 / 8)):
-    rx = shift_in_and_out_byte(first_input_sequence.tobytes()[i])
-    output_sequence.append(rx)
-
-  line = get_any_serial()
-  if not line == '':
-    if serial_handler(line):
-      log("FAIL: serial message on test-sequence:")
-      print_a_sequence(first_input_sequence.tobytes())
-      log("")
-      return None
-
-  disable_shift()
-
-  if unexpected_output_action(output_sequence):
-    log("FAIL: unexpected output:")
-    print_a_sequence(output_sequence)
-    log("")
-
-  inter_frame_action()
-
-  line = get_any_serial()
-  if not line == '':
-    if serial_handler(line):
-      log("FAIL: serial message on test-sequence:")
-      print_a_sequence(first_input_sequence.tobytes())
-      log("\n")
-      return None
-
-  enable_shift()
-
-  output_sequence = bytearray()
-  for i in range(0, int(512 / 8)):
-    rx = shift_in_and_out_byte(second_input_sequence.tobytes()[i])
-    output_sequence.append(rx)
-
-  line = get_any_serial()
-  if not line == '':
-    if serial_handler(line):
-      log("FAIL: serial message. first input sequence:")
-      print_a_sequence(first_input_sequence.tobytes())
-      log("")
-      return None
-
-  disable_shift()
-
-  if unexpected_output_action(output_sequence):
-    log("FAIL: unexpected output:")
-    print_a_sequence(output_sequence)
-    log("")
-
-  return bitstring.BitString(output_sequence)
-
-def reset_on_sd_serial_handler(line):
-  log(line)
-  if 'Self-destruct' in line.decode("utf-8"):
-    print_any_serial()
-    log("Resetting Target")
-    release_reset_and_wait()
-    print_any_serial()
-    return True, line
-  return False, line
-
-def logging_serial_handler(line):
-  log(line)
-  return False, line
-
-default_serial_handler = reset_on_sd_serial_handler
-
-def send_and_receive(send_sequence):
-   def unexpected_output_action(test_bytes):
-      return False
-   return clock_in_clock_out(send_sequence, blanksss, single_clk_pulse, unexpected_output_action, logging_serial_handler)
 
 from password_candidates import *
 
@@ -464,71 +166,6 @@ def sustain_the_challenge():
    clock_in_clock_out(instigat, instigat, single_clk_pulse, unexpected_output_action, logging_serial_handler)
    return
 
-###########################################################################
-from cr_methods import *
-
-##################################################################################
-# Frame responders
-
-def get_setbit_responder(bits2set):
-   def setbit_responder(message_response_sequence, frame_challenge_sequence):
-      return pad_out(message_response_sequence, 512) | bits2set
-   return setbit_responder
-
-def get_offset_responder(offset):
-  def offset_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = blanksss.copy()
-    frame_response_sequence.overwrite(message_response_sequence, offset)
-    return frame_response_sequence
-  return offset_responder
-
-def get_offset_ored_responder(offset):
-  def offset_ored_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = frame_challenge_sequence.copy()
-    frame_response_sequence.overwrite(message_response_sequence, offset)
-    return frame_response_sequence
-  return offset_ored_responder
-
-# short frame responders
-def get_quadA_responder():
-  def quadA_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = message_response_sequence.copy()
-    frame_response_sequence.append(bitstring.BitString(bin='0'*384))
-    return frame_response_sequence
-  return quadA_responder
-
-def get_quadB_responder():
-  def quadB_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = message_response_sequence.copy()
-    frame_response_sequence.append(bitstring.BitString(bin='0'*256))
-    frame_response_sequence.prepend(bitstring.BitString(bin='0'*128))
-    return frame_response_sequence
-  return quadB_responder
-
-def get_quadA_andauth_responder():
-  def quadA_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = bitstring.BitString(hex='000000000000000000000000000000000000000000000000000000000000000000000000000000000000000055555555555555555555555555555555defea7ed') # worked once
-    frame_response_sequence.overwrite(message_response_sequence, 0)
-    return frame_response_sequence
-  return quadA_responder
-
-def get_quadB_andauth_responder():
-  def quadA_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = bitstring.BitString(hex='000000000000000000000000000000000000000000000000000000000000000000000000000000000000000055555555555555555555555555555555defea7ed') # worked once
-    frame_response_sequence.overwrite(frame_challenge_sequence[128:], 0)
-    frame_response_sequence.overwrite(message_response_sequence,128)
-    return frame_response_sequence
-  return quadA_responder
-
-def get_quadD_andauth_responder():
-  def quadD_responder(message_response_sequence, frame_challenge_sequence):
-    frame_response_sequence = bitstring.BitString(hex='00000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000')
-    frame_response_sequence.overwrite(message_response_sequence, 128*3)
-    frame_response_sequence = frame_response_sequence[-160:]
-    return frame_response_sequence
-  return quadD_responder
-##################################################################################
-
 def try_all_challenges():
   for frame_responder in [get_offset_responder(384-24), get_offset_responder(384)]: # [get_setbit_responder(instigat), get_setbit_responder(sd_alone), get_setbit_responder(sd_count), get_setbit_responder(sd_alone | sd_count), get_setbit_responder(instigat | sd_alone | sd_count), get_setbit_responder(blanksss),get_offset_responder(128), get_offset_responder(256), get_offset_responder(384)]:
     for variant_responder in [get_trivial_responder, get_rev_responder, get_swp_responder, get_swprev_responder]:
@@ -573,26 +210,6 @@ def try_aes_challenges():
               for cipher in [aes_ecb]:
                  try_responses(password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(password_prepare)+str(variant_responder)+str(operation)+str(cipher)+str(frame_responder))
   return
-
-def get_and_handle_serial(serial_handler):
-  line = get_any_serial()
-  if not line == '':
-    if not serial_handler(line):
-      log("fatal serial message. aborting.")
-      log("")
-      return False, line
-  return True, line
-
-def quick_instigate_challenge(serial_handler):
-  frameA_rx = single_frame_send_and_receive(instigat[-160:]) #minimum number of bits to instigate is 158, nearest multiple of 4 (for hex encoding printing) is 160
-  if not get_and_handle_serial(serial_handler):
-    return None
-
-  log("end frame")
-  single_clk_pulse()
-  if not get_and_handle_serial(serial_handler):
-    return None
-  return frameA_rx
 
 def try_just128bit_experiment():
   #release_reset_and_wait()
@@ -695,6 +312,7 @@ def explore_frameB_bits():
     enable_shift()
     shift_in_and_out_sequence(instigat[-160:]) #quick instigate
     disable_shift()
+    log("end frame")
     single_clk_pulse()
     get_and_handle_serial(serial_handler)
 
@@ -703,8 +321,122 @@ def explore_frameB_bits():
     enable_shift()
     rx = shift_in_and_out_sequence(test_bit)
     disable_shift()
+    log("end frame")
     single_clk_pulse()
     get_and_handle_serial(serial_handler)
+
+    enable_shift()
+    shift_in_and_out_sequence(blanksss)
+    disable_shift()
+    log("end frame")
+    single_clk_pulse()
+    get_and_handle_serial(serial_handler)
+  return
+
+def explore_frameB_stuckbits():
+  serial_handler = logging_serial_handler
+
+  enable_shift()
+  shift_in_and_out_sequence(instigat[-160:]) #quick instigate
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  test_bit = bitstring.BitString(bin='1'*512)
+  test_bit &= ~(sd_count|sd_alone|instigat|authicat)
+
+  enable_shift()
+  shift_in_and_out_sequence(test_bit)
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  enable_shift()
+  actual_bit=shift_in_and_out_sequence(blanksss)
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  log("stuck bits: %s" % (test_bit ^ actual_bit).hex)
+
+  return
+
+def explore_auth_failed():
+  serial_handler = logging_serial_handler
+
+  enable_shift()
+  shift_in_and_out_sequence((instigat)[-160:]) #quick instigate
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+#  test_bit = bitstring.BitString(bin='1'*512)
+#  test_bit &= ~(sd_count|sd_alone|instigat|authicat|b_stuck)
+#  test_bit |= authicat
+
+  test_bit = bitstring.BitString(bin='0'*512)
+  test_bit |= authicat
+  test_bit.overwrite(bitstring.BitString(bin='1'*128), 0)
+
+  enable_shift()
+  shift_in_and_out_sequence(bitstring.BitString(bin='0'*128))
+  shift_in_and_out_sequence(test_bit)
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  enable_shift()
+  actual_bit=shift_in_and_out_sequence(blanksss)
+  disable_shift()
+  log("end frame")
+  single_clk_pulse()
+  get_and_handle_serial(serial_handler)
+
+  return
+
+def explore_repeat_frameA_nochallenge():
+  serial_handler = logging_serial_handler
+
+  while True:
+    enable_shift()
+    shift_in_and_out_sequence(((blanksss))[-160:]) #quick instigate
+    disable_shift()
+    log("end frame")
+    pin_high(TRIG_OUT)
+    single_clk_pulse()
+    pin_low(TRIG_OUT)
+    get_and_handle_serial(serial_handler)
+    sleep(2)
+  return
+
+def explore_repeat_frameB_auth_failed():
+  serial_handler = logging_serial_handler
+
+  while True:
+    enable_shift()
+    shift_in_and_out_sequence((instigat)[-160:]) #quick instigate
+    disable_shift()
+    log("end frame")
+    single_clk_pulse()
+    get_and_handle_serial(serial_handler)
+
+    test_bit = instigat.copy()[-160:]
+
+    enable_shift()
+    shift_in_and_out_sequence(instigat[-160:])
+    shift_in_and_out_sequence(test_bit)
+    disable_shift()
+    log("end frame")
+    pin_high(TRIG_OUT)
+    single_clk_pulse()
+    pin_low(TRIG_OUT)
+    get_and_handle_serial(serial_handler)
+    sleep(2)
 
   return
 
@@ -729,13 +461,18 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
   log("challenge:  %s" % challenge_sequence.hex)
 
   password_sequence = password_prepare(bitstring.BitString(password_bytes))
-  log("prepared :  %s" % password_sequence.hex)
+  log("password prepared :  %s" % password_sequence.hex)
 
   message_response_sequence = message_responder(password_sequence, challenge_sequence)
+  log("response :  %s" % message_response_sequence.hex)
   frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
-  log("response :  %s" % frame_response_sequence.hex)
+
+
+  pin_high(TRIG_OUT) # interesting stuff happens in frameB here
 
   single_frame_send_and_receive(frame_response_sequence)
+  pin_low(TRIG_OUT) # interesting area over now
+
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
     return None
@@ -743,6 +480,7 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
 
   log("end frame")
   single_clk_pulse()
+
   ok, line = get_and_handle_serial(serial_handler)
   if not ok:
     return None
@@ -756,7 +494,10 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
     return None
   serial_output.extend(line)
 
-  if (not 'Authentication failed' in serial_output.decode('utf-8')) and (not 'Self-destruct triggered' in serial_output.decode('utf-8')):
+  if len(serial_output.decode('utf-8').strip(' \t\n\r')) == 0:
+    log("WARNING: no output on serial")
+
+  if ((not 'Authentication failed' in serial_output.decode('utf-8')) and (not 'Self-destruct triggered' in serial_output.decode('utf-8'))) or (result_sequence != blanksss):
     log("=====================================================================================")
     log("FLAG (???)")
     log("result   : %s" % result_sequence.hex)
@@ -769,7 +510,7 @@ def try_frameB_response(password_bytes, password_prepare, message_responder, fra
       the_file.write("serial   : %s\n" % serial_output)
   return
 
-def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
+def try_frameB_quadD_responses(passwords, password_prepare, message_responder, name=None):
   frame_responder = get_quadD_andauth_responder()
   serial_handler = reset_on_sd_serial_handler
   serial_output = bytearray(b'')
@@ -797,7 +538,7 @@ def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
       log("reuse previous challenge: %s" % challenge_sequence.hex)
 
     password_sequence = password_prepare(bitstring.BitString(password_bytes))
-    log("prepared :  %s" % password_sequence.hex)
+    log("password prepared:  %s" % password_sequence.hex)
 
     message_response_sequence = message_responder(password_sequence, challenge_sequence)
     if message_response_sequence & (sd_alone | sd_count)[-128:]:
@@ -805,8 +546,8 @@ def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
       initiated = True # not needed, but reminds us we need to try again without re-initiating a challenge
       continue
 
+    log("response :  %s" % message_response_sequence.hex)
     frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
-    log("response :  %s" % frame_response_sequence.hex)
 
     single_frame_send_and_receive(frame_response_sequence)
     ok, line = get_and_handle_serial(serial_handler)
@@ -816,6 +557,7 @@ def try_frameB_quadD_responses(password_prepare, message_responder, name=None):
 
     log("end frame")
     single_clk_pulse()
+
     initiated = False
     ok, line = get_and_handle_serial(serial_handler)
     if not ok:
@@ -912,11 +654,681 @@ def try_frameB_quadD_nosd_challenges():
       for variant_responder in [get_rev_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_trivial_responder]:
         for operation in [decrypt, encrypt]:
           for cipher in [aes_ecb]:
-            try_frameB_quadD_responses(password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(variant_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__))
+            try_frameB_quadD_responses(passwords, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(variant_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__))
   return
 
-# TODO send the nonce back unchanged and set all the read only-bits
-# TODO consider what the bit positions of the read-only bits decode to
+def try_aes_frameB_pairs_challenges_bestguess():
+  attempts = list()
+  for frame_responder in [get_quadA_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+        for password_prepare in [pad_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                for password in get_16byte_pair_passwords():
+                  attempts.append([password, password_prepare, variant_responder, operation, cipher, frame_responder])
+
+  #start at quadA_responder/get_trivial_responder/pad_password/encrypt/aes_ecb/b'iloveyoustarwars'
+  #start = 413
+  #backdoorstarwars etc
+  #start = 768
+
+  for i in range(start, len(attempts)):
+    password, password_prepare, variant_responder, operation, cipher, frame_responder = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, variant_responder(get_cipher_message_responder(operation, cipher)), frame_responder, name=str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password))
+    i = i + 1
+
+  return
+
+
+def try_aes_frameB_pairs_challenges_therest():
+  attempts = list()
+
+  for frame_responder in [get_quadA_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              for password in get_16byte_pair_password_repeats():
+                attempts.append([password, password_prepare, variant_responder, argsorder_responder, operation, cipher, frame_responder])
+  for frame_responder in [get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder, argsorder_responder, operation, cipher, frame_responder])
+
+  #for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+  #  for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+  #      for password_prepare in [pad_password]:
+  #         for operation in [encrypt, decrypt]:
+  #            for cipher in [aes_ecb]:
+  #              passwords = get_16byte_pair_passwords()
+  #              passwords.extend(get_16byte_pair_password_repeats())
+  #              try_frameB_quadD_responses(passwords, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(variant_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__))
+
+  start = 2050
+  for i in range(start, len(attempts)):
+    password, password_prepare, variant_responder, argsorder_responder, operation, cipher, frame_responder = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, name=str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password))
+    i = i + 1
+
+  return
+
+def try_aes_frameB_pairs_challenges_justdoitallagain():
+  attempts = list()
+
+  for frame_responder in [get_quadA_andauth_responder(), get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder, argsorder_responder, operation, cipher, frame_responder])
+
+  start = 1187
+  for i in range(start, len(attempts)):
+    password, password_prepare, variant_responder, argsorder_responder, operation, cipher, frame_responder = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, name=str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password))
+    i = i + 1
+
+  for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+        for password_prepare in [pad_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                passwords = get_16byte_pair_passwords()
+                passwords.extend(get_16byte_pair_password_repeats())
+                try_frameB_quadD_responses(passwords, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(get_quadD_andauth_responder().__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(variant_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__))
+
+  return
+
+def try_aes_frameB_pairs_challenges_trymorebitswapsandcmac():
+  attempts = list()
+
+  for frame_responder in [get_quadA_andauth_responder(), get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(aes_cmac)), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(aes_cmac.__name__)+'/'+str(password)])
+
+  for frame_responder in [get_quadA_andauth_responder(), get_quadB_andauth_responder()]:
+    for variant_responder in [get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+
+  for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+    for variant_responder in [get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
+        for password_prepare in [pad_password]:
+           for operation in [encrypt, decrypt]:
+              for cipher in [aes_ecb]:
+                passwords = get_16byte_pair_passwords()
+                passwords.extend(get_16byte_pair_password_repeats())
+                try_frameB_quadD_responses(passwords, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), str(get_quadD_andauth_responder().__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(variant_responder.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__))
+
+  return
+
+def try_aes_frameB_pairs_challenges_tryrepeatingchallenge():
+  attempts = list()
+
+  for frame_responder in [get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(aes_cmac)), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(aes_cmac.__name__)+'/'+str(password)])
+
+  for frame_responder in [get_quadB_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder, get_wordbitswapped_responder, get_rev_wordbitswapped_responder, get_longbitswapped_responder, get_rev_longbitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_startrekstarwars_anomaly():
+  attempts = list()
+  for frame_responder in [get_quadA_andauth_responder()]:
+    for variant_responder in [get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              for password in [b'startrekstarwars']:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  while True:
+    start = 0
+    for i in range(start, len(attempts)):
+      password, password_prepare, message_responder, frame_responder, name = attempts[i]
+      log("%d of %d" %(i, len(attempts)))
+      try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+      i = i + 1
+  return
+
+def try_frameB_quadA_againagain():
+  attempts = list()
+
+  for frame_responder in [get_quadA_andauth_responder()]:
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt, decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(aes_cmac)), frame_responder, str(frame_responder.__name__)+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(aes_cmac.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_bestguesses():
+  attempts = list()
+
+  for offset in [203, 200, 202, 204, 201]:
+    frame_responder = get_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_therest():
+  attempts = list()
+
+  for offset in [208, 192]:
+    frame_responder = get_lsb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+
+  for offset in [203, 200, 202, 204, 208, 192]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  for offset in [203, 200, 202, 204, 201]:
+    frame_responder = get_lsb_offet_and_auth_responder(offset)
+    for variant_responder in [get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_dontforget196():
+  attempts = list()
+
+  for offset in [196]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_theotherway_bestguess():
+  attempts = list()
+
+  for offset in [512-203, 512-200, 512-201, 512-202, 512-199, 512-198, 512-196]:
+    frame_responder = get_lsb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 1587
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+mystery_sequence = bitstring.BitString(hex='00588384f9653e1719f34b517d928124')
+
+def try_repeat_mystery_sequence():
+    def mystery_sequence_responder(password_sequence, challenge_sequence):
+      return mystery_sequence
+
+    try_frameB_response(b'', pad_password, mystery_sequence_responder, get_lsb_offet_and_auth_responder(512-201), name='repeat mystery')
+    return
+
+def try_frameB_maybeflag():
+  attempts = list()
+
+  for offset in [512-201]:
+    frame_responder = get_lsb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+                password = b'riscurinoletmein'
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_theotherway_remainder():
+  attempts = list()
+
+  for offset in range(512-160, 196, -4):
+    frame_responder = get_lsb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_theotherotherway_notdecryptnow():
+  attempts = list()
+
+  for offset in [76, 196, 200, 200-127]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  for offset in [76, 196, 200, 200-127]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_password_repeats()
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_theotherotherway_notdecryptnow_therest():
+  attempts = list()
+
+  for offset in [200-7, 204-127, 204-7, 204, 202-127, 202-7, 202, 205-127, 205-7, 205, 201-127, 201-7, 201]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 1998
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_theotherotherway_notdecryptnow_lolwut():
+  attempts = list()
+
+  offsets=list()
+  for candidate in [203, 202, 204, 201, 205]:
+    offsets.append(candidate-127)
+    offsets.append(candidate-7)
+    offsets.append(candidate)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [md5_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 10091
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_forgottenoffsets_dumbencrypt():
+  attempts = list()
+
+  offsets = list()
+  for candidate in [203, 202, 204]:
+    offsets.append(candidate - 127+8)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_letencrypt_ctr():
+  attempts = list()
+
+  offsets=list()
+  for candidate in [203, 202, 204]:
+    offsets.append(candidate-127)
+    offsets.append(candidate-127+8)
+    offsets.append(candidate-7)
+    offsets.append(candidate)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ctr]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_moreoffsets_letencrypt_ctr():
+  attempts = list()
+
+  offsets = list(range(512-160-128, 75, -4))
+  for candidate in [203]:
+    offsets.remove(candidate-127)
+    offsets.remove(candidate-127+8)
+    offsets.remove(candidate-7)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ctr]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_moreoffsets_letencrypt_ecb_md5():
+  attempts = list()
+
+  offsets = list(range(76, 512-160-128+1, 4))
+  for candidate in [203]:
+    offsets.remove(candidate-127)
+    offsets.remove(candidate-127+8)
+    offsets.remove(candidate-7)
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [md5_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 3119
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_offsets_ecb_avoidstuckbits():
+  attempts = list()
+
+  offsets=list()
+  for candidate in [203]:
+    offsets.append(candidate-127)
+    offsets.append(candidate-127+8)
+    offsets.append(candidate-127+4)
+    offsets.append(candidate-7)
+
+  for offset in offsets:
+    frame_responder = get_msb_offset_and_auth_avoidstuckbits_by_bit(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_notledoffsets_letencrypt_ecb():
+  attempts = list()
+
+  offsets = [143-127]
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+
+def try_frameB_no_youre_the_bug2():
+  attempts = list()
+
+  offsets = [204]
+
+  for offset in offsets:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder]:
+      for argsorder_responder in [get_trivial_responder, get_swp_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [encrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
 
 #explore_after_instigate()
 #walk_all_response_offset()
@@ -933,11 +1345,45 @@ def try_frameB_quadD_nosd_challenges():
 #continue_swapped_aes_frameB_challenges()
 #try_all_aes_frameB_challenges()
 #try_frameB_quadD_guess_challenges()
-try_frameB_quadD_nosd_challenges()
+#try_frameB_quadD_nosd_challenges()
+#try_aes_frameB_pairs_challenges_bestguess()
+#try_aes_frameB_pairs_challenges_therest()
+#try_aes_frameB_pairs_challenges_justdoitallagain()
+#try_aes_frameB_pairs_challenges_trymorebitswapsandcmac()
+#try_aes_frameB_pairs_challenges_tryrepeatingchallenge()
 
 #explore_frames_shiftdepth()
 #explore_frameB_bits()
 #guess_frameB_auth_bit()
+#explore_frameB_stuckbits()
+#explore_auth_failed()
+
+#explore_repeat_frameA_nochallenge()
+#explore_repeat_frameB_auth_failed()
+
+#try_startrekstarwars_anomaly()
+#try_frameB_quadA_againagain()
+#try_frameB_offsets_bestguesses()
+#try_frameB_offsets_therest()
+#try_frameB_offsets_dontforget196()
+#try_frameB_offsets_theotherway_bestguess()
+#try_frameB_offsets_theotherway_remainder()
+
+#try_frameB_maybeflag()
+#try_repeat_mystery_sequence()
+
+#try_frameB_offsets_theotherotherway_notdecryptnow()
+#try_frameB_offsets_theotherotherway_notdecryptnow_therest()
+#try_frameB_offsets_theotherotherway_notdecryptnow_lolwut()
+#try_frameB_forgottenoffsets_dumbencrypt()
+
+#try_frameB_offsets_letencrypt_ctr()
+#try_frameB_moreoffsets_letencrypt_ctr()
+#try_frameB_moreoffsets_letencrypt_ecb_md5()
+#try_frameB_offsets_ecb_avoidstuckbits()
+
+#try_frameB_notledoffsets_letencrypt_ecb()
+try_frameB_no_youre_the_bug2()
 
 print_any_serial()
 ser.close()

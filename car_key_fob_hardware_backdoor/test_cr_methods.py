@@ -21,6 +21,38 @@ cipher_sequence_brev     = bitstring.BitString(bin='01011100 11101011 11011110 0
 cipher_sequence_rev_brev = bitstring.BitString(bin='10010111 11101111 01100110 00100100 11110011 11001010 10011110 10101000 01100000 00110110 01111010 00001101 10110100 01111011 11010111 00111010')
 
 class TestAesAndSwappingAndReversing(unittest.TestCase):
+  def test_pkcs(self):
+    expected= bitstring.BitString(b'hi\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e\x0e')
+    password_sequence = bitstring.BitString(b'hi')
+
+    self.assertEqual(pkcs(password_sequence), expected)
+
+  def test_aes_encrypt_with_pass(self):
+    #[0](deskl2373:~)> ruby -e 'print "a"*16' | openssl aes-128-ecb -nopad -nosalt -k 'password' | xxd
+    #00000000: 0add 4657 3dd3 c5be aa9b 162d 4c7c 135c  ..FW=......-L|.\
+    this_key_sequence    = ssl_password(bitstring.BitString(b'password'))
+    this_plain_sequence  = bitstring.BitString(hex='61'*16)
+    this_cipher_sequence = bitstring.BitString(hex='0add 4657 3dd3 c5be aa9b 162d 4c7c 135c')
+
+    actual = get_cipher_message_responder(encrypt, aes_ecb)(this_key_sequence, this_plain_sequence)
+    self.assertEqual(actual, this_cipher_sequence)
+
+  def test_aes_encrypt_with_pass_and_trivial(self):
+    this_key_sequence    = ssl_password(bitstring.BitString(b'password'))
+    this_plain_sequence  = bitstring.BitString(hex='61'*16)
+    this_cipher_sequence = bitstring.BitString(hex='0add 4657 3dd3 c5be aa9b 162d 4c7c 135c')
+
+    actual = get_trivial_responder(get_cipher_message_responder(encrypt, aes_ecb))(this_key_sequence, this_plain_sequence)
+    self.assertEqual(actual, this_cipher_sequence)
+
+  def test_aes_encrypt_with_pass_and_argswap(self):
+    this_key_sequence    = ssl_password(bitstring.BitString(b'password'))
+    this_plain_sequence  = bitstring.BitString(hex='61'*16)
+    this_cipher_sequence = bitstring.BitString(hex='0add 4657 3dd3 c5be aa9b 162d 4c7c 135c')
+
+    actual = get_swp_responder(get_cipher_message_responder(encrypt, aes_ecb))(this_plain_sequence, this_key_sequence)
+    self.assertEqual(actual, this_cipher_sequence)
+
   def test_aes_encrypt(self):
     actual = get_cipher_message_responder(encrypt, aes_ecb)(key_sequence, plain_sequence)
     self.assertEqual(actual, cipher_sequence)
@@ -29,7 +61,6 @@ class TestAesAndSwappingAndReversing(unittest.TestCase):
     actual = get_cipher_message_responder(decrypt, aes_ecb)(key_sequence, cipher_sequence)
     self.assertEqual(actual, plain_sequence)
 
-#TODO test ssl_password preparation
   def test_ssl_password(self):
     actual = ssl_password(bitstring.BitString(b'password'))
     self.assertEqual(actual, bitstring.BitString(hex='5E884898DA28047151D0E56F8DC62927'))
@@ -78,6 +109,26 @@ class TestAesAndSwappingAndReversing(unittest.TestCase):
   def test_aes_decrypt_rev_brev(self):
     actual = get_rev_bitswapped_responder(get_cipher_message_responder(decrypt, aes_ecb))(key_sequence, cipher_sequence_rev_brev)
     self.assertEqual(actual, plain_sequence_rev_brev)
+
+  def test_aes_decrypt_wswp(self):
+    actual = get_wordbitswapped_responder(get_cipher_message_responder(encrypt, aes_ecb))(key_sequence, plain_sequence) #TODO actual test vectors
+
+  def test_aes_decrypt_wrev(self):
+    actual = get_rev_wordbitswapped_responder(get_cipher_message_responder(encrypt, aes_ecb))(key_sequence, plain_sequence) #TODO actual test vectors
+
+  def test_aes_decrypt_lswp(self):
+    actual = get_longbitswapped_responder(get_cipher_message_responder(encrypt, aes_ecb))(key_sequence, plain_sequence) #TODO actual test vectors
+
+  def test_aes_decrypt_lrev(self):
+    actual = get_rev_longbitswapped_responder(get_cipher_message_responder(encrypt, aes_ecb))(key_sequence, plain_sequence) #TODO actual test vectors
+
+  def test_aes_cmac(self):
+    this_key_sequence    = bitstring.BitString(hex='2b7e151628aed2a6abf7158809cf4f3c')
+    this_plain_sequence  = bitstring.BitString(hex='6bc1bee22e409f96e93d7e117393172a')
+    this_hash_sequence = bitstring.BitString(hex='070a16b46b4d4144f79bdd9dd04a287c')
+
+    actual = aes_cmac(this_key_sequence, this_plain_sequence)
+    self.assertEqual(actual, this_hash_sequence)
 
 if __name__ == '__main__':
   unittest.main()
