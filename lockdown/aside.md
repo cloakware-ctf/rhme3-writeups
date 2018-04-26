@@ -34,9 +34,6 @@ BinDiff with Benzinegate hit all but four subs, this is going to be easy ;)
 const short FiveA = 0x5a5a
 const short AFive = 0xa5a5
 
-char array_1021ee[128];
-char read_buffer_10226e[129]
-
 void main(void) {
 	// stack 0x13 bytes
 	char[14] y1;
@@ -48,11 +45,11 @@ void main(void) {
 	config_usart(USARTC0_DATA_ptr_ptr)
 	init_flag_array();
 	50 * NOP
-	randomize_21ee_13b();
+	sub_13b();
 	50 * NOP
-	randomize_21ee_13b();
+	sub_13b();
 	50 * NOP
-	randomize_21ee_13b();
+	sub_13b();
 	50 * NOP
 
 	while (true) {
@@ -60,10 +57,10 @@ void main(void) {
 		y5a = 5a;
 		ya5 = a5;
 		usart_print(USARTC0_DATA_ptr_ptr, "Chip locked\nPlease write your password: ");
-		zero_and_read_str_165(USARTC0_DATA_ptr_ptr);
+		sub_165(USARTC0_DATA_ptr_ptr);
 
 		yCheck = yCheck*2 + 3
-		if ( diff_buffs_183(&word_10226e, &array_1021ee, 0x80) != 0) {
+		if ( sub_183(&word_10226e, &word_1021ee, 0x80) != 0) {
 			usart_print(USARTC0_DATA_ptr_ptr, "ACCESS DENIED\n");
 		} else {
 			y5a = AFive;
@@ -78,7 +75,7 @@ void main(void) {
 		50 * NOP
 		yCheck = yCheck*2 +3;
 		50 * NOP
-		if ( diff_buffs_183(&word_10226e, &array_1021ee, 0x80) != 0) {
+		if ( sub_183(&word_10226e, &word_1021ee, 0x80) != 0) {
 			usart_print(USARTC0_DATA_ptr_ptr, "ILLEGAL ACTIVITY DETECTED, ACCESS DENIED");
 			continue;
 		}
@@ -114,49 +111,14 @@ void main(void) {
 	}
 }
 
-void randomize_21ee_13b() {
-	for (int8_t y1 = 0; y1 >= 0; y++) { // WHO WRITES CODE LIKE THIS!!!
-		r24 = (char) random_dword();
-		array_1021ee[i] = r24;
-	}
-	array_1021ee[y1-1]='\0';
+sub_13b() {
 }
 
-void zero_and_read_str_165(USART_t *usart) {
-	memset(read_str_until, 0, 128);
-	read_str_until(usart, read_buffer_10226e, 128, 'a');
+sub_165() {
 }
 
-diff_buffs_183(char *buf1, char *buf2, char buflen) {
-	char y1 = 0;
-	char y2 = 0;
-	char* y3 = buf1;
-	char* y5 = buf2;
-	char y7 = buflen;
-	for (y1 = 0; y1 < buflen; y1++) {
-		y2 |= buf1[y1] ^ buf2[y1];
-	}
-	return y2;
+sub_183() {
 }
+
 
 ```
-
-## Exploit Hunting
-
-Option 1:
-	* glitch out all three calls to `randomize_21ee_13b()`
-	* hope its initialized to 0
-
-Option 2:
-	* branch jam after "ACCESS DENIED"
-	* fairly large window...
-	* we get feedback
-	AND THEN
-	* ride the nop sled
-	* wait for "ILLEGAL ACTIVITY DETECTED, ACCESS DENIED"
-	* clock-skip the rjmp into "Chip unlocked"
-	* get flag
-
-Option 3:
-	* large scale clock skipping
-
