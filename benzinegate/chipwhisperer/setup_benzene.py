@@ -14,12 +14,12 @@ except NameError:
 
 scope.glitch.clk_src = 'clkgen'
 
-scope.gain.gain = 40
+scope.gain.gain = 30
 scope.gain.mode = 'high'
 
-scope.adc.samples = 24400
+scope.adc.samples = 256
 scope.adc.offset = 0
-scope.adc.presamples = 12200
+scope.adc.presamples = 0
 scope.adc.basic_mode = "rising_edge"
 scope.adc.timeout = 4.0
 
@@ -29,8 +29,7 @@ scope.clock.adc_src = "clkgen_x4"
 
 scope.trigger.triggers = "tio3 AND tio4"
 
-scope.io.glitch_hp = 0
-scope.io.glitch_lp = 1
+scope.io.hs2       = 'clkgen'
 
 #also set by BenzineGate target
 #scope.io.tio1 = 'serial_tx'
@@ -39,10 +38,12 @@ scope.io.glitch_lp = 1
 #scope.io.tio4 = 'high_z'
 #scope.io.pdic = 'high'
 
+scope.io.glitch_hp = 0
+scope.io.glitch_lp = 1
 scope.glitch.clk_src = 'clkgen'
 scope.glitch.trigger_src = 'ext_single'
 scope.glitch.arm_timing = 'after_scope'
-scope.glitch.ext_offset =  ( 124 * scope.clock.clkgen_freq ) / 32000000 # 2.063 us ~= 124 * 32MHz clocks
+scope.glitch.ext_offset =  ( 52 * scope.clock.clkgen_freq ) / 32000000 # 2.063 us ~= 66 * 32MHz clocks. 26 seems to line up well
 scope.glitch.repeat = 1
 scope.glitch.output = 'glitch_only'
 
@@ -55,8 +56,8 @@ class IterateGlitchWidthOffset(object):
     def __init__(self, ge_window):
         self.ge_window = ge_window
         self.search = list()
-        for offset in numpy.linspace(40.0, -40.0, 10):
-            for width in numpy.linspace(40, self.MIN_STEP, 10):
+        for offset in numpy.linspace(40.0, -40.0, 64):
+            for width in numpy.linspace(40, 40, 1):
                 #TODO search repeat too
                 #for repeat in range(1, 3, 1):
                     self.search.append([offset, width])
@@ -67,7 +68,7 @@ class IterateGlitchWidthOffset(object):
 
     def change_glitch_parameters(self, scope, target, project):
         offset, width = self.search[self.search_index]
-        self.search_index =+ 1
+        self.search_index = self.search_index + 1
 
         # Write data to scope
         scope.glitch.width = width
@@ -75,8 +76,10 @@ class IterateGlitchWidthOffset(object):
 
         #You MUST tell the glitch explorer about the updated settings
         if self.ge_window:
-            self.ge_window.add_data("Glitch Width", scope.glitch.width)
-            self.ge_window.add_data("Glitch Offset",scope.glitch.offset)
+            self.ge_window.add_data("Glitch Width %", scope.glitch.width)
+            self.ge_window.add_data("Glitch Offset %",scope.glitch.offset)
+            self.ge_window.add_data("Delay us", float(scope.glitch.ext_offset) * 1E6 / scope.clock.clkgen_freq)
+            self.ge_window.add_data("Delay CLKs", scope.glitch.ext_offset)
 
 glitch_iterator = IterateGlitchWidthOffset(self.glitch_explorer)
 self.aux_list.register(glitch_iterator.change_glitch_parameters, "before_trace")
