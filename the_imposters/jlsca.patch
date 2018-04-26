@@ -1,0 +1,203 @@
+diff --git a/src/attackaes-ilya.jl b/src/attackaes-ilya.jl
+new file mode 100644
+index 0000000..2c8801b
+--- /dev/null
++++ b/src/attackaes-ilya.jl
+@@ -0,0 +1,113 @@
++# This file is a Jlsca implementation of Ilya Kizhvatov's XMEGA® Attack
++# license is GPLv3, see https://www.gnu.org/licenses/gpl-3.0.en.html
++#
++# Author: Jonathan Beverley
++
++using ..Aes
++using ..Trs
++
++export AesIlyaAttack, ilyaRankCallBack, flipHW
++
++type AesIlyaAttack <: AesAttack
++    mode::AesMode
++    keyLength::AesKeyLength
++    direction::Direction
++    xor::Bool
++    sbox::Vector{UInt8}
++    knownKey::Array{UInt8,1}
++    previousKeyByte # untyped to allow use of `nothing`
++    rhme3::Bool
++    function AesIlyaAttack()
++        return new(CIPHER, KL128, FORWARD, false, Aes.sbox, [], 0, false)
++    end
++end
++
++function ilyaRankCallBack(params::AesIlyaAttack, rankData::RankData, keyOffsets::Vector{Int64})
++    phase = length(rankData.combinedScores)
++    target = length(rankData.combinedScores[phase])
++    orderedArrayOfFloats = rankData.combinedScores[phase][target]
++    maxindex = indmax(orderedArrayOfFloats)
++    if (target <= length(params.knownKey))
++        params.previousKeyByte = params.knownKey[target]
++        @printf("Using known key-byte: %02x\n", params.previousKeyByte)
++    else
++        params.previousKeyByte = UInt8(maxindex-1)
++    end
++end
++
++type flipHW <: Leakage end
++function leak(this::flipHW, intermediate::Union{UInt8,UInt16,UInt32,UInt128})
++    return typeof(intermediate).size*8 - hw(intermediate)
++end
++
++# Need a new target
++type TwoRoundTarget <: Target{UInt16,UInt8,UInt8}
++    params::AesIlyaAttack
++end
++function target(a::TwoRoundTarget, data::UInt16, guess::UInt8)
++    prevData = UInt8(data>>8)
++    nowData = UInt8(data&0xff)
++    if a.params.previousKeyByte == nothing
++        return 0xff ⊻ a.params.sbox[(nowData ⊻ guess)+1]
++    elseif a.params.xor
++        return (nowData ⊻ guess) ⊻ (prevData ⊻ a.params.previousKeyByte)
++    else
++        return (nowData ⊻ guess) ⊻ (prevData)
++    end
++end
++show(io::IO, a::TwoRoundTarget) = print(io, "Two-round target: (Pᵢ₋₁ ⊻ Kᵢ₋₁) ⊻ (Pᵢ ⊻ Kᵢ)")
++
++function getTargets(params::AesIlyaAttack, phase::Int, phaseInput::Vector{UInt8})
++    if params.rhme3
++        params.previousKeyByte = nothing
++    else
++        params.previousKeyByte = UInt8(phase-1)
++    end
++
++    # We can't set previous key-bytes yet, because we don't know them, do that later
++    targetfn = TwoRoundTarget(params)
++    return [targetfn for i in 1:(numberOfTargets(params,phase))]
++end
++
++# Optional, ideally it should just work, but we might have to brute-force the first byte
++numberOfPhases(params::AesIlyaAttack) = 1
++numberOfTargets(params::AesIlyaAttack, phase::Int) = 16
++
++show(io::IO, a::AesIlyaAttack) = print(io, "AES two-byte Ilya attack")
++
++function printParameters(params::AesIlyaAttack)
++    @printf("mode:       %s\n", string(params.mode))
++    @printf("key length: %s\n", string(params.keyLength))
++    @printf("direction:  %s\n", string(params.direction))
++    @printf("known key:  %s\n", string(params.knownKey))
++end
++
++function recoverKey(params::AesIlyaAttack, phaseInputOrig::Vector{UInt8})
++    if params.rhme3
++        result = reshape(Aes.InvShiftRows(reshape(phaseInputOrig[1:16],(4,4))), 16)
++    else
++        result = phaseInputOrig
++    end
++    for i in 1:min(length(result),length(params.knownKey))
++        result[i] = params.knownKey[i]
++    end
++    return result
++end
++
++function twoRoundFilter(params::AesIlyaAttack, data::Vector{UInt8})
++    # called once per row, to return the "data" we'll use...
++    # we return pairs of xor'd bytes to prep for above...
++    # For the first round, use 0x0 as the previous datum
++    if params.rhme3
++        data = reshape(Aes.ShiftRows(reshape(data[1:16],(4,4))), 16)
++    end
++    return vcat(
++                [UInt16(data[1])],
++                [(UInt16(data[i-1])<<8)|data[i] for i in 2:16]
++               )
++end
++
++function getDataPass(params::AesIlyaAttack, phase::Int, phaseInput::Vector{UInt8})
++    return Nullable(x -> twoRoundFilter(params, x))
++end
++
+diff --git a/src/sca-core.jl b/src/sca-core.jl
+index f4a9c5c..002ddca 100644
+--- a/src/sca-core.jl
++++ b/src/sca-core.jl
+@@ -227,6 +227,7 @@ type DpaAttack
+   outputkka::Nullable{AbstractString}
+   targetOffsets::Nullable{Vector{Int}}
+   scoresCallBack::Nullable{Function}
++  ranksCallBack::Nullable{Function}
+   evolutionCb::Nullable{Function}
+   leakageCombinator::Combination
+   maximization::Nullable{Maximization}
+@@ -243,7 +244,7 @@ type DpaAttack
+   rankData
+ 
+   function DpaAttack(attack::Attack, analysis::Analysis)
+-    new(attack,analysis,1,Nullable(),Nullable(),Nullable(),Nullable(),Nullable(),Nullable(), Nullable(), Nullable(), Sum(), Nullable(),Nullable(), Nullable(),Nullable(),Nullable())
++    new(attack,analysis,1,Nullable(),Nullable(),Nullable(),Nullable(),Nullable(),Nullable(), Nullable(), Nullable(), Nullable(), Sum(), Nullable(),Nullable(), Nullable(),Nullable(),Nullable())
+   end
+ end
+ 
+@@ -811,6 +812,9 @@ function sca(trs::Trace, params::DpaAttack, firstTrace::Int=1, numberOfTraces::I
+       elseif status == INTERMEDIATERANKS
+         (rankData, keyOffsets) = statusData
+         printScores(params, phase, rankData, keyOffsets)
++        if !isnull(params.ranksCallBack)
++          get(params.ranksCallBack)(params.attack, rankData, keyOffsets)
++        end
+       elseif status == PHASERESULT
+         phaseOutput = vcat(phaseOutput, statusData)
+       elseif status == INTERMEDIATESCORES
+diff --git a/src/sca.jl b/src/sca.jl
+index 377a888..e71d856 100644
+--- a/src/sca.jl
++++ b/src/sca.jl
+@@ -17,6 +17,7 @@ include("mia.jl")
+ include("attackaes-core.jl")
+ include("attackdes-core.jl")
+ include("attacksha-core.jl")
++include("attackaes-ilya.jl")
+ 
+ include("incremental-correlation.jl")
+ include("sca-defaultparams.jl")
+diff --git a/src/trs-inspector.jl b/src/trs-inspector.jl
+index e53af99..8f2a203 100644
+--- a/src/trs-inspector.jl
++++ b/src/trs-inspector.jl
+@@ -97,7 +97,7 @@ function readInspectorTrsHeader(filename, bitshack::Bool)
+       numberOfTraces = Nullable()
+       dataSpace = 0
+       sampleSpace = 0
+-      sampleType = UInt8
++      sampleType = Int8
+       numberOfSamplesPerTrace = 0
+       traceBlockPosition = 0
+       lengthPosition = 0
+@@ -146,13 +146,13 @@ function readInspectorTrsHeader(filename, bitshack::Bool)
+             sampleType = Float32
+             sampleSpace = 4
+           elseif sampleCoding == CodingInt
+-            sampleType = UInt32
++            sampleType = Int32
+             sampleSpace = 4
+           elseif sampleCoding == CodingShort
+             sampleType = Int16
+             sampleSpace = 2
+           elseif sampleCoding == CodingByte
+-            sampleType = UInt8
++            sampleType = Int8
+             sampleSpace = 1
+           end
+         else
+@@ -214,7 +214,7 @@ function readData(trs::InspectorTrace, idx)
+ end
+ 
+ # write data for a single trace from an Inspector trace set
+-function writeData(trs::InspectorTrace, idx, data::Vector{UInt8})
++function writeData(trs::InspectorTrace, idx, data::Vector{Int8})
+   trs.dataSpace == length(data) || throw(ErrorException(@sprintf("wrong data length %d, expecting %d", length(data), trs.dataSpace)))
+   position = calcFilePositionForIdx(trs, idx)
+ 
+diff --git a/src/trs-randomtrace.jl b/src/trs-randomtrace.jl
+old mode 100755
+new mode 100644

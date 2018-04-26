@@ -27,3 +27,78 @@ References:
 https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE_Attack
 http://www.iacr.org/phds/106_ilyakizhvatov_physicalsecuritycryptographica.pdf
 
+## Results
+I've got Ilya's attack fully operational. It works perfectly on the example traces, the imposters... not so much.
+
+
+Candidates:
+64MHz, flipHW, GM, 3000:4000
+3fc0f84cd7d584e497b2bb05e5934598
+3fc0fcd2e44e8ca9d056609b52ef44b2
+3fc09ba5629e20ce634dc338a06bbc4a
+3fc0d0ee29d56b852806b843db10c731
+
+### Hunting for targets
+I now believe that what sort of correlations appear differ from what Ilya saw.
+I am hunting for better models.
+Note: because previous keybyte and data are Null for the first target, it's an easier thing to hit...
+
+```python
+(nowData ⊻ guess) ⊻ a.sbox[(nowData ⊻ guess)+1]
+rank:   1, candidate: 0x00, peak: 0.145686 @ 1835
+
+(prevData ⊻ previousKeyByte) ⊻ (nowData ⊻ guess)
+rank:   1, candidate: 0xc0, peak: 0.130728 @ 1918
+rank:   1, candidate: 0xc0, peak: 0.527390 @ 1684
+rank:   1, candidate: 0xc0, peak: 0.447334 @ 1726
+
+(prevData ⊻ previousKeyByte) ⊻ (nowData ⊻ guess) ⊻ a.sbox[(nowData ⊻ guess)+1]
+rank:   1, candidate: 0x00, peak: 0.145686 @ 1835
+
+```
+
+Analysis:
+	- the sbox hit is too huge to ignore... but only catches one keybyte
+	- ...
+
+
+Reasonable Hits:
+(nowData ⊻ guess) ⊻ a.sbox[(nowData ⊻ guess)+1]
+	-> 0071af0e4d49b430d9d08c46403d2649
+	- super strong hit on first keybyte, garbage on rest
+	- retried with forced first byte: 00, c0, a3
+
+(nowData ⊻ guess) ⊻ a.sbox[(nowData ⊻ guess)+1] ⊻ a.sbox[(prevData ⊻ previousKeyByte)+1]
+	-> a31002ef5bcd05ffa4da9a8d6f6dc1b0
+	- reasonable hits on multiple bytes
+
+(nowData ⊻ guess) ⊻ (prevData ⊻ previousKeyByte)
+	- this is Ilya's target. Works flawlessly for his sample set.
+	-> c0c0c0c0c0c0c0c0c080808080808080
+	- above: pretty solid hits, must be noisish
+	-> 3f8cafd88968afd9946bbef38d72084c
+	- above: with many 100k traces, flipHW and progressive on. That looks keyish.
+	->
+	- above: with many 100k traces, HW and progressive on. That looks keyish.
+
+(nowData ⊻ guess) ⊻ (prevData ⊻ previousKeyByte) ⊻ a.sbox[(nowData ⊻ guess)+1]
+	-> 003e01336712f0264e439db1cd5569df
+	- some hits, mostly noise...
+
+(nowData ⊻ guess) ⊻ (prevData ⊻ previousKeyByte) ⊻ a.sbox[(nowData ⊻ guess)+1]
+	-> 80...
+	- hit is pretty solid. Actually on (data ⊻ 0x00 ⊻ 0x00 ⊻ 0x80 ⊻ a.sbox(data^guess))
+	- which is interesting, because it suggests a previousByte of 80 for the first
+
+
+Analysis:
+	* SBox In XOR Out gives a good hit for the first
+		- But crap for subsequent. Maybe one of the "guess"s should be prev?
+		- might be bogus, didn't find it on 100k trace.
+	* ARK XOR last-ARK gives solid, across the board hits
+		- but BS key.
+		- forcing progressive fixes that, gives reasonable offsets, key is invalid
+	* Note that for ARK XOR lARK, the first hit is weirdly positioned
+		- might be because of an odd "previous"
+		- obvious candidate before is 4f
+
