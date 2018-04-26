@@ -24,6 +24,20 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
         self._active_ms = 10
         self._delay_ms = 0
+
+        self.params.addChildren([
+            {'name':'Crash', 'type':'bool', 'key':'crash', 'default':True, 'get':self.getCrash, 'set':self.setCrash, 'psync': True}
+            ])
+
+        self._crash = True
+        return
+
+    def getCrash(self):
+        return self._crash
+
+    @setupSetParam("Crash")
+    def setCrash(self, val):
+        self._crash = val
         return
 
     def init(self):
@@ -107,7 +121,10 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
 
 
         self.scope.io.tio3 = "gpio_high"
-        self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
+        if self._crash:
+            self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
+        else:
+            self.ser.write("01234" + '\n')
 
         then = time.time()
         while time.time() - then < 0.100:
