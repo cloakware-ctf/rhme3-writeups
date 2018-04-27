@@ -2,18 +2,16 @@ import binascii
 from _base import TargetTemplate
 from chipwhisperer.common.utils import pluginmanager
 from simpleserial_readers.cwlite import SimpleSerial_ChipWhispererLite
-import socket
-import bitstring
 from time import sleep
+from chipwhisperer.common.utils import timer
 import logging
 import time
-from chipwhisperer.common.utils.timer import nonBlockingDelay
 from chipwhisperer.common.api.CWCoreAPI import CWCoreAPI
 from chipwhisperer.common.utils.parameter import setupSetParam
 from chipwhisperer.common.utils import util
 import chipwhisperer as cw
 
-class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
+class BenzineGateTarget(TargetTemplate):
     _name = 'BenzineGate'
 
     def __init__(self):
@@ -89,12 +87,14 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         self.ser.findParam('baud').setValue(115200)
 
         self.scope = scope
+        self.cwe = scope.advancedSettings.cwEXTRA
 
-        self.scope.io.tio1 = "serial_tx"
-        self.scope.io.tio2 = "serial_rx"
-        self.scope.io.tio3 = "gpio_low"
-        self.scope.io.tio4 = "high_z"
-        self.scope.io.pdic = "high"
+        self.cwe.setTargetIOMode(self.cwe.IOROUTE_STX, 0)
+        self.cwe.setTargetIOMode(self.cwe.IOROUTE_SRX, 1)
+        self.cwe.setTargetIOMode(self.cwe.IOROUTE_GPIOE, 2)
+        self.cwe.setGPIOState(False, 2)
+        self.cwe.setTargetIOMode(self.cwe.IOROUTE_HIGHZ, 3)
+        self.cwe.setGPIOState(True, 102)
 
         return
 
@@ -120,7 +120,7 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         self.release_and_wait()
 
 
-        self.scope.io.tio3 = "gpio_high"
+        self.cwe.setGPIOState(True, 2)
         if self._crash:
             self.ser.write("0123456789abcd" + "stuvwxyz" + binascii.unhexlify("3ffa0002ba") + '\n')
         else:
@@ -129,15 +129,26 @@ class BenzineGateTarget(TargetTemplate, util.DisableNewAttr):
         then = time.time()
         while time.time() - then < 0.100:
             self.output.extend(self.ser.read(1).encode('utf-8'))
-        self.scope.io.tio3 = "gpio_low"
+        self.cwe.setGPIOState(False, 2)
 
         print(self.output)
         return
 
+    def nonblockingSleep_done(self):
+        self._sleeping = False
+
+    def nonBlockingSleep(self, stime):
+        """Sleep for given number of seconds (~50mS resolution), but don't block GUI while we do it"""
+        timer.Timer().singleShot(stime * 1000, self.nonblockingSleep_done)
+        self._sleeping = True
+        while(self._sleeping):
+            time.sleep(0.01)
+            util.updateUI()
+
     def release_and_wait(self):
-        self.scope.io.pdic = "low"
-        nonBlockingDelay(self._active_ms)
-        self.scope.io.pdic = "high"
+        self.cwe.setGPIOState(False, 102)
+        self.nonBlockingSleep(self._active_ms)
+        self.cwe.setGPIOState(True, 102)
         self.read_until('>')
         return
 
