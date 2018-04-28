@@ -29,25 +29,27 @@ class UserScript(UserScriptBase):
         self.api.setParameter(['BenzineGate', 'Crash', True])
         self.api.connect()
 
-        clkgen_freq = 64000000
+        clkgen_freq = 8000000
         lstexample = [
             ['Glitch Module', 'Clock Source', 'CLKGEN'],
             ['OpenADC', 'Clock Setup', 'CLKGEN Settings', 'Desired Frequency', clkgen_freq],
-            ['OpenADC', 'Clock Setup', 'ADC Clock', 'Source', 'CLKGEN x1 via DCM'],
+            ['OpenADC', 'Clock Setup', 'ADC Clock', 'Source', 'CLKGEN x4 via DCM'],
             ['OpenADC', 'Clock Setup', 'ADC Clock', 'Reset ADC DCM', None],
             ['OpenADC', 'Clock Setup', 'Freq Counter Src', 'EXTCLK Input'],
             ['CW Extra Settings', 'Trigger Pins', 'Target IO4 (Trigger Line)', False],
             ['CW Extra Settings', 'Target HS IO-Out', 'CLKGEN'],
+            ['Glitch Module', 'Reset DCM', None],
         ]
         for cmd in lstexample: self.api.setParameter(cmd)
 
+        adc_freq = clkgen_freq * 4
         lstexample = [
             ['OpenADC', 'Gain Setting', 'Mode', 'high'],
-            ['OpenADC', 'Gain Setting', 'Setting', 35],
+            ['OpenADC', 'Gain Setting', 'Setting', 25],
             ['OpenADC', 'Trigger Setup', 'Timeout (secs)', 4.0],
             ['OpenADC', 'Trigger Setup', 'Offset', 0],
             ['OpenADC', 'Trigger Setup', 'Pre-Trigger Samples', 0],
-            ['OpenADC', 'Trigger Setup', 'Total Samples', 256],
+            ['OpenADC', 'Trigger Setup', 'Total Samples', 256 * adc_freq / 64000000 + 1],
             ['OpenADC', 'Trigger Setup', 'Mode', 'rising edge'],
         ]
         for cmd in lstexample: self.api.setParameter(cmd)
@@ -67,18 +69,20 @@ class UserScript(UserScriptBase):
             ext_offset -= 12
         elif clkgen_freq == 16000000:
             ext_offset -= 5
+        elif clkgen_freq == 8000000:
+            ext_offset -= 3
 
         print "Manual Glitch Trigger"
         lstexample = [
             ['Glitch Module', 'Clock Source', 'CLKGEN'],
-            #['CW Extra Settings', 'HS-Glitch Out Enable (High Power)', True],
-            ['CW Extra Settings', 'HS-Glitch Out Enable (Low Power)', True],
-            ['Glitch Module', 'Glitch Width (as % of period)', 9.5],
-            ['Glitch Module', 'Glitch Offset (as % of period)', -4],
+            ['CW Extra Settings', 'HS-Glitch Out Enable (High Power)', True],
+            #['CW Extra Settings', 'HS-Glitch Out Enable (Low Power)', True],
+            ['Glitch Module', 'Glitch Width (as % of period)', 49.8039],
+            ['Glitch Module', 'Glitch Offset (as % of period)', 1],
             ['Glitch Module', 'Glitch Trigger', 'Ext Trigger:Single-Shot'],
             ['Glitch Module', 'Single-Shot Arm', 'After Scope Arm'],
             ['Glitch Module', 'Ext Trigger Offset', ext_offset - 2],
-            ['Glitch Module', 'Repeat', 4],
+            ['Glitch Module', 'Repeat', 1],
             ['Glitch Module', 'Output Mode', 'Glitch Only'],
         ]
         for cmd in lstexample: self.api.setParameter(cmd)
@@ -89,9 +93,9 @@ class UserScript(UserScriptBase):
         self.api.setParameter(['Glitch Explorer', 'Normal Response', u"s == ' \\nRegulator status: [XXXXXXXX]\\n'"])
         self.api.setParameter(['Glitch Explorer', 'Successful Response', u"'Your flag:' in s"])
 
-        self.api.setParameter(['Glitch Explorer', 'Plot Widget', None])  # Push the button
+        #self.api.setParameter(['Glitch Explorer', 'Plot Widget', None])  # Push the button
         lstexample = [
-            ['Glitch Explorer', 'Tuning Parameters', 2],
+            ['Glitch Explorer', 'Tuning Parameters', 1],
             ['Glitch Explorer', 'Tuning Parameter 0', 'Name', u'Offset'],
             ['Glitch Explorer', 'Tuning Parameter 0', 'Parameter Path', u"['Glitch Module', 'Glitch Offset (as % of period)']"],
             ['Glitch Explorer', 'Tuning Parameter 0', 'Data Format', 'Float'],
@@ -99,17 +103,6 @@ class UserScript(UserScriptBase):
             ['Glitch Explorer', 'Tuning Parameter 0', 'Value', -30.0],
             ['Glitch Explorer', 'Tuning Parameter 0', 'Step', 0.5],
             ['Glitch Explorer', 'Tuning Parameter 0', 'Repeat', 1],
-
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Name', u'Width'],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Parameter Path', u"['Glitch Module', 'Glitch Width (as % of period)']"],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Data Format', 'Float'],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Range', (3, 15)],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Value', 3.0],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Step', 0.5],
-            ['Glitch Explorer', 'Tuning Parameter 1', 'Repeat', 1],
-            ['Glitch Module', 'Repeat', 1],
-            ['Glitch Module', 'Glitch Width (as % of period)', 8.0],
-            ['Glitch Explorer', 'Traces Required', 'Use this value', None], # Press "use this value"             
         ]
         for cmd in lstexample: self.api.setParameter(cmd)
 
