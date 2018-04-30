@@ -383,13 +383,34 @@ setup_100_structs_and_one_backdoor() {
 
 }
 
+## Transcript of exploitation:
+```sh
+ready and waiting...
 
 
+Initializing...
+Initialized
+2018-04-30 10:04:05 -0400
+prompt found, proceeding...
+00000000  33 32 3a 33  37 33 34 3a  d9 fb 92 e3  bb e6 5b e1  │32:3│734:│····│··[·│
+00000010  f1 aa d4 a8  2e ef 45 67  f7 a1 eb e2  cd 11 0c 80  │····│.·Eg│····│····│
+00000020  49 b9 69 8b  e7 a7 0c 88                            │I·i·│····│
+00000028
 
 
+32:3734:......[.......Eg........I.i.....
 
 
+Unknown user!
+2018-04-30 10:04:21 -0400
+00000000  38 3a 31 30  3a 62 61 63  6b 64 6f 6f  72 6f 70 65  │8:10│:bac│kdoo│rope│
+00000010  6e 73 65 73  61 6d 65                               │nses│ame│
+00000017
+8:10:backdooropensesame
 
 
+Your flag is:
 
+18c495dbe625cd39544fc6e3bab81a2d
+```
 

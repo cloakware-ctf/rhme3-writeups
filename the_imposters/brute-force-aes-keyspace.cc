@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 void xxd(const uint8_t *buffer, int length) {
 	for (int line=0; line<length; line+=16) {
@@ -73,24 +74,31 @@ const uint8_t testEnc[16] = {
 	0x00, 0x4a, 0x86, 0x35, 0x83, 0x80, 0x31, 0x85};
 
 const int Round = 0;
-const int Columns = 5;
+const int Columns = 257;
 const uint8_t bruteForceSpace[16][Columns] = {
-	{00, C5 BE  C2    6a b1 25 6d
-	{01, 75           cb 75 9f
-	{02,              f0 0e 16
-	{03, 90           2e b4
-	{10, B6           6e 52
-	{11, E2           06 d7
-	{12,              2b de 0c
-	{13,              e9 6c 5d a4 44
-	{20,              08 d2 58
-	{21, D1 B4  A6 4C|71 36 
-	{22, 84 8C 04     8c 45 40 51
-	{23, F4           b9 df 48 b3 99
-	{30,              66 53 70 14
-	{31, 72           80 3a
-	{32, 98  9F       98 ce 9b
-	{33, 6C   9F      f2 a8 04 7b bd
+	//{1, 0x3f}, {1, 0x8c}, {1, 0xaf}, {1, 0xd8}, {1, 0x89}, {1, 0x68}, {1, 0xaf}, {1, 0xd9}, {1, 0x94}, {1, 0x6b}, {1, 0xbe}, {1, 0xf3},
+	//{0, }, {0, }, {0, }, {0, },
+	{1, 0xc0}, {1, 0x8c}, {1, 0x50}, {1, 0xd8}, {1, 0x76}, {1, 0x68}, {1, 0x50}, {1, 0xd9}, {1, 0x6b}, {1, 0x6b}, {1, 0x41}, {1, 0xf3},
+	{0, }, {0, }, {0, }, {0, },
+
+/*
+	{4, 0x3E, 0xB5, 0x08, 0x3A},
+	{4, 0x07, 0x99, 0xA3, 0x0D},
+	{4, 0x6C, 0x4B, 0x7B, 0x7E},
+	{4, 0xC3, 0xBE, 0xCC, 0x30},
+	{4, 0x49, 0x84, 0xA8, 0xD6},
+	{4, 0xB0, 0xEA, 0xBA, 0x48},
+	{4, 0x41, 0x1F, 0xD4, 0x07},
+	{4, 0x6A, 0x29, 0xF0, 0x49},
+	{4, 0x7D, 0xB1, 0xF1, 0x3C},
+	{4, 0x89, 0xA6, 0x63, 0xCE},
+	{4, 0x2E, 0x91, 0xDB, 0x5B},
+	{4, 0x12, 0x98, 0x3D, 0x66},
+	{4, 0x13, 0xDE, 0x95, 0x89},
+	{4, 0xE5, 0x31, 0x01, 0xDD},
+	{4, 0xE5, 0x44, 0x13, 0x72},
+	{4, 0x82, 0xF0, 0xD7, 0x68},
+*/
 };
 
 void printKey(uint8_t key[11]) {
@@ -117,6 +125,16 @@ void testCandidates() {
 	}
 }
 
+void getKey(uint8_t key[16], uint64_t number) {
+	if (number > 0xffff) {
+		printf("complete\n");
+		exit(0);
+	}
+	int i;
+	for(i=0;i<16;i+=2) key[i] = number/256;
+	for(i=1;i<16;i+=2) key[i] = number%256;
+}
+
 int main(int argc, char** argv) {
 	const uint8_t *plaintext = testPlain;
 	const uint8_t *target = testEnc;
@@ -129,7 +147,8 @@ int main(int argc, char** argv) {
 
 	uint64_t difficulty=1;
 	for (int i=0; i<16; i++) {
-		difficulty *= bruteForceSpace[i][0];
+		uint64_t d = bruteForceSpace[i][0];
+		difficulty *= (d?d:256);
 	}
 	testCandidates();
 	printf("brute forcing %16lu candidates.\n", difficulty);
@@ -145,6 +164,7 @@ int main(int argc, char** argv) {
 		for (int i=0; i<16; i++) {
 			key[i] = bruteForceSpace[i][counter[i]];
 		}
+		// getKey(key, n);
 
 		if (Round != 0) {
 			calc_aes128_rev_schedule(key, Round, reverseSchedule);
@@ -170,7 +190,13 @@ int main(int argc, char** argv) {
 
 		for (int i=0; i<16; i++) {
 			counter[i] += 1;
-			if (counter[i] <= bruteForceSpace[i][0]) break;
+			int limit = bruteForceSpace[i][0];
+			XXX THIS CODE IS WRONG
+			XXX FIX COUNTER INCREMENT
+			if ((limit == 0 && counter[i] != 0) || (limit != 0 && counter[i] <= limit)) {
+				break;
+			}
+
 			counter[i] = 1;
 			if (i<15) continue;
 			if (i==15) {
@@ -182,3 +208,4 @@ int main(int argc, char** argv) {
 
 	return 0;
 }
+
