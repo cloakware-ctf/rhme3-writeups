@@ -84,7 +84,7 @@ def print_any_serial():
 def release_reset_and_wait():
     global ser
 
-    log("Resetting Target...")
+    print("Resetting Target...")
     pin_low(RESET)
     sleep(0.010)
     pin_high(RESET)
@@ -118,8 +118,11 @@ pin_high(RESET)
 pin_low(TRIG_OUT)
 pin_output(TRIG_OUT)
 
-for i in range(0,256):
-   go(crash=True,  armed=False)
-   go(crash=False, armed=False)
+count = 0
+while True:
+   sys.stdout.write("%d " % count)
+#   go(crash=True,  armed=False)
+#   go(crash=False, armed=False)
    go(crash=True,  armed=True)
+   count = count + 1
 
