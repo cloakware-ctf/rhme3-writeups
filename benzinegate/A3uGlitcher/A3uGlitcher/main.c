@@ -88,21 +88,24 @@ void setup_clock() {
 
 // delay in clocks = (2063 ns / 1e9) * clock-per-second
 #define cyclesPerMS (F_CPU / 1000)
-const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 11; // offset in clocks (-11 is constant delay correction)
-const uint8_t ConfiguredDelta = 1; // delta in clocks
+const uint8_t ConfiguredDelta = 0; // delta in clocks
 const uint8_t OffsetLoopCost = 3;
 
 #define NOP() do {__asm__ __volatile__ ("nop");}while(0)
-#define PULSE(PORT, PIN) do { PORT.OUTSET = PIN; NOP(); NOP(); NOP(); PORT.OUTCLR = PIN; } while(0)
+//const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 11 - 12; // offset in clocks (-11 is constant delay correction)  (-12 is constant correction for driver rise time)
+const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 16 - 5; // offset in clocks (-11 is constant delay correction)  (-8 is constant correction for driver rise time)
+#define PULSE(PORT, PIN) do { PORT.OUTSET = PIN; NOP();NOP(); PORT.OUTCLR = PIN; } while(0)
+	
 #define WAIT_FOR_TRIGGER() \
 	do { \
+		while (bit_is_clear(PORTB.IN, PIN2_bp)) { /**/ } \
+		if (bit_is_set(PORTB.IN, PIN1_bp)) { while (bit_is_set(PORTB.IN, PIN1_bp)) { /**/ } continue; } \
 		while (bit_is_clear(PORTB.IN, PIN1_bp)) { /**/ } \
-		if (bit_is_clear(PORTB.IN, PIN1_bp)) continue; \
-		break;  \
+		if (bit_is_set(PORTB.IN, PIN2_bp)) break;  \
 	} while(1)
 
 #if 0
-	#define MARKERPULSE() PULSE(PORTB, PIN0_bm)
+	#define MARKERPULSE() PULSE(PORTE, PIN0_bm)
 	#define MarkerWarning() serial_puts("WARNING: Marker pulses enabled!\n")
 #else
 	#define MARKERPULSE() 
@@ -113,7 +116,7 @@ void glitchPlusZero(uint8_t offset) {
 	WAIT_FOR_TRIGGER();
 	MARKERPULSE();
 	while (offset!=0) offset--;
-	PULSE(PORTB, PIN0_bm);
+	PULSE(PORTE, PIN0_bm);
 }
 
 void glitchPlusOne(uint8_t offset) {
@@ -121,7 +124,7 @@ void glitchPlusOne(uint8_t offset) {
 	MARKERPULSE();
 	while (offset!=0) offset--;
 	NOP();
-	PULSE(PORTB, PIN0_bm);
+	PULSE(PORTE, PIN0_bm);
 }
 
 void glitchPlusTwo(uint8_t offset) {
@@ -130,7 +133,7 @@ void glitchPlusTwo(uint8_t offset) {
 	while (offset!=0) offset--;
 	NOP();
 	NOP();
-	PULSE(PORTB, PIN0_bm);
+	PULSE(PORTE, PIN0_bm);
 }
 
 void glitchPlusThree(uint8_t offset) {
@@ -140,15 +143,15 @@ void glitchPlusThree(uint8_t offset) {
 	NOP();
 	NOP();
 	NOP();
-	PULSE(PORTB, PIN0_bm);
+	PULSE(PORTE, PIN0_bm);
 }
 
 void glitch(uint8_t offset) {
 	switch (offset%OffsetLoopCost) {
 		case 0: glitchPlusZero(offset/OffsetLoopCost); break;
 		case 1: glitchPlusOne(offset/OffsetLoopCost); break;
-		case 2: glitchPlusTwo(offset/OffsetLoopCost); break;
-		case 3: glitchPlusThree(offset/OffsetLoopCost); break;
+		case 2: glitchPlusZero(offset/OffsetLoopCost); break;
+		case 3: glitchPlusOne(offset/OffsetLoopCost); break;
 	}
 }
 
@@ -156,14 +159,11 @@ void glitchExplorer(void) {
 	uint8_t offset;
 	uint8_t o;
 	
-	PORTB.DIRCLR = PIN1_bm | PIN2_bm; // only pins A0, A1 to input, rest left out
-	PORTB.PIN1CTRL = PORT_OPC_PULLDOWN_gc;
-	PORTB.PIN2CTRL = PORT_OPC_PULLDOWN_gc;
+	PORTB.DIRCLR = PIN1_bm | PIN2_bm; // only pins B0, B1 to input, rest left out
 
-	PORTB.DIRSET = PIN0_bm; // set pin B0 to input
-	PORTB.PIN0CTRL = PORT_OPC_PULLDOWN_gc;
-	PORTB.OUTCLR = PIN0_bm;
-		
+	PORTE.OUTCLR = PIN0_bm;
+	PORTE.DIRSET = PIN0_bm; // set pin E0 to output
+			
 	serial_puts("I'm waiting on you\n");
 	for (o=1; ; o++) {
 		MarkerWarning();
@@ -185,7 +185,7 @@ int main(void) {
 	
 	// TODO: use serial to get config.
 	
-	if (ConfiguredOffset<=0 || ConfiguredDelta<=0) {
+	if (ConfiguredOffset<=0 || ConfiguredDelta<0) {
 		serial_puts("Invalid parameters!\n");
 		while(1);
 	}

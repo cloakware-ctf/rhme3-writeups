@@ -3,29 +3,29 @@ A3uGlitcher.elf:     file format elf32-avr
 
 Sections:
 Idx Name          Size      VMA       LMA       File off  Algn
-  0 .text         0000043a  00000000  00000000  00000074  2**1
+  0 .text         000003dc  00000000  00000000  00000074  2**1
                   CONTENTS, ALLOC, LOAD, READONLY, CODE
-  1 .data         00000022  00802000  0000043a  000004ae  2**0
+  1 .data         00000022  00802000  000003dc  00000450  2**0
                   CONTENTS, ALLOC, LOAD, DATA
-  2 .comment      00000030  00000000  00000000  000004d0  2**0
+  2 .comment      00000030  00000000  00000000  00000472  2**0
                   CONTENTS, READONLY
-  3 .note.gnu.avr.deviceinfo 00000040  00000000  00000000  00000500  2**2
+  3 .note.gnu.avr.deviceinfo 00000040  00000000  00000000  000004a4  2**2
                   CONTENTS, READONLY
-  4 .debug_aranges 00000078  00000000  00000000  00000540  2**0
+  4 .debug_aranges 00000078  00000000  00000000  000004e4  2**0
                   CONTENTS, READONLY, DEBUGGING
-  5 .debug_info   00003b82  00000000  00000000  000005b8  2**0
+  5 .debug_info   00003b46  00000000  00000000  0000055c  2**0
                   CONTENTS, READONLY, DEBUGGING
-  6 .debug_abbrev 00003372  00000000  00000000  0000413a  2**0
+  6 .debug_abbrev 00003388  00000000  00000000  000040a2  2**0
                   CONTENTS, READONLY, DEBUGGING
-  7 .debug_line   000007ff  00000000  00000000  000074ac  2**0
+  7 .debug_line   00000833  00000000  00000000  0000742a  2**0
                   CONTENTS, READONLY, DEBUGGING
-  8 .debug_frame  000000e8  00000000  00000000  00007cac  2**2
+  8 .debug_frame  000000e8  00000000  00000000  00007c60  2**2
                   CONTENTS, READONLY, DEBUGGING
-  9 .debug_str    00002869  00000000  00000000  00007d94  2**0
+  9 .debug_str    0000279a  00000000  00000000  00007d48  2**0
                   CONTENTS, READONLY, DEBUGGING
- 10 .debug_loc    00000243  00000000  00000000  0000a5fd  2**0
+ 10 .debug_loc    000001be  00000000  00000000  0000a4e2  2**0
                   CONTENTS, READONLY, DEBUGGING
- 11 .debug_ranges 00000068  00000000  00000000  0000a840  2**0
+ 11 .debug_ranges 00000068  00000000  00000000  0000a6a0  2**0
                   CONTENTS, READONLY, DEBUGGING
 
 Disassembly of section .text:
@@ -173,8 +173,8 @@ Disassembly of section .text:
  20c:	10 e2       	ldi	r17, 0x20	; 32
  20e:	a0 e0       	ldi	r26, 0x00	; 0
  210:	b0 e2       	ldi	r27, 0x20	; 32
- 212:	ea e3       	ldi	r30, 0x3A	; 58
- 214:	f4 e0       	ldi	r31, 0x04	; 4
+ 212:	ec ed       	ldi	r30, 0xDC	; 220
+ 214:	f3 e0       	ldi	r31, 0x03	; 3
  216:	00 e0       	ldi	r16, 0x00	; 0
  218:	0b bf       	out	0x3b, r16	; 59
  21a:	02 c0       	rjmp	.+4      	; 0x220 <__do_copy_data+0x14>
@@ -183,19 +183,19 @@ Disassembly of section .text:
  220:	a2 32       	cpi	r26, 0x22	; 34
  222:	b1 07       	cpc	r27, r17
  224:	d9 f7       	brne	.-10     	; 0x21c <__do_copy_data+0x10>
- 226:	0e 94 15 02 	call	0x42a	; 0x42a <main>
- 22a:	0c 94 1b 02 	jmp	0x436	; 0x436 <_exit>
+ 226:	0e 94 e6 01 	call	0x3cc	; 0x3cc <main>
+ 22a:	0c 94 ec 01 	jmp	0x3d8	; 0x3d8 <_exit>
 
 0000022e <__bad_interrupt>:
  22e:	0c 94 00 00 	jmp	0	; 0x0 <__vectors>
 
 00000232 <serial_init>:
-	/* Read byte */
-	uint8_t byte = usart->DATA;
-	
-	usart_send_byte(usart, byte);
-	return byte;
-}
+	MARKERPULSE();
+	while (offset!=0) offset--;
+	NOP();
+	NOP();
+	NOP();
+	PULSE(PORTE, PIN0_bm);
  232:	e0 e4       	ldi	r30, 0x40	; 64
  234:	f6 e0       	ldi	r31, 0x06	; 6
  236:	88 e0       	ldi	r24, 0x08	; 8
@@ -245,34 +245,20 @@ Disassembly of section .text:
  288:	08 95       	ret
 
 0000028a <setup_clock>:
-
-void setup_clock() {
-	// enable 32MHz clock, and wait for it to be ready
-	OSC_CTRL |= OSC_RC32MEN_bm;
  28a:	e0 e5       	ldi	r30, 0x50	; 80
  28c:	f0 e0       	ldi	r31, 0x00	; 0
  28e:	80 81       	ld	r24, Z
  290:	82 60       	ori	r24, 0x02	; 2
  292:	80 83       	st	Z, r24
-	while ( (OSC_STATUS & OSC_RC32MRDY_bm) == 0 ) {
  294:	e1 e5       	ldi	r30, 0x51	; 81
  296:	f0 e0       	ldi	r31, 0x00	; 0
  298:	80 81       	ld	r24, Z
  29a:	81 ff       	sbrs	r24, 1
  29c:	fd cf       	rjmp	.-6      	; 0x298 <setup_clock+0xe>
-		/**/
-	}
-	
-	// setup system to use it
-	CPU_CCP = CCP_IOREG_gc;
  29e:	88 ed       	ldi	r24, 0xD8	; 216
  2a0:	84 bf       	out	0x34, r24	; 52
-	CLK_CTRL = CLK_SCLKSEL_RC32M_gc | CLK_PSADIV_1_gc;
  2a2:	81 e0       	ldi	r24, 0x01	; 1
  2a4:	80 93 40 00 	sts	0x0040, r24	; 0x800040 <__TEXT_REGION_LENGTH__+0x700040>
-	
-	// why we do this?
-	OSC_CTRL &= ~OSC_RC2MEN_bm;
  2a8:	e0 e5       	ldi	r30, 0x50	; 80
  2aa:	f0 e0       	ldi	r31, 0x00	; 0
  2ac:	80 81       	ld	r24, Z
@@ -281,310 +267,197 @@ void setup_clock() {
  2b2:	08 95       	ret
 
 000002b4 <glitchPlusZero>:
-	#define MARKERPULSE() 
-	#define MarkerWarning() 
-#endif
-
-void glitchPlusZero(uint8_t offset) {
-	WAIT_FOR_TRIGGER();
  2b4:	e8 e2       	ldi	r30, 0x28	; 40
  2b6:	f6 e0       	ldi	r31, 0x06	; 6
  2b8:	90 81       	ld	r25, Z
- 2ba:	91 ff       	sbrs	r25, 1
+ 2ba:	92 ff       	sbrs	r25, 2
  2bc:	fd cf       	rjmp	.-6      	; 0x2b8 <glitchPlusZero+0x4>
  2be:	90 81       	ld	r25, Z
  2c0:	91 ff       	sbrs	r25, 1
- 2c2:	fa cf       	rjmp	.-12     	; 0x2b8 <glitchPlusZero+0x4>
-	MARKERPULSE();
-	while (offset!=0) offset--;
- 2c4:	88 23       	and	r24, r24
- 2c6:	11 f0       	breq	.+4      	; 0x2cc <glitchPlusZero+0x18>
- 2c8:	81 50       	subi	r24, 0x01	; 1
- 2ca:	f1 f7       	brne	.-4      	; 0x2c8 <glitchPlusZero+0x14>
-	PULSE(PORTB, PIN0_bm);
- 2cc:	e0 e2       	ldi	r30, 0x20	; 32
- 2ce:	f6 e0       	ldi	r31, 0x06	; 6
- 2d0:	81 e0       	ldi	r24, 0x01	; 1
- 2d2:	85 83       	std	Z+5, r24	; 0x05
- 2d4:	00 00       	nop
- 2d6:	00 00       	nop
- 2d8:	00 00       	nop
- 2da:	86 83       	std	Z+6, r24	; 0x06
- 2dc:	08 95       	ret
+ 2c2:	04 c0       	rjmp	.+8      	; 0x2cc <glitchPlusZero+0x18>
+ 2c4:	90 81       	ld	r25, Z
+ 2c6:	91 fd       	sbrc	r25, 1
+ 2c8:	fd cf       	rjmp	.-6      	; 0x2c4 <glitchPlusZero+0x10>
+ 2ca:	f6 cf       	rjmp	.-20     	; 0x2b8 <glitchPlusZero+0x4>
+ 2cc:	90 81       	ld	r25, Z
+ 2ce:	91 ff       	sbrs	r25, 1
+ 2d0:	fd cf       	rjmp	.-6      	; 0x2cc <glitchPlusZero+0x18>
+ 2d2:	90 81       	ld	r25, Z
+ 2d4:	92 ff       	sbrs	r25, 2
+ 2d6:	f0 cf       	rjmp	.-32     	; 0x2b8 <glitchPlusZero+0x4>
+ 2d8:	88 23       	and	r24, r24
+ 2da:	11 f0       	breq	.+4      	; 0x2e0 <glitchPlusZero+0x2c>
+ 2dc:	81 50       	subi	r24, 0x01	; 1
+ 2de:	f1 f7       	brne	.-4      	; 0x2dc <glitchPlusZero+0x28>
+ 2e0:	e0 e8       	ldi	r30, 0x80	; 128
+ 2e2:	f6 e0       	ldi	r31, 0x06	; 6
+ 2e4:	81 e0       	ldi	r24, 0x01	; 1
+ 2e6:	85 83       	std	Z+5, r24	; 0x05
+ 2e8:	00 00       	nop
+ 2ea:	00 00       	nop
+ 2ec:	86 83       	std	Z+6, r24	; 0x06
+ 2ee:	08 95       	ret
 
-000002de <glitchPlusOne>:
-}
-
-void glitchPlusOne(uint8_t offset) {
-	WAIT_FOR_TRIGGER();
- 2de:	e8 e2       	ldi	r30, 0x28	; 40
- 2e0:	f6 e0       	ldi	r31, 0x06	; 6
- 2e2:	90 81       	ld	r25, Z
- 2e4:	91 ff       	sbrs	r25, 1
- 2e6:	fd cf       	rjmp	.-6      	; 0x2e2 <glitchPlusOne+0x4>
- 2e8:	90 81       	ld	r25, Z
- 2ea:	91 ff       	sbrs	r25, 1
- 2ec:	fa cf       	rjmp	.-12     	; 0x2e2 <glitchPlusOne+0x4>
-	MARKERPULSE();
-	while (offset!=0) offset--;
- 2ee:	88 23       	and	r24, r24
- 2f0:	11 f0       	breq	.+4      	; 0x2f6 <glitchPlusOne+0x18>
- 2f2:	81 50       	subi	r24, 0x01	; 1
- 2f4:	f1 f7       	brne	.-4      	; 0x2f2 <glitchPlusOne+0x14>
-	NOP();
- 2f6:	00 00       	nop
-	PULSE(PORTB, PIN0_bm);
- 2f8:	e0 e2       	ldi	r30, 0x20	; 32
- 2fa:	f6 e0       	ldi	r31, 0x06	; 6
- 2fc:	81 e0       	ldi	r24, 0x01	; 1
- 2fe:	85 83       	std	Z+5, r24	; 0x05
- 300:	00 00       	nop
- 302:	00 00       	nop
- 304:	00 00       	nop
- 306:	86 83       	std	Z+6, r24	; 0x06
- 308:	08 95       	ret
-
-0000030a <glitchPlusTwo>:
-}
-
-void glitchPlusTwo(uint8_t offset) {
-	WAIT_FOR_TRIGGER();
- 30a:	e8 e2       	ldi	r30, 0x28	; 40
- 30c:	f6 e0       	ldi	r31, 0x06	; 6
+000002f0 <glitchPlusOne>:
+ 2f0:	e8 e2       	ldi	r30, 0x28	; 40
+ 2f2:	f6 e0       	ldi	r31, 0x06	; 6
+ 2f4:	90 81       	ld	r25, Z
+ 2f6:	92 ff       	sbrs	r25, 2
+ 2f8:	fd cf       	rjmp	.-6      	; 0x2f4 <glitchPlusOne+0x4>
+ 2fa:	90 81       	ld	r25, Z
+ 2fc:	91 ff       	sbrs	r25, 1
+ 2fe:	04 c0       	rjmp	.+8      	; 0x308 <glitchPlusOne+0x18>
+ 300:	90 81       	ld	r25, Z
+ 302:	91 fd       	sbrc	r25, 1
+ 304:	fd cf       	rjmp	.-6      	; 0x300 <glitchPlusOne+0x10>
+ 306:	f6 cf       	rjmp	.-20     	; 0x2f4 <glitchPlusOne+0x4>
+ 308:	90 81       	ld	r25, Z
+ 30a:	91 ff       	sbrs	r25, 1
+ 30c:	fd cf       	rjmp	.-6      	; 0x308 <glitchPlusOne+0x18>
  30e:	90 81       	ld	r25, Z
- 310:	91 ff       	sbrs	r25, 1
- 312:	fd cf       	rjmp	.-6      	; 0x30e <glitchPlusTwo+0x4>
- 314:	90 81       	ld	r25, Z
- 316:	91 ff       	sbrs	r25, 1
- 318:	fa cf       	rjmp	.-12     	; 0x30e <glitchPlusTwo+0x4>
-	MARKERPULSE();
-	while (offset!=0) offset--;
- 31a:	88 23       	and	r24, r24
- 31c:	11 f0       	breq	.+4      	; 0x322 <glitchPlusTwo+0x18>
- 31e:	81 50       	subi	r24, 0x01	; 1
- 320:	f1 f7       	brne	.-4      	; 0x31e <glitchPlusTwo+0x14>
-	NOP();
- 322:	00 00       	nop
-	NOP();
- 324:	00 00       	nop
-	PULSE(PORTB, PIN0_bm);
- 326:	e0 e2       	ldi	r30, 0x20	; 32
- 328:	f6 e0       	ldi	r31, 0x06	; 6
- 32a:	81 e0       	ldi	r24, 0x01	; 1
- 32c:	85 83       	std	Z+5, r24	; 0x05
- 32e:	00 00       	nop
- 330:	00 00       	nop
- 332:	00 00       	nop
- 334:	86 83       	std	Z+6, r24	; 0x06
- 336:	08 95       	ret
+ 310:	92 ff       	sbrs	r25, 2
+ 312:	f0 cf       	rjmp	.-32     	; 0x2f4 <glitchPlusOne+0x4>
+ 314:	88 23       	and	r24, r24
+ 316:	11 f0       	breq	.+4      	; 0x31c <glitchPlusOne+0x2c>
+ 318:	81 50       	subi	r24, 0x01	; 1
+ 31a:	f1 f7       	brne	.-4      	; 0x318 <glitchPlusOne+0x28>
+ 31c:	00 00       	nop
+ 31e:	e0 e8       	ldi	r30, 0x80	; 128
+ 320:	f6 e0       	ldi	r31, 0x06	; 6
+ 322:	81 e0       	ldi	r24, 0x01	; 1
+ 324:	85 83       	std	Z+5, r24	; 0x05
+ 326:	00 00       	nop
+ 328:	00 00       	nop
+ 32a:	86 83       	std	Z+6, r24	; 0x06
+ 32c:	08 95       	ret
 
-00000338 <glitchPlusThree>:
-}
-
-void glitchPlusThree(uint8_t offset) {
-	WAIT_FOR_TRIGGER();
- 338:	e8 e2       	ldi	r30, 0x28	; 40
- 33a:	f6 e0       	ldi	r31, 0x06	; 6
- 33c:	90 81       	ld	r25, Z
- 33e:	91 ff       	sbrs	r25, 1
- 340:	fd cf       	rjmp	.-6      	; 0x33c <glitchPlusThree+0x4>
- 342:	90 81       	ld	r25, Z
- 344:	91 ff       	sbrs	r25, 1
- 346:	fa cf       	rjmp	.-12     	; 0x33c <glitchPlusThree+0x4>
-	MARKERPULSE();
-	while (offset!=0) offset--;
- 348:	88 23       	and	r24, r24
- 34a:	11 f0       	breq	.+4      	; 0x350 <glitchPlusThree+0x18>
- 34c:	81 50       	subi	r24, 0x01	; 1
- 34e:	f1 f7       	brne	.-4      	; 0x34c <glitchPlusThree+0x14>
-	NOP();
- 350:	00 00       	nop
-	NOP();
- 352:	00 00       	nop
-	NOP();
- 354:	00 00       	nop
-	PULSE(PORTB, PIN0_bm);
- 356:	e0 e2       	ldi	r30, 0x20	; 32
- 358:	f6 e0       	ldi	r31, 0x06	; 6
- 35a:	81 e0       	ldi	r24, 0x01	; 1
- 35c:	85 83       	std	Z+5, r24	; 0x05
- 35e:	00 00       	nop
- 360:	00 00       	nop
- 362:	00 00       	nop
- 364:	86 83       	std	Z+6, r24	; 0x06
- 366:	08 95       	ret
-
-00000368 <glitch>:
+0000032e <glitch>:
 }
 
 void glitch(uint8_t offset) {
 	switch (offset%OffsetLoopCost) {
- 368:	9b ea       	ldi	r25, 0xAB	; 171
- 36a:	89 9f       	mul	r24, r25
- 36c:	91 2d       	mov	r25, r1
- 36e:	11 24       	eor	r1, r1
- 370:	96 95       	lsr	r25
- 372:	29 2f       	mov	r18, r25
- 374:	22 0f       	add	r18, r18
- 376:	92 0f       	add	r25, r18
- 378:	28 2f       	mov	r18, r24
- 37a:	29 1b       	sub	r18, r25
- 37c:	21 30       	cpi	r18, 0x01	; 1
- 37e:	71 f0       	breq	.+28     	; 0x39c <glitch+0x34>
- 380:	28 f0       	brcs	.+10     	; 0x38c <glitch+0x24>
- 382:	22 30       	cpi	r18, 0x02	; 2
- 384:	99 f0       	breq	.+38     	; 0x3ac <glitch+0x44>
- 386:	23 30       	cpi	r18, 0x03	; 3
- 388:	c9 f0       	breq	.+50     	; 0x3bc <glitch+0x54>
- 38a:	08 95       	ret
+ 32e:	9b ea       	ldi	r25, 0xAB	; 171
+ 330:	89 9f       	mul	r24, r25
+ 332:	91 2d       	mov	r25, r1
+ 334:	11 24       	eor	r1, r1
+ 336:	96 95       	lsr	r25
+ 338:	29 2f       	mov	r18, r25
+ 33a:	22 0f       	add	r18, r18
+ 33c:	92 0f       	add	r25, r18
+ 33e:	28 2f       	mov	r18, r24
+ 340:	29 1b       	sub	r18, r25
+ 342:	21 30       	cpi	r18, 0x01	; 1
+ 344:	71 f0       	breq	.+28     	; 0x362 <glitch+0x34>
+ 346:	28 f0       	brcs	.+10     	; 0x352 <glitch+0x24>
+ 348:	22 30       	cpi	r18, 0x02	; 2
+ 34a:	99 f0       	breq	.+38     	; 0x372 <glitch+0x44>
+ 34c:	23 30       	cpi	r18, 0x03	; 3
+ 34e:	c9 f0       	breq	.+50     	; 0x382 <glitch+0x54>
+ 350:	08 95       	ret
 		case 0: glitchPlusZero(offset/OffsetLoopCost); break;
- 38c:	9b ea       	ldi	r25, 0xAB	; 171
- 38e:	89 9f       	mul	r24, r25
- 390:	81 2d       	mov	r24, r1
- 392:	11 24       	eor	r1, r1
- 394:	86 95       	lsr	r24
- 396:	0e 94 5a 01 	call	0x2b4	; 0x2b4 <glitchPlusZero>
- 39a:	08 95       	ret
+ 352:	9b ea       	ldi	r25, 0xAB	; 171
+ 354:	89 9f       	mul	r24, r25
+ 356:	81 2d       	mov	r24, r1
+ 358:	11 24       	eor	r1, r1
+ 35a:	86 95       	lsr	r24
+ 35c:	0e 94 5a 01 	call	0x2b4	; 0x2b4 <glitchPlusZero>
+ 360:	08 95       	ret
 		case 1: glitchPlusOne(offset/OffsetLoopCost); break;
- 39c:	9b ea       	ldi	r25, 0xAB	; 171
- 39e:	89 9f       	mul	r24, r25
- 3a0:	81 2d       	mov	r24, r1
- 3a2:	11 24       	eor	r1, r1
- 3a4:	86 95       	lsr	r24
- 3a6:	0e 94 6f 01 	call	0x2de	; 0x2de <glitchPlusOne>
- 3aa:	08 95       	ret
-		case 2: glitchPlusTwo(offset/OffsetLoopCost); break;
- 3ac:	9b ea       	ldi	r25, 0xAB	; 171
- 3ae:	89 9f       	mul	r24, r25
- 3b0:	81 2d       	mov	r24, r1
- 3b2:	11 24       	eor	r1, r1
- 3b4:	86 95       	lsr	r24
- 3b6:	0e 94 85 01 	call	0x30a	; 0x30a <glitchPlusTwo>
- 3ba:	08 95       	ret
-		case 3: glitchPlusThree(offset/OffsetLoopCost); break;
- 3bc:	9b ea       	ldi	r25, 0xAB	; 171
- 3be:	89 9f       	mul	r24, r25
- 3c0:	81 2d       	mov	r24, r1
- 3c2:	11 24       	eor	r1, r1
- 3c4:	86 95       	lsr	r24
- 3c6:	0e 94 9c 01 	call	0x338	; 0x338 <glitchPlusThree>
- 3ca:	08 95       	ret
+ 362:	9b ea       	ldi	r25, 0xAB	; 171
+ 364:	89 9f       	mul	r24, r25
+ 366:	81 2d       	mov	r24, r1
+ 368:	11 24       	eor	r1, r1
+ 36a:	86 95       	lsr	r24
+ 36c:	0e 94 78 01 	call	0x2f0	; 0x2f0 <glitchPlusOne>
+ 370:	08 95       	ret
+		case 2: glitchPlusZero(offset/OffsetLoopCost); break;
+ 372:	9b ea       	ldi	r25, 0xAB	; 171
+ 374:	89 9f       	mul	r24, r25
+ 376:	81 2d       	mov	r24, r1
+ 378:	11 24       	eor	r1, r1
+ 37a:	86 95       	lsr	r24
+ 37c:	0e 94 5a 01 	call	0x2b4	; 0x2b4 <glitchPlusZero>
+ 380:	08 95       	ret
+		case 3: glitchPlusOne(offset/OffsetLoopCost); break;
+ 382:	9b ea       	ldi	r25, 0xAB	; 171
+ 384:	89 9f       	mul	r24, r25
+ 386:	81 2d       	mov	r24, r1
+ 388:	11 24       	eor	r1, r1
+ 38a:	86 95       	lsr	r24
+ 38c:	0e 94 78 01 	call	0x2f0	; 0x2f0 <glitchPlusOne>
+ 390:	08 95       	ret
 
-000003cc <glitchExplorer>:
+00000392 <glitchExplorer>:
 
 void glitchExplorer(void) {
 	uint8_t offset;
 	uint8_t o;
 	
-	PORTB.DIRCLR = PIN1_bm | PIN2_bm; // only pins A0, A1 to input, rest left out
- 3cc:	e0 e2       	ldi	r30, 0x20	; 32
- 3ce:	f6 e0       	ldi	r31, 0x06	; 6
- 3d0:	86 e0       	ldi	r24, 0x06	; 6
- 3d2:	82 83       	std	Z+2, r24	; 0x02
-	PORTB.PIN1CTRL = PORT_OPC_PULLDOWN_gc;
- 3d4:	80 e1       	ldi	r24, 0x10	; 16
- 3d6:	81 8b       	std	Z+17, r24	; 0x11
-	PORTB.PIN2CTRL = PORT_OPC_PULLDOWN_gc;
- 3d8:	82 8b       	std	Z+18, r24	; 0x12
+	PORTB.DIRCLR = PIN1_bm | PIN2_bm; // only pins B0, B1 to input, rest left out
+ 392:	86 e0       	ldi	r24, 0x06	; 6
+ 394:	80 93 22 06 	sts	0x0622, r24	; 0x800622 <__TEXT_REGION_LENGTH__+0x700622>
 
-	PORTB.DIRSET = PIN0_bm; // set pin B0 to input
- 3da:	91 e0       	ldi	r25, 0x01	; 1
- 3dc:	91 83       	std	Z+1, r25	; 0x01
-	PORTB.PIN0CTRL = PORT_OPC_PULLDOWN_gc;
- 3de:	80 8b       	std	Z+16, r24	; 0x10
-	PORTB.OUTCLR = PIN0_bm;
- 3e0:	96 83       	std	Z+6, r25	; 0x06
-		
+	PORTE.OUTCLR = PIN0_bm;
+ 398:	e0 e8       	ldi	r30, 0x80	; 128
+ 39a:	f6 e0       	ldi	r31, 0x06	; 6
+ 39c:	81 e0       	ldi	r24, 0x01	; 1
+ 39e:	86 83       	std	Z+6, r24	; 0x06
+	PORTE.DIRSET = PIN0_bm; // set pin E0 to output
+ 3a0:	81 83       	std	Z+1, r24	; 0x01
+			
 	serial_puts("I'm waiting on you\n");
- 3e2:	80 e0       	ldi	r24, 0x00	; 0
- 3e4:	90 e2       	ldi	r25, 0x20	; 32
- 3e6:	0e 94 33 01 	call	0x266	; 0x266 <serial_puts>
-	for (o=1; ; o++) {
- 3ea:	c1 e0       	ldi	r28, 0x01	; 1
-		MarkerWarning();
-		if (o%2 == 1) {
+ 3a2:	80 e0       	ldi	r24, 0x00	; 0
+ 3a4:	90 e2       	ldi	r25, 0x20	; 32
+ 3a6:	0e 94 33 01 	call	0x266	; 0x266 <serial_puts>
 			offset = ConfiguredOffset + ConfiguredDelta * (o/2);
 			} else {
 			offset = ConfiguredOffset - ConfiguredDelta * (o/2);
- 3ec:	da e3       	ldi	r29, 0x3A	; 58
-	PORTB.OUTCLR = PIN0_bm;
-		
-	serial_puts("I'm waiting on you\n");
-	for (o=1; ; o++) {
-		MarkerWarning();
-		if (o%2 == 1) {
- 3ee:	c0 ff       	sbrs	r28, 0
- 3f0:	04 c0       	rjmp	.+8      	; 0x3fa <glitchExplorer+0x2e>
-			offset = ConfiguredOffset + ConfiguredDelta * (o/2);
- 3f2:	8c 2f       	mov	r24, r28
- 3f4:	86 95       	lsr	r24
- 3f6:	86 5c       	subi	r24, 0xC6	; 198
- 3f8:	05 c0       	rjmp	.+10     	; 0x404 <__LOCK_REGION_LENGTH__+0x4>
-			} else {
-			offset = ConfiguredOffset - ConfiguredDelta * (o/2);
- 3fa:	8c 2f       	mov	r24, r28
- 3fc:	86 95       	lsr	r24
- 3fe:	2d 2f       	mov	r18, r29
- 400:	28 1b       	sub	r18, r24
- 402:	82 2f       	mov	r24, r18
 		}
 		if (offset < 1) continue;
- 404:	88 23       	and	r24, r24
- 406:	79 f0       	breq	.+30     	; 0x426 <__LOCK_REGION_LENGTH__+0x26>
 		glitch(offset);
- 408:	0e 94 b4 01 	call	0x368	; 0x368 <glitch>
+ 3aa:	80 e3       	ldi	r24, 0x30	; 48
+ 3ac:	0e 94 97 01 	call	0x32e	; 0x32e <glitch>
 		serial_puts("glitch sent\n");
- 40c:	84 e1       	ldi	r24, 0x14	; 20
- 40e:	90 e2       	ldi	r25, 0x20	; 32
- 410:	0e 94 33 01 	call	0x266	; 0x266 <serial_puts>
+ 3b0:	84 e1       	ldi	r24, 0x14	; 20
+ 3b2:	90 e2       	ldi	r25, 0x20	; 32
+ 3b4:	0e 94 33 01 	call	0x266	; 0x266 <serial_puts>
 	#else
 		//round up by default
 		__ticks_dc = (uint32_t)(ceil(fabs(__tmp)));
 	#endif
 
 	__builtin_avr_delay_cycles(__ticks_dc);
- 414:	8f e7       	ldi	r24, 0x7F	; 127
- 416:	98 ec       	ldi	r25, 0xC8	; 200
- 418:	26 e6       	ldi	r18, 0x66	; 102
- 41a:	81 50       	subi	r24, 0x01	; 1
- 41c:	90 40       	sbci	r25, 0x00	; 0
- 41e:	20 40       	sbci	r18, 0x00	; 0
- 420:	e1 f7       	brne	.-8      	; 0x41a <__LOCK_REGION_LENGTH__+0x1a>
- 422:	00 c0       	rjmp	.+0      	; 0x424 <__LOCK_REGION_LENGTH__+0x24>
- 424:	00 00       	nop
-	PORTB.DIRSET = PIN0_bm; // set pin B0 to input
-	PORTB.PIN0CTRL = PORT_OPC_PULLDOWN_gc;
-	PORTB.OUTCLR = PIN0_bm;
-		
-	serial_puts("I'm waiting on you\n");
-	for (o=1; ; o++) {
- 426:	cf 5f       	subi	r28, 0xFF	; 255
-		}
-		if (offset < 1) continue;
-		glitch(offset);
-		serial_puts("glitch sent\n");
+ 3b8:	2f e7       	ldi	r18, 0x7F	; 127
+ 3ba:	88 ec       	ldi	r24, 0xC8	; 200
+ 3bc:	96 e6       	ldi	r25, 0x66	; 102
+ 3be:	21 50       	subi	r18, 0x01	; 1
+ 3c0:	80 40       	sbci	r24, 0x00	; 0
+ 3c2:	90 40       	sbci	r25, 0x00	; 0
+ 3c4:	e1 f7       	brne	.-8      	; 0x3be <glitchExplorer+0x2c>
+ 3c6:	00 c0       	rjmp	.+0      	; 0x3c8 <glitchExplorer+0x36>
+ 3c8:	00 00       	nop
+ 3ca:	ef cf       	rjmp	.-34     	; 0x3aa <glitchExplorer+0x18>
+
+000003cc <main>:
 		_delay_ms(1000);
 	}
- 428:	e2 cf       	rjmp	.-60     	; 0x3ee <glitchExplorer+0x22>
-
-0000042a <main>:
 }
 
 int main(void) {
 	setup_clock();
- 42a:	0e 94 45 01 	call	0x28a	; 0x28a <setup_clock>
+ 3cc:	0e 94 45 01 	call	0x28a	; 0x28a <setup_clock>
 	serial_init();
- 42e:	0e 94 19 01 	call	0x232	; 0x232 <serial_init>
-	if (ConfiguredOffset<=0 || ConfiguredDelta<=0) {
+ 3d0:	0e 94 19 01 	call	0x232	; 0x232 <serial_init>
+	if (ConfiguredOffset<=0 || ConfiguredDelta<0) {
 		serial_puts("Invalid parameters!\n");
 		while(1);
 	}
 	
 	glitchExplorer();
- 432:	0e 94 e6 01 	call	0x3cc	; 0x3cc <glitchExplorer>
+ 3d4:	0e 94 c9 01 	call	0x392	; 0x392 <glitchExplorer>
 
-00000436 <_exit>:
- 436:	f8 94       	cli
+000003d8 <_exit>:
+ 3d8:	f8 94       	cli
 
-00000438 <__stop_program>:
- 438:	ff cf       	rjmp	.-2      	; 0x438 <__stop_program>
+000003da <__stop_program>:
+ 3da:	ff cf       	rjmp	.-2      	; 0x3da <__stop_program>

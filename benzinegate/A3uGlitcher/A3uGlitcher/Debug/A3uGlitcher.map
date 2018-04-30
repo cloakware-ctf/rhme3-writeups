@@ -14,11 +14,15 @@ Discarded input sections
  .bss           0x00000000        0x0 main.o
  .text.usart_recv_byte
                 0x00000000       0x1a main.o
+ .text.glitchPlusTwo
+                0x00000000       0x40 main.o
+ .text.glitchPlusThree
+                0x00000000       0x42 main.o
+ .rodata.ConfiguredOffset
+                0x00000000        0x1 main.o
  .rodata.OffsetLoopCost
                 0x00000000        0x1 main.o
  .rodata.ConfiguredDelta
-                0x00000000        0x1 main.o
- .rodata.ConfiguredOffset
                 0x00000000        0x1 main.o
  .text          0x00000000        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
  .data          0x00000000        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
@@ -176,7 +180,7 @@ END GROUP
 .rela.plt
  *(.rela.plt)
 
-.text           0x00000000      0x43a
+.text           0x00000000      0x3dc
  *(.vectors)
  .vectors       0x00000000      0x1fc C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/XMEGAA_DFP/1.1.68/gcc/dev/atxmega128a3u/avrxmega6/crtatxmega128a3u.o
                 0x00000000                __vector_default
@@ -375,29 +379,23 @@ END GROUP
                 0x0000028a       0x2a main.o
                 0x0000028a                setup_clock
  .text.glitchPlusZero
-                0x000002b4       0x2a main.o
+                0x000002b4       0x3c main.o
                 0x000002b4                glitchPlusZero
  .text.glitchPlusOne
-                0x000002de       0x2c main.o
-                0x000002de                glitchPlusOne
- .text.glitchPlusTwo
-                0x0000030a       0x2e main.o
-                0x0000030a                glitchPlusTwo
- .text.glitchPlusThree
-                0x00000338       0x30 main.o
-                0x00000338                glitchPlusThree
- .text.glitch   0x00000368       0x64 main.o
-                0x00000368                glitch
+                0x000002f0       0x3e main.o
+                0x000002f0                glitchPlusOne
+ .text.glitch   0x0000032e       0x64 main.o
+                0x0000032e                glitch
  .text.glitchExplorer
-                0x000003cc       0x5e main.o
-                0x000003cc                glitchExplorer
- .text.main     0x0000042a        0xc main.o
-                0x0000042a                main
-                0x00000436                . = ALIGN (0x2)
+                0x00000392       0x3a main.o
+                0x00000392                glitchExplorer
+ .text.main     0x000003cc        0xc main.o
+                0x000003cc                main
+                0x000003d8                . = ALIGN (0x2)
  *(.fini9)
- .fini9         0x00000436        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
-                0x00000436                _exit
-                0x00000436                exit
+ .fini9         0x000003d8        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
+                0x000003d8                _exit
+                0x000003d8                exit
  *(.fini9)
  *(.fini8)
  *(.fini8)
@@ -416,11 +414,11 @@ END GROUP
  *(.fini1)
  *(.fini1)
  *(.fini0)
- .fini0         0x00000436        0x4 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
+ .fini0         0x000003d8        0x4 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avrxmega6\libgcc.a(_exit.o)
  *(.fini0)
-                0x0000043a                _etext = .
+                0x000003dc                _etext = .
 
-.data           0x00802000       0x22 load address 0x0000043a
+.data           0x00802000       0x22 load address 0x000003dc
                 0x00802000                PROVIDE (__data_start, .)
  *(.data)
  *(.data*)
@@ -441,8 +439,8 @@ END GROUP
  *(.bss*)
  *(COMMON)
                 [!provide]                PROVIDE (__bss_end, .)
-                0x0000043a                __data_load_start = LOADADDR (.data)
-                0x0000045c                __data_load_end = (__data_load_start + SIZEOF (.data))
+                0x000003dc                __data_load_start = LOADADDR (.data)
+                0x000003fe                __data_load_end = (__data_load_start + SIZEOF (.data))
 
 .noinit         0x00802022        0x0
                 [!provide]                PROVIDE (__noinit_start, .)
@@ -521,34 +519,34 @@ END GROUP
 .debug_pubnames
  *(.debug_pubnames)
 
-.debug_info     0x00000000     0x3b82
+.debug_info     0x00000000     0x3b46
  *(.debug_info .gnu.linkonce.wi.*)
  .debug_info    0x00000000     0x3409 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/XMEGAA_DFP/1.1.68/gcc/dev/atxmega128a3u/avrxmega6/crtatxmega128a3u.o
- .debug_info    0x00003409      0x779 main.o
+ .debug_info    0x00003409      0x73d main.o
 
-.debug_abbrev   0x00000000     0x3372
+.debug_abbrev   0x00000000     0x3388
  *(.debug_abbrev)
  .debug_abbrev  0x00000000     0x3148 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/XMEGAA_DFP/1.1.68/gcc/dev/atxmega128a3u/avrxmega6/crtatxmega128a3u.o
- .debug_abbrev  0x00003148      0x22a main.o
+ .debug_abbrev  0x00003148      0x240 main.o
 
-.debug_line     0x00000000      0x7ff
+.debug_line     0x00000000      0x833
  *(.debug_line .debug_line.* .debug_line_end)
  .debug_line    0x00000000      0x39d C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/XMEGAA_DFP/1.1.68/gcc/dev/atxmega128a3u/avrxmega6/crtatxmega128a3u.o
- .debug_line    0x0000039d      0x462 main.o
+ .debug_line    0x0000039d      0x496 main.o
 
 .debug_frame    0x00000000       0xe8
  *(.debug_frame)
  .debug_frame   0x00000000       0xe8 main.o
 
-.debug_str      0x00000000     0x2869
+.debug_str      0x00000000     0x279a
  *(.debug_str)
  .debug_str     0x00000000     0x223b C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/XMEGAA_DFP/1.1.68/gcc/dev/atxmega128a3u/avrxmega6/crtatxmega128a3u.o
- .debug_str     0x0000223b      0x62e main.o
-                                0x678 (size before relaxing)
+ .debug_str     0x0000223b      0x55f main.o
+                                0x5a9 (size before relaxing)
 
-.debug_loc      0x00000000      0x243
+.debug_loc      0x00000000      0x1be
  *(.debug_loc)
- .debug_loc     0x00000000      0x243 main.o
+ .debug_loc     0x00000000      0x1be main.o
 
 .debug_macinfo
  *(.debug_macinfo)
