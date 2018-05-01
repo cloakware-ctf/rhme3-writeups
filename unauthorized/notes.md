@@ -60,9 +60,9 @@ RAM:183A                                         ; fn ptr ptr to print flag func
 
 Maybe part of the challenge is to get the challenge binary to print or otherwise load this function address and jump to it.
 
-I got an updated *full compromise* idb from jonathan and used bindiff to import some function names.
+I got an updated *full compromise* idb from Jonathan and used bindiff to import some function names.
 
-I poked aruond the write eeprom functions and noticed that detect fault injection is writing a flag to address 0 of the eeprom.
+I poked around the write eeprom functions and noticed that detect fault injection is writing a flag to address 0 of the eeprom.
 
 I found also that what was marked as eeprom_mapen is actually implementing a read of eeprom address
 
@@ -76,7 +76,7 @@ When we supply input, it wants the line to be of the form `[name_length]:[passwo
 
 ## Subi Subci
 
-Not really sure about this AVR construct; there is a mix of places in the code where carry is handled in subtraction of immeadiates from 16bit vairables stored in pairs of registers. Sometimes with a `subci -1` like below; sometimes not. I'm guess that the net effect is as I marked up in the comments but I can't convince myself that it is
+Not really sure about this AVR construct; there is a mix of places in the code where carry is handled in subtraction of immediates from 16bit variables stored in pairs of registers. Sometimes with a `subci -1` like below; sometimes not. I'm guess that the net effect is as I marked up in the comments but I can't convince myself that it is
 
 ```
 movw    r22, YL
@@ -220,7 +220,7 @@ This function is called by the `parse_and_maybe_set_flag_printer` function above
 
 # Back at it
 
-Imported 6 or so functions from jonathan's work in the other challenges
+Imported 6 or so functions from Jonathan's work in the other challenges
 
 ## `parse_and_maybe_set_flag_printer`
 
@@ -382,6 +382,200 @@ setup_100_structs_and_one_backdoor() {
 	memcpy(mallocd_ptr + 99 * 34 + 32, 'backdoor', 9);
 
 }
+
+## Disassembly
+```c
+char copied_array[32] = {
+	0x55, 0x03, 0x0C, 0x34, 0x9F, 0xC9, 0x5E, 0x13,
+	0x85, 0x93, 0x5E, 0xA2, 0x33, 0x66, 0xB5, 0xA9,
+	0x99, 0x45, 0xD8, 0xBF, 0x35, 0xD3, 0x72, 0xC3,
+	0xAA, 0x72, 0x2B, 0xB9, 0x74, 0x92, 0xCA, 0x26
+}
+
+void setup_100_structs_and_one_backdoor(void) {
+	char y1;        // Y+1
+	char arg_0[32]; // Y+2..33 - end of frame
+
+	starts_at_100 = 100;
+	mallocd_ptr = malloc(starts_at_100 * 34);
+	for (y1 = 0; y1 < starts_at_100; y1++) {
+		Z = mallocd_ptr[y1 * 34];
+		Z[32:33] = NULL;
+	}
+	starts_at_99 = 99;
+	for (r24 = 32; r24 != 0; r24--) {
+		arg_0[r24] = copied_array[r24];
+	}
+	for (r24 = 32; r24 != 0; r24--) {
+		mallocd_ptr[starts_at_99*34 + r24] = arg_0[r24];
+	}
+
+	Z = mallocd_ptr[starts_at_99 * 34]
+	Z[32:33] = malloc(9);
+	for (r18 = 9; r18 != 0; r18--) {
+		Z[32:33][r18] = "backdoor"[r18];
+	}
+}
+
+char parse_and_maybe_set_flag_printer(char *input) {
+	// stack frame 76
+	char rop_check; // alias saved_position
+	long first_digit; // "digit" is a misnomer, should be first number
+	long second_digit; // "digit" is a misnomer, should be second number
+	// input is shadowed at Y+0x4b..0x4c
+
+	rx16 = $sp;
+	first_colon = strchr(input, ':');
+	if (first_colon == NULL) return -1;
+	second_colon = strchr(first_colon, ':');
+	if (second_colon == NULL) return -1;
+	rx14 = $sp;
+	next_dash = strchr(input, '-');
+	if (next_dash != NULL && next_dash < second_colon) return -1;
+
+	/* first block */ {
+		first_colon_distance = first_colon - input;
+		weird_thing = (first_colon_distance < 0); // length overflow test?
+		other_thing = (short)((long)first_colon_distance + 1) - 1;
+		first_colon_buffer = stack_alloc(first_colon_distance + 1);
+
+		distance_between_colons = second_colon - first_colon - 1;
+		// repeat of the BS above
+		second_colon_buffer = stack_alloc(first_colon_distance + 1);
+
+		memcpy(first_colon_buffer, input, first_colon_distance);
+		first_colon_buffer[first_colon_distance] = '\0';
+		first_digit = strtol(first_colon_buffer, &place_1, 10);
+
+		memcpy(second_colon_buffer, first_colon, distance_between_colons);
+		second_colon_buffer[distance_between_colons] = '\0';
+		second_digit = strtol(second_colon_buffer, &place_1, 10);
+	}
+	// if (rop_check != 0x1f) die_and_remember();
+	/* second block */ {
+		second_digit_less_one = (short)second_digit - 1;
+		later_buffer = stack_alloc( (short)second_digit );
+		first_digit_less_one = (short)first_digit - 1;
+		name_field_buffer = stack_alloc( (short)first_digit );
+
+		memcpy(name_field_buffer, input[first_colon_distance + distance_between_colons + 2], (short)first_digit);
+	}
+	// if (rop_check != 0x3f) die_and_remember();
+
+	for (y1 = starts_at_100; y1 > 0; y1--) {
+		// rop_check = 0;
+		Z = mallocd_ptr[y1 * 34];
+		if (Z[32:33] == NULL) continue;
+		if (first_digit != (long)strlen(Z[32:33])) continue;
+		if (0 != strncmp(Z[32:33], name_field_buffer, first_digit)) continue;
+		// if (rop_check != 0x0) die_and_remember();
+
+		// rop_check += 1
+		memcpy(later_buffer, input[first_colon_distance + distance_between_colons + 2 + first_digit], (short)second_digit);
+		// rop_check += 1
+		prob_sha256_pbkdf(hash, later_buffer, (long)second_digit*8);
+		// rop_check += 1
+		if (rop_check == 0x3 && 0 == strncmp(mallocd_ptr[y1*34], hash, 32)) {
+			be_150_or_die_rng_artefact = 18+150;
+		}
+		// rop_check += 1
+		// if (rop_check != 4) return 2; // bad password
+		if (0 != strncmp(mallocd_ptr[y1*34], hash, 32)) return 2; // bad password
+		// rop_check += 1
+		// if (rop_check != 5) die_and_remember();
+		be_150_or_die_rng_artefact -= 18;
+		fn_ptr_ptr_for_247A = *usart_send_byte_USARTC0;
+		return 1;
+	}
+
+	return 0; // unknown user
+}
+
+void main(void) {
+	// stack frame: 231
+	char y1[14];   // Y+0x1..0xe
+	char y15[14];  // Y+0xf..0x1c
+	char checks;   // Y+0x1d
+	char mask;     // Y+0x1e
+	char y1f[200]; // Y+0x1f..0xe6
+	char result;   // Y+0xe7
+
+	// bunch of init
+	printf("Initializing...");
+	// bunch of RNG tests
+	printf("Initialized");
+	setup_100_structs_and_one_backdoor();
+	mask = 0;
+
+	while (true) {
+		read_str_until(y1f, 200);
+		result = parse_and_maybe_set_flag_printer(y1f);
+		if (result==1) {
+			if (be_150_or_die_rng_artefact != 150) die();
+			mask = 0xff;
+			// if (checks!=7) die_and_remember();
+			set_flag_mask(mask);
+			// if (checks!=0xf) die_and_remember();
+		}
+		if (result==255) {
+			printf("Expected format: [name_length]:[password_length]:[name][password");
+		} else if (result==0) {
+			printf("Unknown user!");
+		} else if (result==2) {
+			printf("Wrong password!");
+		} else if (result==1) {
+			if (be_150_or_die_rng_artefact != 150) die();
+			printf("Your flag is:");
+			// if (checks!=0x3f) die_and_remember();
+			// if (checks!=0x3f) die_and_remember();
+			// if (result!=1) die_and_remember();
+			demask_and_print_flag();
+			return 0;
+		}
+	}
+}
+```
+
+## More Disassembly: crypto
+```c
+void prob_sha256_pbkdf(char *hash, char *buffer, long lenT8) {
+	// stack frame 44
+	char state[36];   // Y+0x01..0x24
+	char *hash;    // Y+0x25..0x26
+	char *buffer;  // Y+0x27..0x28
+	long lenT8;    // Y+0x29..0x2c -- end of frame
+	sha256_init_state(state); // h0, 0x00000000
+	while (true) {
+		erx24 = lenT8;
+		if (lenT8 >= 0x200) { // length >= 64
+			sub_b46(state, buffer);
+			buffer += 0x40;
+			lenT8 -= 0x200;
+		} else {
+			sub_ed3(state, lenT8);
+			sub_1110(hash, state);
+			return;
+		}
+	}
+}
+```
+
+## Simulation
+break:
+	0x09f4: read_str_until
+		- buffer at rx22 == 0x3f32,200
+	0x184e: usart_print
+		- buffer at rx22
+	0x10c3: prob_sha256_pbkdf
+		- below
+	0x0810: in parse_and_maybe_set_flag_printer, delivery
+
+Delays:
+	time between "Initializing..." and "Initialized"
+	too slow patching out:
+	0x26da: cf93 -> 0895: jj_test_rng_rx24_times
+	0x2b84: ff92 -> 0895: prob_more_rng_tests
+	0x08da: cf93 -> 0895: get_valid_rand
 
 ## Transcript of exploitation:
 ```sh
