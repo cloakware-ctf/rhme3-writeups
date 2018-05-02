@@ -105,6 +105,7 @@ fputc
 	eicall
 
 ## Decompilation
+### Stuff
 ```c
 Note: ROM:0x3bf is left on stack
 void init_flag_array_89bb(void) {
@@ -182,8 +183,8 @@ char load_default_cert_4eea(void) {
 }
 ```
 
+### Main Loop
 ```c
-/*** MAIN LOOP *******************************************************/
 
 void main_loop_2c8b(void) {
 	// stack frame: 0x22 -> 34
@@ -452,8 +453,8 @@ void generate_session_key_2b8a(void* arg0) {
 }
 ```
 
+### EEPROM
 ```c
-/*** EEPROM **********************************************************/
 void eeprom_process_msg_1094(char* buffer, short arg1) {
 	char y1 = 0x87;
 	// buffer is at Y+2..3
@@ -739,7 +740,7 @@ char eeprom_write_arbitrary_block_ca3(char *data, void *eeprom_addr, short lengt
 }
 
 char eeprom_valid_addr_len_be1(void *eeprom_addr, short length) {
-	char check;     // Y+1 -- initiall 0x25, later 0x52
+	char check;     // Y+1 -- initial 0x25, later 0x52
 	char ret;       // Y+2
 	// eeprom_addr at  Y+3..4
 	// length is at    Y+5..6
@@ -760,8 +761,8 @@ char eeprom_valid_addr_len_be1(void *eeprom_addr, short length) {
 }
 ```
 
+### SUB 2720 and friends
 ```c
-/*** SUB 2720 ********************************************************/
 
 short sub_2720(char* arg0) {
 	// stack frame: 0x1c / 28
@@ -874,8 +875,8 @@ char sub_296d(char *arg0, char arg1) {
 }
 ```
 
+### Interrupts
 ```c
-/*** INTERRUPTS ******************************************************/
 
 void INT0_(void) {
 	portb_output_set_74c7();
@@ -918,8 +919,8 @@ void sub_7904(char *arg) {
 }
 ```
 
+### Miscellaneous
 ```c
-/*** OTHER ***********************************************************/
 
 sub_2d64(char arg0[]) {
 	char i;  // Y+1
@@ -979,8 +980,8 @@ void print_flag_8bb8( void(*usartC0_send_byte)(unsigned char) ) {
 }
 ```
 
+### Overflow
 ```c
-/*** OVERFLOW ********************************************************/
 
 void cert_mask_flag_4de4(void) {
 	// stack frame 0x114
@@ -1031,7 +1032,7 @@ void init_eeprom_certs_65c1(void) {
     memset(y5, 0, 16);
 	eeprom_read_block(y5, 0x1028, 16); // session key?
 	memset(y15, 0xff, 16);
-	if (strncmp(y5, y15, 16)) return; // already initalized
+	if (strncmp(y5, y15, 16)) return; // already initialized
 	if (blah blah blah) remember_and_die();
 	cert_mask_flag_4de4();
 	cert_load_and_check_63e0();
@@ -1153,7 +1154,7 @@ char cert_check_abba_6252(char buffer[100]) {
 }
 ```
 
-Structs:
+### Structs
 ```c
 struct canframe {
 	char:4  nibble1; // 1 -> multipart message
@@ -1223,7 +1224,7 @@ Neither of those are referenced...
 Possible inroads:
 	- look at all EEPROM sites, might be able to learn something
 		- script based on 0x101??? comments?
-	- we have a some printf()s related to message recipt -> backtrace
+	- we have a some printf()s related to message receipt -> backtrace
 	- look for overflows: memcpy, memmove, printf
 		- also general search for X+, Y+, Z+
 		- nope, too many to just check them all out
@@ -1304,7 +1305,6 @@ I need the Eth root of Challenge.
 First step: factoring:
 	Modulus is 39971 * 69493
 	Euler's totient phi(m) is 2777595240
-
 
 I've seen this one before...
 Reference: http://www.oxfordmathcenter.com/drupal7/node/179, with: x->r / k->e / b->c
@@ -1597,7 +1597,7 @@ Reading the MCP25625 data sheet, the way it works is we drop the chip-select lin
 Notable Commands:
 	0x03 Read
 	0x02 Write -- arg0 is address, arg1..n are data. If n>1 arg0 is incremented for each
-	0x05 Bit Modify -- arg0 is addres, arg1 is register mask, arg2 is byte
+	0x05 Bit Modify -- arg0 is address, arg1 is register mask, arg2 is byte
 
 Actual Commands:
 	0x02 0x0f 0x80                 Write CANCTRL set configuration
@@ -1632,7 +1632,7 @@ How fast is a clock? Possible external oscillator, on pin 20,21
 
 So, we know:
 	1. bitrate is 100 kHz
-	2. I need ot use a CAN id of 0x665
+	2. I need to use a CAN id of 0x665
 
 Try it:
 ```
@@ -1720,7 +1720,7 @@ The message I've seen started with `10 25`, then fragments labelled `21` .. `25`
 What we don't know:
 	- how can messages get turned into frames -> frame_read_25a0
 	- first 8 bytes of canframe are straight from CANBUS frame
-	- the "short" is wierd, return value from 2720, sometimes 0x500, or 0x0, appears to be SID
+	- the "short" is weird, return value from 2720, sometimes 0x500, or 0x0, appears to be SID
 	- last nibble is the number of live data bytes, counting from the beginning
 
 What we know:
