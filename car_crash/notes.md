@@ -1,4 +1,9 @@
 
+## Car Crash
+This ECU firmware dump, or what's left of it, was taken out of a crashed prototype car. We have to extract the logs from it to investigate the crash. Bad luck, we get some strange garbage printed instead.
+
+Attached is a program you can reverse-engineer and a program you can test. Don't mix them up.
+
 ## General Reversing
 ### Prologues and Epilogues
 Prologue:
@@ -23,8 +28,6 @@ Prologue:
 		* sbox is used in `block_decrypt_702()`
 		* inverse_sbox_102010 is used in `block_encrypt_568()`
 		* later is uncalled, so need to change the call at `93c / 1278` to point to `0568`... no dice.
-		
-	
 
 ## .data
 Common:
@@ -44,9 +47,6 @@ Unusual:
 	key_102268 -- 32 bytes of key
 	some more strings
 	known_102308 -- 240 bytes of ciphertext
-	
-	
-
 
 ## Reversing
 ```c
@@ -149,7 +149,7 @@ void decrypt_data_8f1(char buffer[241], short length) {
 	// alloc 0xc6 on stack
 	short i;            // Y+1
 	char schedule[160]; // Y+3      -- 0x3d3c
-	char array[32];     // Y[0xa3]  -- 
+	char array[32];     // Y[0xa3]  --
 	char** buffer;      // Y[0xc3]  -- 0x3e0a
 	short* length;       // Y[0xc5]
 
@@ -168,12 +168,9 @@ void key_schedule_207(char schedule[160], char key[32]) {
 	short i = 0;           // Y+3
 	short unk1 = schedule; // Y+6
 	for (i=0; i<16; i++) {
-
-
-
+		// TODO -- decompile
 	}
-
-	// XXX
+	// TODO -- decompile
 	calls sub_155()
 	calls sub_155()
 }
@@ -326,4 +323,9 @@ Actual Board -- Post-decrypt:
 	ea 34 06 ad 06 3c ef 05  70 ed 3f 46 31 b5 e1 3a
 	5e 8a 13 e7 6c a9 05 c6  ba 7c 20 f1 68
 (likely premature null-termination due to bad decrypt)
+
+## Plan
+	1. Take the decompilation above, make it actually compile
+	2. Compare it's actions with those of the simulator to debug
+	3. Fix the C.
 
