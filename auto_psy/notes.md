@@ -499,6 +499,14 @@ Examples:
 	- possibly it tracks number of attempts and you'd need to reset if exceeded
 
 What we have might be a custom variant
+### Online References
+https://hackaday.com/2013/10/29/can-hacking-protocols/
+	- service ids
+	- CAN frame format
+https://automotiveembeddedsite.wordpress.com/uds/
+	- more details
+https://en.wikipedia.org/wiki/ISO_15765-2
+	- correct framing rules
 
 ## Can Setup
 ip link show dev can0

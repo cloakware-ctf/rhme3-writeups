@@ -1,3 +1,8 @@
+# This code is to dump a section of firmware, assuming we already have security
+# access. It's "good enough" code, I'm sure I could have refined it, but there
+# wasn't any need. Re-running it until I happened to get clean "uploads" was
+# good enough.
+
 from __future__ import print_function
 import sys
 import can

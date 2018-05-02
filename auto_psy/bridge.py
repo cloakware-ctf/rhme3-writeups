@@ -1,3 +1,6 @@
+# This script bridges two CAN interfaces, so that anything received on one is
+# sent on the other, and vice-versa.
+
 from __future__ import print_function
 import sys
 import can
