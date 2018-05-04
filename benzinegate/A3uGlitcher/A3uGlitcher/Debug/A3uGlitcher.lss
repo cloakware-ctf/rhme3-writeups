@@ -415,7 +415,7 @@ void glitchExplorer(void) {
 		}
 		if (offset < 1) continue;
 		glitch(offset);
- 3aa:	80 e3       	ldi	r24, 0x30	; 48
+ 3aa:	89 e3       	ldi	r24, 0x39	; 57
  3ac:	0e 94 97 01 	call	0x32e	; 0x32e <glitch>
 		serial_puts("glitch sent\n");
  3b0:	84 e1       	ldi	r24, 0x14	; 20

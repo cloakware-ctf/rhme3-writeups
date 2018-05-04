@@ -93,7 +93,7 @@ const uint8_t OffsetLoopCost = 3;
 
 #define NOP() do {__asm__ __volatile__ ("nop");}while(0)
 //const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 11 - 12; // offset in clocks (-11 is constant delay correction)  (-12 is constant correction for driver rise time)
-const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 16 - 5; // offset in clocks (-11 is constant delay correction)  (-8 is constant correction for driver rise time)
+const uint8_t ConfiguredOffset = ((2063 * cyclesPerMS) / 1000000) - 16 + 4; // offset in clocks (-11 is constant delay correction)  (-8 is constant correction for driver rise time)
 #define PULSE(PORT, PIN) do { PORT.OUTSET = PIN; NOP();NOP(); PORT.OUTCLR = PIN; } while(0)
 	
 #define WAIT_FOR_TRIGGER() \
