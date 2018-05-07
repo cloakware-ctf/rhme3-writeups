@@ -1,35 +1,39 @@
 
+## Introduction
+TODO: todo items remain below. (remove this one last)
+TODO: write this section
+
 ## Categories
 ### Reverse Engineering
- 50 Ransom
-150 Ransom 2.0
-250 Full Compromise
-500 Car Crash
+ 50 [Ransom](Ransom and Ransom 2.0)
+150 [Ransom 2.0](Ransom and Ransom 2.0)
+250 [Full Compromise](Full Compromise)
+500 [Car Crash](Car Crash)
 
 ### Exploitation
-100 Unauthorized
-200 Bluetooth Device Manager
-750 Climate Controller Catastrophe
+100 [Unauthorized](Unauthorized)
+200 [Bluetooth Device Manager](Bluetooth Device Manager)
+750 [Climate Controller Catastrophe](Climate Controller Catastrophe)
 
 ### CAN Bus
-150 Can Opener
-250 Back To The Future
-500 Auto-psy
+150 [Can Opener](Can Opener)
+250 [Back To The Future](Back To The Future)
+500 [Auto-psy](Auto-psy)
 
 ### Side Channel Analysis
-200 It's A Kind Of Magic
-350 The Imposters
-500 Random Random Everywhere
+200 [It's A Kind Of Magic](It's A Kind Of Magic)
+350 [The Imposters](The Imposters)
+500 [Random Random Everywhere](Random Random Everywhere)
 
 ### Fault Injection
-300 The Lockdown
-500 Benzinegate
+300 [The Lockdown](The Lockdown)
+500 [Benzinegate](Benzinegate)
 
 ### ¯\_(ツ)_/¯
-100 Race Of A Lifetime
-100 Phonic Frenzy 1
-200 Phonic Frenzy 2
-500 Car Key Fob Hardware Backdoor
+100 [Race Of A Lifetime](Race Of A Lifetime)
+100 [Phonic Frenzy 1](Phonic Frenzy 1)
+200 [Phonic Frenzy 2](Phonic Frenzy 2)
+500 [Car Key Fob Hardware Backdoor](Car Key Fob Hardware Backdoor)
 
 ## Reverse Engineering
 [How to use the IDA scripts](atxmega128a4u/scripts/README.md)
@@ -97,7 +101,7 @@ We have a simple command interface. Using it, we can print out the encrypted log
 
 Reversing quickly showed the existence of an unreferenced pair for the "decryption" function, meaning that the binary contains both encrypt and decrypt. I didn't recognize the algorithm, so I converted the disassembly into C, wrote a wrapper for it, and fixed it up so it built and ran. [Source](car_crash/crash.cc).
 
-It didn't quite work at first, so I fired up the simulator, my code in gdb, and ran the two side-by-side and fixed my code to match the simulator. I did the same for the unused crypto function, by just moving $pc in the simulator. Once I had an identically working copy in C, I reverse that instead of the AVR code.
+It didn't quite work at first, so I fired up the simulator, my code in gdb, and ran the two side-by-side and fixed my code to match the simulator. I did the same for the unused crypto function, by moving $pc in the simulator. Once I had an identically working copy in C, I reverse that instead of the AVR code.
 
 Using a known plaintext, I reduced the algorithm to a single round, and printed all intermediates. I saw that in a round-trip, my plaintext->ciphertext->plaintext sequence diverged after the sbox step of decryption. Then I saw that some entries in the `inverse_sbox_102110[]` had been zeroed. Fixing that is trivial given the forward sbox, and immediately produced a clear decrypt of the logs.
 
@@ -117,7 +121,7 @@ With this understanding in place, we went looking for a place to exploit. The on
   3. `alloca()` space for the username, `memcpy()` it over, and search the list for a match.
   4. If it finds a match, `memcpy()` the password over, hash it and compare.
 
-The code checks whether the numbers we submit are negative, but it doesn't check for int overflows. Which don't match, but gave us the right idea. By claiming the password is unsually long, we can cause the stack to grow until it overlays the heap. With a carefully chosen value, the value we submit as the 'username' will be written to an arbitrary place on the heap.
+The code checks whether the numbers we submit are negative, but it doesn't check for int overflows. Which don't match, but gave us the right idea. By claiming the password is unusually long, we can cause the stack to grow until it overlays the heap. With a carefully chosen value, the value we submit as the 'username' will be written to an arbitrary place on the heap.
 
 Using this, we choose a new password, hash it, and overwrite the backdoor accounts password hash with our hash. Then we log in. Flag.
 
@@ -126,7 +130,7 @@ Using this, we choose a new password, hash it, and overwrite the backdoor accoun
 
 In this challenge, we get to interact with a simple interface that allows us to configure and modify a list of "connected" devices. This challenge took me much longer than it should have, because I didn't pay attention to exact function of the `brcc` and `brcs` opcodes. There's an off-by-one error in the function we named `broken_read_str_until_13b()`. Just from initial analysis we knew that it didn't always null-terminate, but thought that was it.
 
-Also, we read the victory string: "such heap, much pr0!", and guessed that it might be an attack on `malloc()` or `free()`. I'd recently done a challenge where a broken `malloc()` implementation was the target, so I ended up fully reversing both those functions, to no avail. That was dumb. In the context of this challenge, I should have just compared them to the known-good versions in other levels. It's not like Riscure would have deliberately left such a vulnerability in all levels.
+Also, we read the victory string: "such heap, much pr0!", and guessed that it might be an attack on `malloc()` or `free()`. I'd recently done a challenge where a broken `malloc()` implementation was the target, so I ended up fully reversing both those functions, to no avail. That was dumb. In the context of this challenge, I should have compared them to the known-good versions in other levels. It's not like Riscure would have deliberately left such a vulnerability in all levels.
 
 Once we identified the correct vulnerability (the off-by-one error), we realized what that meant. The ability to overflow heap strings means the ability to modify the malloc entries between the heap strings. Details are in the linked notes file, but the summary is:
   1. Create heap strings A, B, C, D
@@ -163,11 +167,33 @@ Result: a board that prints the flag to serial on boot, every boot.
 Funny story: The INT0_ ISR that we used for our first ROP gadget sets `r1` along with so many other variables, and I stuck `0x31` there as a placeholder... code starts to act _real strange_ when you change the value of zero...
 
 ## CAN Bus
+All these challenges, (and [Climate Controller Catastrophe](Climate Controller Catastrophe)) use the CAN interfaces as a primary method of communication with the firmware on the board. The board has two CAN controllers, which are cross-linked through an on-board CAN bus, which is helpfully exposed through the DE9-ready ports near the barrel jack. The CAN controllers are programmed through SPI, which can be sniffed through the high D## ports.
+
+Later on, we cut the traces connecting the two CAN controllers, and plugged a CAN2USB adaptor into each, then used an [ugly python script](TODO back_to_the_future/ugly.py) to bridge the two. This allowed us to isolate them and test them separately, without their cross-chatter interfering. Note that since the whole system of "ECU"s is emulated in software, we need to have a CAN adaptor plugged into each side, or else the board will stop responding.
+
+### Can Opener
+This challenge really is a "CAN opener". The whole challenge is the following three steps:
+  1. Connect to the CAN bus
+  2. Observe one ECU sending regular 0x332 "lock\0\0\0\0" messages
+  3. Send a 0x332 "unlock\0\0" message
+Done.
+
+### Back To The Future
+This challenge relied on the split CAN bus. Without it, conflicting speed messages kept preventing us from pinning the speedometer. If we saturate the bus enough that conflicting messages don't get through, we trip error states. So to pin the speed, we have our bridge script alter every speed message it sees to 88 mph.
+
+That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
+
+### Auto-psy
+TODO
 
 ## Side Channel Analysis
+TODO: about auto-correlation
+TODO: overview
+
+### It's A Kind Of Magic
+### The Imposters
+### Random Random Everywhere
 
 ## Fault Injection
 
 ## :Shruggie:
-
-
