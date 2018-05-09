@@ -5,35 +5,35 @@ TODO: write this section
 
 # Categories
 ## Reverse Engineering
-  *  50 [Ransom](#Ransom and Ransom 2.0)
-  * 150 [Ransom 2.0](#Ransom and Ransom 2.0)
-  * 250 [Full Compromise](#Full Compromise)
-  * 500 [Car Crash](#Car Crash)
+  *  50 [Ransom](#ransom-and-ransom-2.0)
+  * 150 [Ransom 2.0](#ransom-and-ransom-2.0)
+  * 250 [Full Compromise](#full-compromise)
+  * 500 [Car Crash](#car-crash)
 
 ## Exploitation
-  * 100 [Unauthorized](#Unauthorized)
-  * 200 [Bluetooth Device Manager](#Bluetooth Device Manager)
-  * 750 [Climate Controller Catastrophe](#Climate Controller Catastrophe)
+  * 100 [Unauthorized](#unauthorized)
+  * 200 [Bluetooth Device Manager](#bluetooth-device-manager)
+  * 750 [Climate Controller Catastrophe](#climate-controller-catastrophe)
 
 ## CAN Bus
-  * 150 [Can Opener](#Can Opener)
-  * 250 [Back To The Future](#Back To The Future)
-  * 500 [Auto-psy](#Auto-psy)
+  * 150 [Can Opener](#can-opener)
+  * 250 [Back To The Future](#back-to-the-future)
+  * 500 [Auto-psy](#auto-psy)
 
 ## Side Channel Analysis
-  * 200 [It's A Kind Of Magic](#It's A Kind Of Magic)
-  * 350 [The Imposters](#The Imposters)
-  * 500 [Random Random Everywhere](#Random Random Everywhere)
+  * 200 [It's A Kind Of Magic](#its-a-kind-of-magic)
+  * 350 [The Imposters](#the-imposters)
+  * 500 [Random Random Everywhere](#random-random-everywhere)
 
 ## Fault Injection
-  * 300 [The Lockdown](#The Lockdown)
-  * 500 [Benzinegate](#Benzinegate)
+  * 300 [The Lockdown](#the-lockdown)
+  * 500 [Benzinegate](#benzinegate)
 
 ## `¯\_(#ツ)_/¯`
-  * 100 [Race Of A Lifetime](#Race Of A Lifetime)
-  * 100 [Phonic Frenzy 1](#Phonic Frenzy 1)
-  * 200 [Phonic Frenzy 2](#Phonic Frenzy 2)
-  * 500 [Car Key Fob Hardware Backdoor](#Car Key Fob Hardware Backdoor)
+  * 100 [Race Of A Lifetime](#race-of-a-lifetime)
+  * 100 [Phonic Frenzy 1](#phonic-frenzy-1)
+  * 200 [Phonic Frenzy 2](#phonic-frenzy-2)
+  * 500 [Car Key Fob Hardware Backdoor](#car-key-fob-hardware-backdoor)
 
 # Reverse Engineering
 
@@ -198,7 +198,7 @@ Result: a board that prints the flag to serial on boot, every boot.
 Funny story: The INT0_ ISR that we used for our first ROP gadget sets `r1` along with so many other variables, and I stuck `0x31` there as a placeholder... code starts to act _real strange_ when you change the value of zero...
 
 # CAN Bus
-All these challenges, (and [Climate Controller Catastrophe](#Climate Controller Catastrophe)) use the CAN interfaces as a primary method of communication with the firmware on the board. The board has two CAN controllers, which are cross-linked through an on-board CAN bus, which is helpfully exposed through the DE9-ready ports near the barrel jack. The CAN controllers are programmed through SPI, which can be sniffed through the high D## ports.
+All these challenges, (and [Climate Controller Catastrophe](#climate-controller-catastrophe)) use the CAN interfaces as a primary method of communication with the firmware on the board. The board has two CAN controllers, which are cross-linked through an on-board CAN bus, which is helpfully exposed through the DE9-ready ports near the barrel jack. The CAN controllers are programmed through SPI, which can be sniffed through the high D## ports.
 
 Later on, we cut the traces connecting the two CAN controllers, and plugged a CAN2USB adaptor into each, then used an [ugly python script](back_to_the_future/ugly.py) to bridge the two. This allowed us to isolate them and test them separately, without their cross-chatter interfering. Note that since the whole system of "ECU"s is emulated in software, we need to have a CAN adaptor plugged into each side, or else the board will stop responding.
 
