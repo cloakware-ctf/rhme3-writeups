@@ -1,3 +1,8 @@
+
+## Unauthorized
+Let's do something simple. This media unit has a Wifi access point and looks like remote access is possible. But only if you know the right password.
+
+## Initial Work
 The python (garbage) scripts are doing pretty good right now.
 
 I setup an idb starting with the hex file and auto-analysis disabled.
@@ -86,6 +91,7 @@ sbci    r23, -1         ; buffer = Y+0x1f
 
 ## `parse_and_maybe_set_flag_printer`
 
+```c
 parse_and_maybe_set_flag_printer(input){
 	input: Yx+0x4B
 	first_colon: Yx+2
@@ -178,6 +184,7 @@ parse_and_maybe_set_flag_printer(input){
 	}
 	return ret
 }
+```
 
 ### stack layout
 ...
@@ -187,36 +194,38 @@ later_buffer = X - second_digit_end + 1
 
 This function is called by the `parse_and_maybe_set_flag_printer` function above. At this point I couldn't handle keeping track of `Y+NN` anymore so I wrote a stack-variable making script basing Y as the stack pointer (which avr-gcc appears to use).
 
- get_valid_rand(illegal_rand) {
- 	word last_rand;
- 	for (i=0; i<= 0xff; i++)
- 		last_rand = prob_get_rand();
- 	if (last_rand == illegal_rand) {
- 		illegal_rand = last_rand;
- 		for (i=0; i<0x400; i++) {
- 			last_rand = prob_get_rand();
- 		}
- 		if (last_rand == illegal_rand)
- 			die();
- 	}
- 	if (illegal_rand > 0x21 ) {
- 		illegal_rand =- 0x30;
- 		illegal_rand[H] = -1 * (illegal_rand[L] << 1 - illegal_rand[L] << 1);
- 		illegal_rand[L] = illegal_rand[L] << 2;
- 	}
- 	illegal_rand_copy = illegal_rand;
- 	j=0;
- 	while(j < illegal_rand && illegal_rand_copy != 0) {
- 		busy_mux();
- 		j++;
- 		busy_mux();
- 		illegal_rand_copy--;
- 	}
- 	if (j != illegal_rand || illegal_rand_copy == 0)
- 		die_and_remember();
- 	busy_mux()
- 	return illegal_rand_copy;
- }
+```c
+get_valid_rand(illegal_rand) {
+	word last_rand;
+	for (i=0; i<= 0xff; i++)
+		last_rand = prob_get_rand();
+	if (last_rand == illegal_rand) {
+		illegal_rand = last_rand;
+		for (i=0; i<0x400; i++) {
+			last_rand = prob_get_rand();
+		}
+		if (last_rand == illegal_rand)
+			die();
+	}
+	if (illegal_rand > 0x21 ) {
+		illegal_rand =- 0x30;
+		illegal_rand[H] = -1 * (illegal_rand[L] << 1 - illegal_rand[L] << 1);
+		illegal_rand[L] = illegal_rand[L] << 2;
+	}
+	illegal_rand_copy = illegal_rand;
+	j=0;
+	while(j < illegal_rand && illegal_rand_copy != 0) {
+		busy_mux();
+		j++;
+		busy_mux();
+		illegal_rand_copy--;
+	}
+	if (j != illegal_rand || illegal_rand_copy == 0)
+		die_and_remember();
+	busy_mux();
+	return illegal_rand_copy;
+}
+```
 
 # Back at it
 
@@ -224,6 +233,7 @@ Imported 6 or so functions from Jonathan's work in the other challenges
 
 ## `parse_and_maybe_set_flag_printer`
 
+```c
 parse_and_maybe_set_flag_printer(input){
 	input: Yx+0x4B
 	first_colon: Yx+2
@@ -362,6 +372,7 @@ parse_and_maybe_set_flag_printer(input){
 	}
 	return ret
 }
+```
 
 ## the function that initializes the mallocd_ptr
 

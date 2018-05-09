@@ -1,4 +1,7 @@
 
+## Ransom
+In theory, this firmware mod was supposed to give you 30% extra horsepower and torque. In reality, it's something different.
+
 ## Reversing Functions
 ### main_313
 Init loop calls sub_2b2() 8x times

@@ -1,4 +1,7 @@
 
+## Phonic Frenzy 2
+Hmm, when registering your serial number on the website, you saw that there is also an 'upgraded' version of the infotainment center available with better options for everything! And better yet, apparently the only difference between the two systems is that the upgrade has some kind of wiring harness that needs to be connected to enable the extra functionality. Maybe we can rig up something ourselves in order to unlock this functionality?
+
 ## Overview
 Connect with board over serial, send it your coordinates, go somewhere. If you move too fast, you'll be disqualified, if you go to slow, you won't get there in time.
 

@@ -1,43 +1,43 @@
 
-## Introduction
+# Introduction
 TODO: todo items remain below. (remove this one last)
 TODO: write this section
 
-## Categories
-### Reverse Engineering
- 50 [Ransom](Ransom and Ransom 2.0)
-150 [Ransom 2.0](Ransom and Ransom 2.0)
-250 [Full Compromise](Full Compromise)
-500 [Car Crash](Car Crash)
-
-### Exploitation
-100 [Unauthorized](Unauthorized)
-200 [Bluetooth Device Manager](Bluetooth Device Manager)
-750 [Climate Controller Catastrophe](Climate Controller Catastrophe)
-
-### CAN Bus
-150 [Can Opener](Can Opener)
-250 [Back To The Future](Back To The Future)
-500 [Auto-psy](Auto-psy)
-
-### Side Channel Analysis
-200 [It's A Kind Of Magic](It's A Kind Of Magic)
-350 [The Imposters](The Imposters)
-500 [Random Random Everywhere](Random Random Everywhere)
-
-### Fault Injection
-300 [The Lockdown](The Lockdown)
-500 [Benzinegate](Benzinegate)
-
-### `¯\_(ツ)_/¯`
-100 [Race Of A Lifetime](Race Of A Lifetime)
-100 [Phonic Frenzy 1](Phonic Frenzy 1)
-200 [Phonic Frenzy 2](Phonic Frenzy 2)
-500 [Car Key Fob Hardware Backdoor](Car Key Fob Hardware Backdoor)
-
+# Categories
 ## Reverse Engineering
+  *  50 [Ransom](#Ransom and Ransom 2.0)
+  * 150 [Ransom 2.0](#Ransom and Ransom 2.0)
+  * 250 [Full Compromise](#Full Compromise)
+  * 500 [Car Crash](#Car Crash)
 
-### Bootstrapping XMEGA Static Analysis in IDA Pro
+## Exploitation
+  * 100 [Unauthorized](#Unauthorized)
+  * 200 [Bluetooth Device Manager](#Bluetooth Device Manager)
+  * 750 [Climate Controller Catastrophe](#Climate Controller Catastrophe)
+
+## CAN Bus
+  * 150 [Can Opener](#Can Opener)
+  * 250 [Back To The Future](#Back To The Future)
+  * 500 [Auto-psy](#Auto-psy)
+
+## Side Channel Analysis
+  * 200 [It's A Kind Of Magic](#It's A Kind Of Magic)
+  * 350 [The Imposters](#The Imposters)
+  * 500 [Random Random Everywhere](#Random Random Everywhere)
+
+## Fault Injection
+  * 300 [The Lockdown](#The Lockdown)
+  * 500 [Benzinegate](#Benzinegate)
+
+## `¯\_(#ツ)_/¯`
+  * 100 [Race Of A Lifetime](#Race Of A Lifetime)
+  * 100 [Phonic Frenzy 1](#Phonic Frenzy 1)
+  * 200 [Phonic Frenzy 2](#Phonic Frenzy 2)
+  * 500 [Car Key Fob Hardware Backdoor](#Car Key Fob Hardware Backdoor)
+
+# Reverse Engineering
+
+## Bootstrapping XMEGA Static Analysis in IDA Pro
 
 At the beginning of the challenge, we had some fun 'bootstrapping' our ability to reverse-engineer XMEGA code. Our initial experience with both IDA Pro and radare2 was that the disassembly was sane, but what we really wanted was cross-refs. Especially desired in the beginning was cross-refs to the serial ports memory-mapper registers -- that way we could really start to understand where the `ransom` binary was making calls to printf. As we struggled with creating IDA Pro databases that had useful cross-references we also found how to get function signature matching working. Then later as we improved on reverse-engineering XMEGA code, we also created a way to have stack variables in our IDA Pro databases too.
 
@@ -64,13 +64,13 @@ Using the above we could get very reasonable diassemblies of the .hex files; but
 
 For an example of how to use the collection of scripts, [`atxmega128a4u/scripts/`](atxmega128a4u/scripts/README.md)
 
-### Dynamic Analysis
+## Dynamic Analysis
 
 It was possible to use the Atmel Studio simulator. The .hex files could be converted into ELF files within the 'Device Programming' dialog of Atmel Studio and a 'simulator' could be selected instead of any physical debugger tools. It seemed like using dwarfexport would have been possible to get ELF files with symbol information exported from IDA into the Atmel Studio simulator debugger; however, we never actually tried to get this working, settling instead for comparing the two windows side by side for the times when we needed dynamic analysis.
 
 We also did purchase some ATXMEGA128A3U chips already soldered-onto breakout boards as well as an Atmel ICE3 debugger. The A3Us turned out to be good choices for executing the clear firmwares, we were able to similarly use Atmel Studio to run .hex files on these targets via the ICE3. The ICE3 was a poor choice of debugger/programmer since only Atmel Studio was supported and not avarice or other more-open debugging bridges.
 
-### Simulation
+## Simulation
 
 We simulated many of the provided .hex files using Atmel Studio. The simulator can't use .hex files, only .elf files, but it has a utility that can convert .hex files into .elf files. Here's the steps:
   1. Tools -> Device Programming -> Simulator / ATxmega128A4U
@@ -92,7 +92,7 @@ The simulator is awful. Useful notes:
   * For input functions, break just before entry and manually key the desired string into the buffer the function will populate.
 
 
-### Ransom and Ransom 2.0
+## Ransom and Ransom 2.0
 [Detailed Notes](ransom/notes.md)
 
 This is the most straightforward reverse engineering challenge. Our RE framework wasn't very solid at this point, so the notes aren't as detailed as later challenges. We defeated primarily by simulation. The challenge takes a userid (that the board will print out on serial), and derives an unlock code from it. The .hex file we're provided doesn't have the userid included, so we waited until it read it out from EEPROM, and overwrote it with the code the board printed out.
@@ -101,7 +101,7 @@ Continuing the simulation, we captured the 16 byte stream the program derived fr
 
 Note: The first version of the challenge had a bug in it where it would only check the first digit of the provided unlock code. Trivial brute-force would defeat that.
 
-### Full Compromise
+## Full Compromise
 [Detailed Notes](full_compromise/notes.md)
 
 This challenge is a pig, and there's no way it's only worth 250 points. Reading the binary, there's a couple obvious "hidden" functions in the main input parsing loop. First, instead of running a "test", we can run a "risc". There's no reason to do so. Maybe the infoleak described below was only supposed to be present in "risc" runs, who knows? Second, if you type a '*', you get put into a funny mode, that leads eventually to the `flag_4d15()` function.
@@ -125,7 +125,7 @@ Ok, that's all in place now, all that's left is to simulate the correct binary, 
 
 An easy 250 points. (lol wtf!)
 
-### Car Crash
+## Car Crash
 [Detailed Notes](car_crash/notes.md)
 
 We have a simple command interface. Using it, we can print out the encrypted logs, and we can "decrypt" and print the "decrypted" logs. Only problem is, the "decrypted" logs are garbage.
@@ -136,10 +136,10 @@ It didn't quite work at first, so I fired up the simulator, my code in gdb, and 
 
 Using a known plaintext, I reduced the algorithm to a single round, and printed all intermediates. I saw that in a round-trip, my plaintext->ciphertext->plaintext sequence diverged after the sbox step of decryption. Then I saw that some entries in the `inverse_sbox_102110[]` had been zeroed. Fixing that is trivial given the forward sbox, and immediately produced a clear decrypt of the logs.
 
-## Exploitation
+# Exploitation
 See Reversing Engineering above for details. We followed the same procedure here.
 
-### Unauthorized
+## Unauthorized
 [Detailed Notes](unauthorized/notes.md)
 
 Initial reverse engineering showed the existence of a 'backdoor' account, with a 32 byte password hash. Just in case, we threw hashcat at it, but got no results.
@@ -156,7 +156,7 @@ The code checks whether the numbers we submit are negative, but it doesn't check
 
 Using this, we choose a new password, hash it, and overwrite the backdoor accounts password hash with our hash. Then we log in. Flag.
 
-### Bluetooth Device Manager
+## Bluetooth Device Manager
 [Detailed Notes](bluetooth_device_manager/notes.md)
 
 In this challenge, we get to interact with a simple interface that allows us to configure and modify a list of "connected" devices. This challenge took me much longer than it should have, because I didn't pay attention to exact function of the `brcc` and `brcs` opcodes. There's an off-by-one error in the function we named `broken_read_str_until_13b()`. Just from initial analysis we knew that it didn't always null-terminate, but thought that was it.
@@ -172,14 +172,14 @@ Once we identified the correct vulnerability (the off-by-one error), we realized
   6. Write to the element created in 5 to alter where the struct points
   7. Write to C to write where the struct points.
 
-All that done, we just need to tick the relevant boxes. Write 0xBAADF00D to the relevant address, and overwrite a return address with the victory function.
+All that done, we just need to tick the relevant boxes. Write `0xBAADF00D` to the relevant address, and overwrite a return address with the victory function.
 
-### Climate Controller Catastrophe
+## Climate Controller Catastrophe
 [Detailed Notes](climate_controller_catastrophe/notes.md)
 
 At 750 points, we expected this one to be rough, and we were not disappointed. We start the challenge out with one **major** hint. The organizers provided us with a .hex file that will wipe the contents of the EEPROM. Immediately this suggests to us that we can brick the challenge by writing bad values to the EEPROM, which turned out to be true. Going with this, we need to understand how we can write to the EEPROM, and how the board will react to the contents of it.
 
-First things first, we need to interact with the board. The serial line just prints out some initialization messages then goes silent. No amount of prodding there produces a result. Breaking out a logic analyzer, and probing all the A# and D# channels, we saw traffic on D7, D9, D10, D11, and D13. Checking out the [board schematic](TODO XXX /riscurino.png), we found that most of those lines are inputs to the CAN controllers. We spent a little while fuzzing the CAN interface, but got nothing. So instead, we read the SPI traffic on board init. From that we learned that it was masking all traffic except from a couple SIDs like 0x665, and was running at 100 kHz. Cool, we have interaction.
+First things first, we need to interact with the board. The serial line just prints out some initialization messages then goes silent. No amount of prodding there produces a result. Breaking out a logic analyzer, and probing all the A# and D# channels, we saw traffic on D7, D9, D10, D11, and D13. Checking out the [board schematic](atxmega128a4u/resources/riscurino-1.0 - Schematics.pdf), we found that most of those lines are inputs to the CAN controllers. We spent a little while fuzzing the CAN interface, but got nothing. So instead, we read the SPI traffic on board init. From that we learned that it was masking all traffic except from a couple SIDs like 0x665, and was running at 100 kHz. Cool, we have interaction.
 
 At this point we spent about a week reverse engineering the .hex file. Here's a list of the things we learned:
   * It accepts CAN traffic from 0x776 as well as 0x665
@@ -197,34 +197,34 @@ Result: a board that prints the flag to serial on boot, every boot.
 
 Funny story: The INT0_ ISR that we used for our first ROP gadget sets `r1` along with so many other variables, and I stuck `0x31` there as a placeholder... code starts to act _real strange_ when you change the value of zero...
 
-## CAN Bus
-All these challenges, (and [Climate Controller Catastrophe](Climate Controller Catastrophe)) use the CAN interfaces as a primary method of communication with the firmware on the board. The board has two CAN controllers, which are cross-linked through an on-board CAN bus, which is helpfully exposed through the DE9-ready ports near the barrel jack. The CAN controllers are programmed through SPI, which can be sniffed through the high D## ports.
+# CAN Bus
+All these challenges, (and [Climate Controller Catastrophe](#Climate Controller Catastrophe)) use the CAN interfaces as a primary method of communication with the firmware on the board. The board has two CAN controllers, which are cross-linked through an on-board CAN bus, which is helpfully exposed through the DE9-ready ports near the barrel jack. The CAN controllers are programmed through SPI, which can be sniffed through the high D## ports.
 
-Later on, we cut the traces connecting the two CAN controllers, and plugged a CAN2USB adaptor into each, then used an [ugly python script](TODO back_to_the_future/ugly.py) to bridge the two. This allowed us to isolate them and test them separately, without their cross-chatter interfering. Note that since the whole system of "ECU"s is emulated in software, we need to have a CAN adaptor plugged into each side, or else the board will stop responding.
+Later on, we cut the traces connecting the two CAN controllers, and plugged a CAN2USB adaptor into each, then used an [ugly python script](back_to_the_future/ugly.py) to bridge the two. This allowed us to isolate them and test them separately, without their cross-chatter interfering. Note that since the whole system of "ECU"s is emulated in software, we need to have a CAN adaptor plugged into each side, or else the board will stop responding.
 
-### Can Opener
+## Can Opener
 This challenge really is a "CAN opener". The whole challenge is the following three steps:
   1. Connect to the CAN bus
   2. Observe one ECU sending regular 0x332 "lock\0\0\0\0" messages
   3. Send a 0x332 "unlock\0\0" message
 Done.
 
-### Back To The Future
+## Back To The Future
 This challenge relied on the split CAN bus. Without it, conflicting speed messages kept preventing us from pinning the speedometer. If we saturate the bus enough that conflicting messages don't get through, we trip error states. So to pin the speed, we have our bridge script alter every speed message it sees to 88 mph.
 
 That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
 
-### Auto-psy
+## Auto-psy
 TODO
 
-## Side Channel Analysis
+# Side Channel Analysis
 TODO: about auto-correlation
 TODO: overview
 
-### It's A Kind Of Magic
-### The Imposters
-### Random Random Everywhere
+## It's A Kind Of Magic
+## The Imposters
+## Random Random Everywhere
 
-## Fault Injection
+# Fault Injection
 
-## :Shruggie:
+# :Shruggie:
