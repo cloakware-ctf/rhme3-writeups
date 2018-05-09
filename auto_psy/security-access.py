@@ -1,3 +1,7 @@
+# This script enabled "Security Access" to the chosen AID. The original version
+# brute-forced the key space, but post-dump, I changed it to compute the
+# correct response on the first try.
+
 from __future__ import print_function
 import sys
 import can

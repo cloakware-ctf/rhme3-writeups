@@ -1,3 +1,7 @@
+# This is the seed->key function that the board uses to determine if we're
+# allowed security access. I transcribed this in case we needed to get it right
+# on the first try. Turns out to have been wasted effort.
+
 def nswap(c):
     return (c>>4) | (c<<4 & 0xf0)
 

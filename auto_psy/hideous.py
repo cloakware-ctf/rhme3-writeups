@@ -1,3 +1,7 @@
+# This ugly python script is designed to scan the OBD2 / UDS range looking for
+# things the board responds to. It includes a list of standard packets that the
+# board already randomly emits, so we can filter those out.
+
 from __future__ import print_function
 import sys
 import can

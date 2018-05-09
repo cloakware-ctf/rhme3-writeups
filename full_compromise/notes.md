@@ -1,4 +1,8 @@
 
+## Full Compromise
+An attacker managed to hack our CI server and sign+encrypt his malicious code in a ECU firmware, that is now running in millions of cars and doing Chaos knows what. To stop the attackers, we must know what the malicious code is doing. We have a history of all binaries signed by the server on the day of the hack, and a device running the attacker's firmware. Help us find which sample was provided by the attacker and get access to its management interface.
+
+## Startup
 There's a lot of anti-FI and anti-RNG pinning, I'm trying to ignore
 
 In main:
@@ -536,7 +540,7 @@ OUT: nil
 
 ### check_code_160()
 aka sub_164()
-IN: rx24=processed pasword
+IN: rx24=processed password
 IN: rx22=init_hash_102acf_4709()
 OUT: rx24=boolean, false if wrong code.
 ```c
@@ -849,7 +853,7 @@ I built a payload and sent a long test string. A wait value of 4 seconds seems a
 More work... looks like I had it right the first time. However, once the numbers get big enough, it buffers up. This means:
 	1. sometimes the sleep isn't as long as I think, because we start sleeping before the board is done processing its backlog
 	2. sometimes I can ram characters down its throat so fast it drops some.
-	3. Fixing with a 10ms sleep per charcter, and a tcdrain(fd).
+	3. Fixing with a 10ms sleep per character, and a tcdrain(fd).
 
 In other news, I've done a complete reverse of `do_test_5b30()`, and re-written it in ruby. With a bit of File I/O wrapper, I have a `predictor.rb` that can guess what `do_test_5b30()` will send to the DAC, for each sampleXX.hex file.
 
@@ -871,7 +875,7 @@ Done:
 	
 ## Recipe
 Sequence:
-	1. run `getrandombits.rb` on all samples to get dumps of what random pertubations they apply to the output.
+	1. run `getrandombits.rb` on all samples to get dumps of what random perturbations they apply to the output.
 	2. run `bitsfromdump.rb` on the bitdumps to get the binary vectors.
 	3. run `actual.rb` on all the files captured via scope to get the bit samples out
 	4. grep the actualdump for line that matches all bitdumps

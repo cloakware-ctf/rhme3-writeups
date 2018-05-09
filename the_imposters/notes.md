@@ -102,3 +102,8 @@ Analysis:
 		- might be because of an odd "previous"
 		- obvious candidate before is 4f
 
+## Known Key Attacks
+Since we couldn't get the key to fall out, we tried another tack. We wrote our own version of the challenge for an XMEGA 128 A3U processor we had, and went hunting for known-key on it. We found that the key bytes we correlated diagonally. A little math later, we found they were being processed in ShiftRows order. 
+
+Armed with that knowledge, we were able to mount an attack that worked on our known-key version, and which transferred to the RHme3 target.
+

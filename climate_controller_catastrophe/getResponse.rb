@@ -37,7 +37,7 @@ def modPower(x, exp, mod)
 end
 
 Exponent = 31337
-Modulus = 2777704703         
+Modulus = 2777704703
 Phi = 2777595240
 
 begin
