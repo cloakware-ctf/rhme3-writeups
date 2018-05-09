@@ -5,8 +5,8 @@ TODO: write this section
 
 # Categories
 ## Reverse Engineering
-  *  50 [Ransom](#ransom-and-ransom-2.0)
-  * 150 [Ransom 2.0](#ransom-and-ransom-2.0)
+  *  50 [Ransom](#ransom-and-ransom-20)
+  * 150 [Ransom 2.0](#ransom-and-ransom-20)
   * 250 [Full Compromise](#full-compromise)
   * 500 [Car Crash](#car-crash)
 
@@ -226,5 +226,12 @@ TODO: overview
 ## Random Random Everywhere
 
 # Fault Injection
+## The Lockdown
+## Benzinegate
 
 # :Shruggie:
+## Race Of A Lifetime
+## Phonic Frenzy 1
+## Phonic Frenzy 2
+## Car Key Fob Hardware Backdoor
+
