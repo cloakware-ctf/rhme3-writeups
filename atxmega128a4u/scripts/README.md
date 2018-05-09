@@ -10,7 +10,8 @@ Use these scripts to work around problems with the avr processor module in IDA (
 Here is an example session creating `ransom.idb`;
 
 0. install the python deps: sark and idascript
-0. copy the `ATXMega128A4u.cfg` in `../resources/` to `~/idapro/cfg/avr.cfg`
+0. copy the `ATXMega128A4u.cfg` in `../resources/` to `~/.idapro/cfg/avr.cfg`
+0. copy the `ATxmega128A4U.atdf` from an Atmel Studio release into `../resources.`
 1. start by opening the `.hex` file with AVR processor and auto-analysis disabled.
 2. select the ATXMega128A4u processor
 3. put this into the python console
