@@ -1,7 +1,7 @@
 
 # Introduction
-TODO: todo items remain below. (remove this one last)
-TODO: write this section
+  * TODO: todo items remain below. (remove this one last)
+  * TODO: write this section
 
 # Categories
 ## Reverse Engineering
@@ -137,7 +137,7 @@ It didn't quite work at first, so I fired up the simulator, my code in gdb, and 
 Using a known plaintext, I reduced the algorithm to a single round, and printed all intermediates. I saw that in a round-trip, my plaintext->ciphertext->plaintext sequence diverged after the sbox step of decryption. Then I saw that some entries in the `inverse_sbox_102110[]` had been zeroed. Fixing that is trivial given the forward sbox, and immediately produced a clear decrypt of the logs.
 
 # Exploitation
-See Reversing Engineering above for details. We followed the same procedure here.
+See [Reversing Engineering](#reverse-engineering-1) above for details. We followed the same procedure here.
 
 ## Unauthorized
 [Detailed Notes](unauthorized/notes.md)
@@ -203,6 +203,8 @@ All these challenges, (and [Climate Controller Catastrophe](#climate-controller-
 Later on, we cut the traces connecting the two CAN controllers, and plugged a CAN2USB adaptor into each, then used an [ugly python script](back_to_the_future/ugly.py) to bridge the two. This allowed us to isolate them and test them separately, without their cross-chatter interfering. Note that since the whole system of "ECU"s is emulated in software, we need to have a CAN adaptor plugged into each side, or else the board will stop responding.
 
 ## Can Opener
+[Detailed Notes](can_opener/notes.md)
+
 This challenge really is a "CAN opener". The whole challenge is the following three steps:
   1. Connect to the CAN bus
   2. Observe one ECU sending regular 0x332 "lock\0\0\0\0" messages
@@ -210,6 +212,8 @@ This challenge really is a "CAN opener". The whole challenge is the following th
 Done.
 
 ## Back To The Future
+[Detailed Notes](back_to_the_future/notes.md)
+
 This challenge relied on the split CAN bus. Without it, conflicting speed messages kept preventing us from pinning the speedometer. If we saturate the bus enough that conflicting messages don't get through, we trip error states. So to pin the speed, we have our bridge script alter every speed message it sees to 88 mph.
 
 That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
@@ -218,12 +222,36 @@ That still doesn't work, because something is triggering the "check engine" ligh
 TODO
 
 # Side Channel Analysis
-TODO: about auto-correlation
-TODO: overview
+  * TODO: overview
 
 ## It's A Kind Of Magic
+[Detailed Notes](its_a_ko_magic/notes.md)
+
+[Jlsca Notebook](its_a_ko_magic/rhme3-itsakindofmagic.ipynb)
+
+From the challenge description, we (accurately) guessed that there was simple XOR masks on both input and output. Round-trip encryption/decryption cycles work, but not across reboots. That suggests the masks are randomly generated on boot. Next we used the excellent autocorrelation feature of the Riscure Inspector tool. 
+
+![IKM Autocorrelation](itsakindofmagic/autocorrelation.png)
+
+Now, I want to talk about the above image for a while, but autocorrelations are awesome, but not well explained. Contrary to what my labels on the image suggest, execution is on the diagonal. Every instant is perfectly correlated to itself, so we get a solid white diagonal line there. The square blocks we see on the diagonal are loops. In loops, the chip does the same thing over and over again, so each loop correlates well to all the other iterations. Note that even substantial differences in processed data don't have much effect. What's being shown here is what's being done.
+
+With an unprotected software AES implementation like this, we can deduce what each part is just by counting. There are eleven AddRoundKey operations, ten SubBytes, and nine MixColumns. I've labelled the projection on to the left side because it was easier in Paint. I could have labelled the top, or (with a bit more work) the diagonal. Same thing. If you look a little more closely, you can see the MixColumns operation has a four-by-four grid structure. That's because MixColumns is implemented as a nested for loop.
+
+To attack this implementation, we observe that there's no additional input or output masking step in the plot, and that there's no mathematical difference between XORing the mask to the plaintext/ciphertext, or XORing it into the first and last round keys of the schedule. Noting this, we do the equivalent of an AES-256 attack on this AES-128 implementation, because that involves capturing the first and second round keys. Then instead of trying to reconstruct an AES-256 key out of them, we throw away the masked first round key, and use the second one the derive the original key.
+
+Check the notebook for a full walkthrough.
+
 ## The Imposters
+[Detailed Notes](the_imposters/notes.md)
+
+[Jlsca Notebook](the_imposters/rhme3-theimposters.ipynb)
+
+TODO
+
 ## Random Random Everywhere
+[Detailed Notes](random_random_everywhere/notes.md)
+
+TODO
 
 # Fault Injection
 ## The Lockdown
