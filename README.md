@@ -246,10 +246,10 @@ Check the notebook for a full walkthrough.
 [Detailed Notes](the_imposters/notes.md)
 
 [Jlsca Notebook](the_imposters/rhme3-theimposters.ipynb)
-
+                                         
 This one took far longer than it should have. Power analysis showed sixteen identical "rounds", that looked kinda-sorta like AES, separated by large blocks of probably-RNG activity. Here's a zoom-in of a couple "rounds":
 
-![IKM Autocorrelation](the_imposters/Imposters_autocorrelation_32000.png)
+![TI Autocorrelation](the_imposters/Imposters_autocorrelation_32000.png)
 
 I spent way too much time under the assumption that ten of the sixteen rounds were real, and the rest were dummy rounds, randomly sprinkled in at the start and end to frustrate CPA. Boy was I wrong. It turns out that what I though was a single round was an entire **hardware** AES invocation. The first block is clocking in the key, the second clocking in the data, the little block is the actual AES, and the final block clocking out the data.
 
@@ -268,7 +268,19 @@ Check the notebook for a full walkthrough.
 ## Random Random Everywhere
 [Detailed Notes](random_random_everywhere/notes.md)
 
-TODO
+We didn't complete this challenge.
+
+We didn't figure out what sort of masking was being used until very late in the challenge, and at that point, we didn't have enough time left to figure out how to find correlations in that. Part of this, was that we noted that Ilya Kizhvatov (author of the paper referenced in The Imposters), works for Riscure, and wrote the jlsca-tutorials repo. He also wrote a paper called [Analysis of the Split Mask Countermeasure
+for Embedded Systems](https://orbilu.uni.lu/bitstream/10993/10582/1/splimaskanalysis.pdf) that seemed suspiciously similar. It was coincidence.
+
+Back to basics:
+![RRE Autocorrelation](random_random_everywhere/RRE-first-two.png)
+
+From staring at the autocorrelations (first round of encryption above), we knew a fair amount about what was going on. First, before the plaintext receives its initial mask (location known from data correlations), there's a strange block that looks like and correlates to MixColumns. We know that attacks on MixColumns exist, so this is probably to generate the MixColumns output masks. A thing we know has to happen, if you're going to mask that step.
+
+Second, the RNG-like block at the very beginning (not pictured) iterates eighteen times. That's exactly enough for a 4x4 MixColumns mask, and separate SBox input and output masks. That nailed down, we can deduce that the small checkerboards around MixColumns are the input and output masking steps, and that the parts of the preamble that correlate with them are their mask generation. Which _strongly_ implies that the checkerboards near that mask generation, is the SBox mask generation. Knowing where that is, and where both AddRoundKey, and SubBytes are (mostly by counting), should be enough for us to launch a second order correlation power analysis.
+
+Unfortunately, none of us knew enough about how second order attacks work to code one up in time, and no off-the-shelf solution seemed to map to our needs.
 
 # Fault Injection
 ## The Lockdown
