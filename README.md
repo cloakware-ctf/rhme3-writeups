@@ -29,7 +29,7 @@
   * 300 [The Lockdown](#the-lockdown)
   * 500 [Benzinegate](#benzinegate)
 
-## `¯\_(#ツ)_/¯`
+## ¯\\_(#ツ)\_/¯
   * 100 [Race Of A Lifetime](#race-of-a-lifetime)
   * 100 [Phonic Frenzy 1](#phonic-frenzy-1)
   * 200 [Phonic Frenzy 2](#phonic-frenzy-2)
@@ -231,7 +231,7 @@ TODO
 
 From the challenge description, we (accurately) guessed that there was simple XOR masks on both input and output. Round-trip encryption/decryption cycles work, but not across reboots. That suggests the masks are randomly generated on boot. Next we used the excellent autocorrelation feature of the Riscure Inspector tool. 
 
-![IKM Autocorrelation](itsakindofmagic/autocorrelation.png)
+![IKM Autocorrelation](its_a_ko_magic/autocorrelation.png)
 
 Now, I want to talk about the above image for a while, but autocorrelations are awesome, but not well explained. Contrary to what my labels on the image suggest, execution is on the diagonal. Every instant is perfectly correlated to itself, so we get a solid white diagonal line there. The square blocks we see on the diagonal are loops. In loops, the chip does the same thing over and over again, so each loop correlates well to all the other iterations. Note that even substantial differences in processed data don't have much effect. What's being shown here is what's being done.
 
@@ -257,7 +257,7 @@ TODO
 ## The Lockdown
 ## Benzinegate
 
-# :Shruggie:
+# ¯\\_(#ツ)\_/¯
 ## Race Of A Lifetime
 ## Phonic Frenzy 1
 ## Phonic Frenzy 2
