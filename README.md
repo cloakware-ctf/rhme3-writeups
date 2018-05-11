@@ -1,6 +1,7 @@
 
 # Introduction
   * TODO: todo items remain below. (remove this one last)
+  * TODO: collage?
   * TODO: write this section
 
 # Categories
@@ -246,7 +247,23 @@ Check the notebook for a full walkthrough.
 
 [Jlsca Notebook](the_imposters/rhme3-theimposters.ipynb)
 
-TODO
+This one took far longer than it should have. Power analysis showed sixteen identical "rounds", that looked kinda-sorta like AES, separated by large blocks of probably-RNG activity. Here's a zoom-in of a couple "rounds":
+
+![IKM Autocorrelation](the_imposters/Imposters_autocorrelation_32000.png)
+
+I spent way too much time under the assumption that ten of the sixteen rounds were real, and the rest were dummy rounds, randomly sprinkled in at the start and end to frustrate CPA. Boy was I wrong. It turns out that what I though was a single round was an entire **hardware** AES invocation. The first block is clocking in the key, the second clocking in the data, the little block is the actual AES, and the final block clocking out the data.
+
+Honestly, I should have known. Doing a plaintext/ciphertext correlation with the traces showed strong spikes on a single "round", which doesn't make sense for a single AES round.
+
+Once that misconception was squared away, we went hunting for information how to break the ATXMEGA 128A4U hardware AES implementation, and we found a [ChipWhisperer tutorial on exactly that](https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE_Attack). Our ChipWhisperer was giving us grief, and implementing it in Inspector just wasn't coming together for us, so we turned to [Jlsca](https://github.com/Riscure/Jlsca). It is of course, a CPA toolkit written in Julia. Now, one thing needs to be said about Julia:
+
+![Arrays in Julia](the_imposters/JuliaArrays.png)
+
+However, it does have its advantages, which is why We've got notebooks for both this challenge and the previous. In a couple nights of coding, we reimplemented Ilya's attack in Jlsca, (which I'll probably try to push to the [jlsca-tutorials](https://github.com/ikizhvatov/jlsca-tutorials) repo at some point), but until then, [the diff](the_imposters/jlsca.patch) is provided. Only one problem. No flag.
+
+Days and nights were lost trying to figure out why, but eventually we settled on the only path we could think of. We wrote our [own version of the imposters](the_imposters/TI_KnownKey.7z), for a 128 A3U we had lying around. Then we started a known-key analysis on traces we captured from that. The breakthrough came a few days later, using Inspector, searched the whole area for correlations between plaintext byte 2 XOR keybyte 2 XOR (every other plaintext/keybyte pair). We got a clear, decisive hit, for pair 7 and pair 13. WTH? Regardless, we pressed on. Shortly we'd identified where all the correlations were, and suddenly it jumped out at us. ShiftRows. It's like they did ShiftRows at the beginning of the round, and then processed in that order. This is probably a hardware optimization to eliminate the cost of ShiftRows. Regardless, we got our known key, and shortly our flag.
+
+Check the notebook for a full walkthrough.
 
 ## Random Random Everywhere
 [Detailed Notes](random_random_everywhere/notes.md)
