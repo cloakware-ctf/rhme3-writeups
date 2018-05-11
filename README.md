@@ -284,11 +284,26 @@ Unfortunately, none of us knew enough about how second order attacks work to cod
 
 # Fault Injection
 ## The Lockdown
+TODO
+
 ## Benzinegate
+TODO
+
 
 # ¯\\_(#ツ)\_/¯
 ## Race Of A Lifetime
+[Detailed Notes](race_of_a_lifetime/notes.md)
+
+This is a simple "write a program that interacts with the board over serial". I suppose you could do it all by hand, but it would be way too tedious. [Script here](race_of_a_lifetime/race.rb). The most interesting part, was that you couldn't go too fast, but that degrees of longitude vary in size with latitude. So we had to get some code to correct for that.
+
+We expected a bunch of curve-balls to be thrown during this challenge, but none of them came, so we drove, sailed, and flew our way to victory. (After once flipping the sign as we crossed the terminator, oops).
+
 ## Phonic Frenzy 1
+TODO
+
 ## Phonic Frenzy 2
+TODO
+
 ## Car Key Fob Hardware Backdoor
+TODO
 
