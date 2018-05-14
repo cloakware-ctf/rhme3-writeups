@@ -7,10 +7,11 @@ The device expects 18 bytes of input: the first byte should be 0xAE (for encrypt
 ## Initial Analysis
 The fact that this is described as an "update" means it might still be masked. Testing... the same plaintext encrypts to the same ciphertext across reboots. Therefore, not randomly masked.
 
-We did a capture, I count about 15 "aes blocks", so the it's clear what's going on. Hopefully input correlation is our tool of the day.
+We did a capture, I count about 15 "aes blocks", so the it's clear what's going on. If there are imposter rounds of aes in this trace, there cannot be more than 6, since 10 rounds are needed in most software implementations of aes. Hopefully input correlation is our tool of the day for determining the first round. 
 
 ## Tracing
 We gathered some 1200 traces and prepared them as before. The alignments produced was weak, and we didn't get correlations.
+In fact, we found our input and output corrolations were right next to each other at about round 8! What is going on?
 
 ## Hardware
 We've tried upping the trace count to 100k, and doing expansive SBox and MixColumn based attacks. We also re-ran the IKM attack to make sure we had the parameters correct. With our setup, we can mount that two-round attack with roughly 60 traces. There's no way we need more than 100k to get The Imposters.
@@ -28,7 +29,8 @@ https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE
 http://www.iacr.org/phds/106_ilyakizhvatov_physicalsecuritycryptographica.pdf
 
 ## Results
-I've got Ilya's attack fully operational. It works perfectly on the example traces, the imposters... not so much.
+The class of attack used was based upon Ilya's work referenced above.
+When Ilya's attacks were fully operational It worked perfectly on the example traces, the imposters... not so much.
 
 
 Candidates:
@@ -105,5 +107,5 @@ Analysis:
 ## Known Key Attacks
 Since we couldn't get the key to fall out, we tried another tack. We wrote our own version of the challenge for an XMEGA 128 A3U processor we had, and went hunting for known-key on it. We found that the key bytes we correlated diagonally. A little math later, we found they were being processed in ShiftRows order. 
 
-Armed with that knowledge, we were able to mount an attack that worked on our known-key version, and which transferred to the RHme3 target.
+Armed with that knowledge, we were able to mount an attack that worked on our known-key version, and which transferred to the RHme3 target. Success.
 
