@@ -4,7 +4,9 @@ You managed to get a spare key fob for the car you like. However you want to dup
 
 The device expects 18 bytes of input: the first byte should be either 0xAE (for encryption) or 0xAD (for decryption) followed by 16 bytes of data, followed by a newline.
 
-## Side Channel Analysis
+## Side Channel Analysis Resources
+For those who are unfamiliar with side channel analysis, we have attached the following resources to bring newcomers up to speed.
+
 Colin O'Flynn (ChipWhisperer) has a pretty good introduction to SCA on YouTube
 
 Breaking AES with ChipWhisperer - Piece of scake (Side Channel Analysis 100)
@@ -26,11 +28,12 @@ https://insomnihack.ch/wp-content/uploads/2017/04/AM-ESF-rhme2.pdf
 	* and a bunch of countermeasure and counter-countermeasures
 
 ## Notes
-    * CW takes 3V, make sure
-    * Feed the CW the same clock the target gets
-    * Setup CW to the driving input of the target (serial over USB)
+    * ChipWhisperer operates on 3V.
+    * Feed the ChipWhisperer the same clock the target under measure receives
+    * Setup ChipWhisperer to the driving input of the target ( usually by serial over USB)
 
 ## Plaintext / Ciphertext
+Below is a hexdump sample of a round trip encryption through its kind of magic. 
 Encrypting:
 00000000  ae 30 31 32  33 34 35 36  37 38 39 61  62 63 64 65  │·012│3456│789a│bcde│
 00000010  66 0a                                               │f·│
@@ -42,11 +45,12 @@ Decrypting:
 Result:
 00000000  30 31 32 33  34 35 36 37  38 39 61 62  63 64 65 66  │0123│4567│89ab│cdef│
 
-
+This also gave us confirmation that usb connections were operating properly. 
 
 
 ## Setting Up the ChipWhisperer
-Ben soldered the correct headers on the target. I plugged them in and ran the test scripts.
+The ChipWhisperer requires certain headers on the board to be connected effectively.
+Ben soldered the headers onto the target. I plugged them in and ran the test scripts created by our team.
 
 ### Test Scripts
 	* Glitch line is not connected
@@ -105,20 +109,21 @@ Ben did an awesome soldering/wiring job, and we have a SCA-in-a-box.
 Issues:
 	* system serial only supports 19200 and 38400 -> edited source to add 115200
 	* protocol format defaults to 'hex' -> set to 'bin'
-	* ... crap, it's amateur hour here...
 
 ## Redux: Riscure Inspector Tool
-We were having endless issues with the VCC shunt, so we decided to switch to a GND shunt. Also, we changed almost every other part of the tool-chain.
+In order to receive the least noise possible when performing side channel analysis (SCA), the main power pin of the processor was lifted and a resistor added in series. By measuring the voltage of the resister, we were able to isolate the power of the chip. This is in contrast to attaching directly to the power rail, which will measure the power usage of IO lines and peripherals mixed in.
+We were having endless issues with the VCC shunt, so we decided to switch to a GND shunt. This operates on a similar principle as the VCC shunt, but measurements are made on a resistor connected to ground.
+Also, we changed almost every other part of the tool-chain.
 
 Current setup:
 	* RHme3 with GND shunt.
-	* a JTagulator connected to the RHme3's TX pin, set to trigger on every '0x0a' character, and drop its CH0 line for 20ms.
+	* a JTagulator connected to the RHme3's TX pin, set to trigger on every '0x0a' character(Newline), and drop its CH0 line for 20ms.
 	* A Picoscope 3206D, A line connected to the GND shunt, Ext line on the JTagulator's CH0 line.
-	* Riscure's Inspector tool, with a custom script to send the requests over serial after sanitizing any '0x0a' characters out of the ciphertext.
+	* Riscure's Inspector tool, with a custom script to send the requests over serial after sanitizing any '0x0a' characters out of the randomly generated ciphertext.
 
 Based on Telegram chatter, we decided to attack the input to AES decrypt. After gathering a bunch of samples, fixing bugs, and tuning the process, we settled in for a major run.
 
-Acquisition and processing:
+Acquisition and processing (after lengthy trial and error):
 	* 2500 samples, at 500MHz, for 20ms, at a negative offset of -7ms from the trigger.-
 	* Trim to just the first round + margins
 	* Low-pass filter, weight: 4
@@ -144,6 +149,8 @@ This leaves two options:
 On path 1, we did a bunch of trace preprocessing before we did the analysis. Time to try a different set. The first-order analysis told us the position the key byte correlations were found, and they were all clustered around a few thousand samples, so trim down to just that (plus margin). Skip the low-pass and resample, and go straight to elastic align. Despite the higher sample count, the tool was able to do it in only an hour or so.
 
 Further testing showed that sub key byte 16 consistently did not correlate. We suspect that this is a bug in the challenge. We switched to a last-round attack which worked perfectly. We got the 2nd round key from that and used the key schedule reverser to get the key. Solved.
+
+Although originally thought to be a bug in the challenge, it was determined that an off-by-1 error in a memcopy operation resulted in only 15 bytes of output. First round attacks were successful after this issue was corrected.
 
 ```
 Your key is: 2c66704041a085fb735fc7013f5783ac
