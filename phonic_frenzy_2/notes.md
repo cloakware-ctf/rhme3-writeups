@@ -110,100 +110,103 @@ Mixing 0+1, 2+3, 4+5 -> low dominates
 
 
 ## The Big Table
-A5 A4 A3 A2 A1 A0 AR
-               D2   :     @1c @3a     @2b
-               D3   : @1b     @3a     @2b
-            D2      :     ~1c @3a     @2b
-            D2 D3   : @1b     @3a     @2b
-            D3      : @1b             @2b
-            D3 D2   :     @1c         @2b
-         D2         : @1b     @3a     @2b
-         D2    D3   : @1b     @3a     @2b
-         D2 D3      :     @1c         @2b
-         D3         : @1b     @3a     @2b
-         D3    D2   :     @1c @3a     @2b
-         D3 D2      :     ~1c @3a     @2b
-         DA         : @1b     @3a     @2b
-      D2            : @1b     @3a     @2b
-      D2       D3   : @1b     @3a     @2b
-      D2    D3      :     @1c         @2b
-      D2 D3         : @1b     @3a     @2b
-      D3            : @1b     @3a     @2b
-      D3       D2   :     @1c @3a     @2b
-      D3    D2      :     @1c @3a     @2b
-      D3 D2         : @1b     @3a     @2b
-      D6       D4   : @1b             @2b
-      D6    D4      : @1b             @2b
-      DA            : @1b     @3a     @2b
-   D2               : @1b     @3a     @2b
-   D2          D3   : ~1b     @3a     @2b
-   D2       D3      :     @1c         @2b
-   D2    D3         :   @1a   @3a     @2b
-   D2 D3            :   @1a   @3a
-   D3               : @1b     @3a     @2b
-   D3          D2   :     @1c @3a     @2b
-   D3       D2      :     @1c @3a     @2b
-   D3    D2         : @1b     @3a     @2b
-   D3 D2            : @1b     @3a     @2b
-   D4    D6         :         @3a     @2b
-   D4 D6            : @1b     @3a     @2b
-   D6       D4      : ~1b             @2b
-   DA               : @1b     @3a     @2b
-D2                  :     @1c @3a     @2b
-D2             D3   : @1b     @3a     @2b
-D2          D3      :   @1a           @2b
-D2       D3         :     @1c @3a     @2b
-D2    D3            :     ~1c @3a     @2b
-D2 D3               :     @1c         @2b
-D2 D4    D6    D3   :         @3a     @2b
-D2 D6       D4 D3   : ~1b             @2b
-D2 D6    D5 D4 D3   : @1b             @2b
-D2 D6 D3       D4   :     ~1c @3a     @2b
-D2 D6 D3    D4      :     ~1c         @2b
-D2 D6 D5    D4 D3   : @1b             @2b
-D3                  : @1b             @2b
-D3             D2   : @1b             @2b
-D3          D2      :   @1a           @2b
-D3       D2         :     ~1c         @2b
-D3    D2            :   @1a           @2b
-D3 D2               :     ~1c         @2b
-D3 D2 D6       D4   :     ~1c ~3a     @2b
-D3 D2 D6    D4      :     @1c         @2b
-D3 D4    D6    D2   : @1b     @3a     @2b
-D4             D6   : @1b         @2a @2b
-D4          D6      : @1b         @2a @2b
-D4       D6         : @1b             @2b
-D4       D6    D2   :     @1c         @2b
-D4       D6    D3   : @1b             @2b
-D4       D6    D5   : @1b             @2b
-D4       D6    D9   : @1b             @2b
-D4       D6    DA   : @1b             @2b @2f
-D4       D6    DB   : @1b             @2b
-D4       D6    DC   : @1b             @2b
-D4       D6    DD   : @1b             @2b
-D4       D6 DA      : @1b             @2b @2f
-D4    DA D6         : @1b             @2b
-D4 DA    D6         : @1b             @2b
-D5    D9            : @1b     @3a
-D5    D9    D2      :     ~1c @3a
-D5    D9    D2 D3   : @1b     @3a
-D5    D9    D3 D2   : @1b
-D5    D9 D2 D3      :     @1c
-D5    D9 D3    D2   :     @1c @3a
-D5    D9 D3 D2      :     @1c @3a
-D5    D9 D3 D4      : @1b
-D5    D9 D3 D4 D2   :  ~1[bc]
-D5 D2 D9       D3   : @1b     @3a
-D5 D2 D9    D3      : @1b     @3a
-D5 D2 D9 D3         : @1b     @3a
-D5 D2 D9 D3 D4      : @1b
-D5 D3 D9       D2   :     @1c
-D5 D3 D9    D2      :     @1c
-D5 D6 D9    D4      :  ~1[ac]
-D5 D6 D9    D4 D2   : ~1[bc]
-D5 D6 D9 D2 D4      : ~1[ab]
-D6 D4               : @1b     @3a @2a @2b
-DA                  : @1b     @3a     @2b @2f
+
+
+	A5 A4 A3 A2 A1 A0 AR
+
+		       D2   :     @1c @3a     @2b
+		       D3   : @1b     @3a     @2b
+		    D2      :     ~1c @3a     @2b
+		    D2 D3   : @1b     @3a     @2b
+		    D3      : @1b             @2b
+		    D3 D2   :     @1c         @2b
+		 D2         : @1b     @3a     @2b
+		 D2    D3   : @1b     @3a     @2b
+		 D2 D3      :     @1c         @2b
+		 D3         : @1b     @3a     @2b
+		 D3    D2   :     @1c @3a     @2b
+		 D3 D2      :     ~1c @3a     @2b
+		 DA         : @1b     @3a     @2b
+	      D2            : @1b     @3a     @2b
+	      D2       D3   : @1b     @3a     @2b
+	      D2    D3      :     @1c         @2b
+	      D2 D3         : @1b     @3a     @2b
+	      D3            : @1b     @3a     @2b
+	      D3       D2   :     @1c @3a     @2b
+	      D3    D2      :     @1c @3a     @2b
+	      D3 D2         : @1b     @3a     @2b
+	      D6       D4   : @1b             @2b
+	      D6    D4      : @1b             @2b
+	      DA            : @1b     @3a     @2b
+	   D2               : @1b     @3a     @2b
+	   D2          D3   : ~1b     @3a     @2b
+	   D2       D3      :     @1c         @2b
+	   D2    D3         :   @1a   @3a     @2b
+	   D2 D3            :   @1a   @3a
+	   D3               : @1b     @3a     @2b
+	   D3          D2   :     @1c @3a     @2b
+	   D3       D2      :     @1c @3a     @2b
+	   D3    D2         : @1b     @3a     @2b
+	   D3 D2            : @1b     @3a     @2b
+	   D4    D6         :         @3a     @2b
+	   D4 D6            : @1b     @3a     @2b
+	   D6       D4      : ~1b             @2b
+	   DA               : @1b     @3a     @2b
+	D2                  :     @1c @3a     @2b
+	D2             D3   : @1b     @3a     @2b
+	D2          D3      :   @1a           @2b
+	D2       D3         :     @1c @3a     @2b
+	D2    D3            :     ~1c @3a     @2b
+	D2 D3               :     @1c         @2b
+	D2 D4    D6    D3   :         @3a     @2b
+	D2 D6       D4 D3   : ~1b             @2b
+	D2 D6    D5 D4 D3   : @1b             @2b
+	D2 D6 D3       D4   :     ~1c @3a     @2b
+	D2 D6 D3    D4      :     ~1c         @2b
+	D2 D6 D5    D4 D3   : @1b             @2b
+	D3                  : @1b             @2b
+	D3             D2   : @1b             @2b
+	D3          D2      :   @1a           @2b
+	D3       D2         :     ~1c         @2b
+	D3    D2            :   @1a           @2b
+	D3 D2               :     ~1c         @2b
+	D3 D2 D6       D4   :     ~1c ~3a     @2b
+	D3 D2 D6    D4      :     @1c         @2b
+	D3 D4    D6    D2   : @1b     @3a     @2b
+	D4             D6   : @1b         @2a @2b
+	D4          D6      : @1b         @2a @2b
+	D4       D6         : @1b             @2b
+	D4       D6    D2   :     @1c         @2b
+	D4       D6    D3   : @1b             @2b
+	D4       D6    D5   : @1b             @2b
+	D4       D6    D9   : @1b             @2b
+	D4       D6    DA   : @1b             @2b @2f
+	D4       D6    DB   : @1b             @2b
+	D4       D6    DC   : @1b             @2b
+	D4       D6    DD   : @1b             @2b
+	D4       D6 DA      : @1b             @2b @2f
+	D4    DA D6         : @1b             @2b
+	D4 DA    D6         : @1b             @2b
+	D5    D9            : @1b     @3a
+	D5    D9    D2      :     ~1c @3a
+	D5    D9    D2 D3   : @1b     @3a
+	D5    D9    D3 D2   : @1b
+	D5    D9 D2 D3      :     @1c
+	D5    D9 D3    D2   :     @1c @3a
+	D5    D9 D3 D2      :     @1c @3a
+	D5    D9 D3 D4      : @1b
+	D5    D9 D3 D4 D2   :  ~1[bc]
+	D5 D2 D9       D3   : @1b     @3a
+	D5 D2 D9    D3      : @1b     @3a
+	D5 D2 D9 D3         : @1b     @3a
+	D5 D2 D9 D3 D4      : @1b
+	D5 D3 D9       D2   :     @1c
+	D5 D3 D9    D2      :     @1c
+	D5 D6 D9    D4      :  ~1[ac]
+	D5 D6 D9    D4 D2   : ~1[bc]
+	D5 D6 D9 D2 D4      : ~1[ab]
+	D6 D4               : @1b     @3a @2a @2b
+	DA                  : @1b     @3a     @2b @2f 
 
 ## Reading out the code:
 
