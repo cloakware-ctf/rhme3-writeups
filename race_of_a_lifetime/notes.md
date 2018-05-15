@@ -4,7 +4,7 @@
 You are participating in a race around the world. The prize would be a personalized flag, together with a brand new car. Who wouldn't want that? You are given some locations during this race, and you need to get there as quick as possible. The race organisation is monitoring your movements using the GPS embedded in the car. However, your car is so old and could never win against those used by the opposition. Time to figure out another way to win this race.
 
 ## Overview
-Connect with board over serial, send it your coordinates, go somewhere. If you move too fast, you'll be disqualified, if you go to slow, you won't get there in time.
+Connect with board over serial, send it your coordinates, go somewhere. If you move too fast, you'll be disqualified, if you go to slow, you won't get there in time. Normal movement is limited to a certain speed, however it is possible to increase the allowed speed by travelling to an airport or shipyard. 
 
 Format:
     37.430000   24.980000
