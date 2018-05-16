@@ -299,7 +299,7 @@ This challenge represents both the largest leap in our current expertise (Fault 
 The challenge accepted a CO2 level as input, and reponded with "# Level Set".
 Initial analysis showed that it was vulnerable to a buffer overflow in its input, which we can then ROP attack into the hidden functionality.
 The issue is it wont print the flag unless the stack canary is correct.
-If unsuccessful it will print some lovely XXXX's to let you know how wrong you are. 
+If unsuccessful it will print some lovely XXXX's to let you know how wrong you are compared to the canary. 
 
 
 While they are doing the canary check, they raise an LED for a few micro seconds, giving us a viable trigger to sync our fault injection.
@@ -308,6 +308,7 @@ This path was named the "Happy path", and naturally made us very sad during the 
 
 To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over-supplying.
 Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
+![mosfet](benzinegate/mosfet.jpg)
 Our triggering setup involved raising the transistor gate high with a embedded device, thus sinking the device power rail low for fractions of a clock cycle.
 Since our timing involved adding and removing clock NOP() cycles after raising the pin high, our ability to tune the glitch was limited.
 
