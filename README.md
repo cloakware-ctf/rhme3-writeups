@@ -296,18 +296,20 @@ This challenge represents both the largest leap in our current expertise (Fault 
 
 ![hackerman](benzinegate/hackerman.jpeg)
 
-Initial analysis showed that it was vulnerable to a buffer overflow in its input, which will then check our input against a random value.
-If successful it will print the flag, if unsuccessful it will print some lovely XXXX's to let you know how wrong you are. 
+The challenge accepted a CO2 level as input, and reponded with "# Level Set".
+Initial analysis showed that it was vulnerable to a buffer overflow in its input, which we can then ROP attack into the hidden functionality.
+The issue is it wont print the flag unless the stack canary is correct.
+If unsuccessful it will print some lovely XXXX's to let you know how wrong you are. 
 
 
-While they are doing the check, they raise an led for a few micro seconds, giving us a viable trigger to sync our fault injection to.
+While they are doing the canary check, they raise an LED for a few micro seconds, giving us a viable trigger to sync our fault injection.
 This path was named the "Happy path", and naturally made us very sad during the competition.
 
 
-To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over supplying.
+To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over-supplying.
 Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
-Our triggering setup involved raising the transistor gate high with a embedded device thus sinking the device power rail low for fractions of a clock cycle.
-Since our timing involved , our ability to glitch was limited.
+Our triggering setup involved raising the transistor gate high with a embedded device, thus sinking the device power rail low for fractions of a clock cycle.
+Since our timing involved adding and removing clock NOP() cycles after raising the pin high, our ability to tune the glitch was limited.
 
 
 ![Voltage](benzinegate/Voltage_Drop.png)
@@ -319,12 +321,16 @@ This is important because the variable that holds the amount of X's to print is 
 
 ![XXX](benzinegate/XXX.png)
 
-The value of X's fluctuated constantly, and luckily/heartbreakingly we did manage to glitch it to be happy path!
+The value of X's fluctuated constantly, and luckily/heartbreakingly we did manage to glitch it to be happy path(0 X's)!
 
 
 ![noooooo](benzinegate/nooo.png)
 
 Simply glitching the variable wasn't enough, we need to glitch an INSTRUCTION not a memory load.
+Most challenges have a Flag mask that need to be disabled, or else it will print out all 0xff's.
+
+
+Unfortunately, we were not able to get the branch instruction glitched. A sad end to this happy path.
 
 
 # ¯\\_(ツ)\_/¯
