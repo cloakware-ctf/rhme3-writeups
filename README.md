@@ -307,7 +307,7 @@ After flashing the challenge binary we saw the serial console message "welcom[in
 
 We created our first bodge cable of the challenge and connected the D7+D8 pins to the mic-in on an old netbook.
 
-![syncd capture of digital and audio signals](phonic_frenzy_1/Phonic Frenzy aligns.png)
+![syncd capture of digital and audio signals](phonic_frenzy_1/Phonic_Frenzy_aligns.png)
 
 Audio quality was very poor; but it was clearly saying mostly the same text as what was printed on the serial console
 
@@ -333,6 +333,7 @@ There is no video.
 
 The breakthrough came when we finally backtracked; built a high-pass filter and listened again; this time the voice wasn't saying BAD. It wasn't clear what letter it was actually saying (but it wasn't 'BAD'). We analyzed a recording of the voice in the frequency domain to tell the difference between some tricky letters and (finally) got the flag.
 
+![distinguishing bad letters](phonic_frenzy_1/badletters.png)
 
 ## Phonic Frenzy 2
 TODO
