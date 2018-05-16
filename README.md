@@ -1,13 +1,18 @@
 
 # Introduction
   * TODO: todo items remain below. (remove this one last)
-  * TODO: collage?
 
 Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd and was the highest placing Canadian team; completing 16/19 challenges!
 
+![scoreboard](pics/scoreboard.png)
+
 The team set out nearly a year ago to enter and compete in RHME3; when it was suggested that we submit a team for a prequals the 1st week of August. This was a busy time when team members couldn’t spend enough effort on the prequals and despite team members spending their family vacation time on the challenges, we were unsuccessful in securing a spot by the closing deadline of August 28th.
  
-There were a couple second-chance entry opportunities though: we submitted to Liveoverflow video blog which was doing a giveaway of RHME3 boards for entry (no joy) and we also submitted a radare2 solution to an r2con competition which was also doing a giveaway. Anyone who could submit a writeup showing how to use radare2 to solve the 'antir2’ challenge would get a board. The team worked a solution and submitted it -- this is now listed under "Write-up by Irdeto team (Jonathan Beverley, Colin deWinter, Ben Gardiner)” at https://github.com/enovella/r2con-prequals-rhme3/tree/master/re); however, we then heard back that this r2con qualifier was open only to attendees of the conference — even though the announcement didn’t state this. We pressed and were told maybe, but nothing firm. The posted start date for the challenge came and went; we thought we were out. Over Xmas we noticed the Riscure twitter feed showed progress towards finally shipping RHME3. https://twitter.com/Riscure/status/943817050690084864 We still had a chance! We kept bugging them via email and eventually we did get a target board in the mail. We would start 3 points behind others in the competition but we would be *in* the competition.
+There were a couple second-chance entry opportunities though: we submitted to Liveoverflow video blog which was doing a giveaway of RHME3 boards for entry (no joy) and we also submitted a radare2 solution to an r2con competition which was also doing a giveaway. Anyone who could submit a writeup showing how to use radare2 to solve the 'antir2’ challenge would get a board. The team worked a solution and submitted it -- this is now listed under "Write-up by Irdeto team (Jonathan Beverley, Colin deWinter, Ben Gardiner)” at https://github.com/enovella/r2con-prequals-rhme3/tree/master/re); however, we then heard back that this r2con qualifier was open only to attendees of the conference — even though the announcement didn’t state this. We pressed and were told maybe, but nothing firm. The posted start date for the challenge came and went; we thought we were out. Over Xmas we noticed the Riscure twitter feed showed progress towards finally shipping RHME3. https://twitter.com/Riscure/status/943817050690084864
+
+![ready?](pics/ready.png)
+
+We still had a chance! We kept bugging them via email and eventually we did get a target board in the mail. We would start 3 points behind others in the competition but we would be *in* the competition.
 
 ![eureka](pics/rx.png)
 
@@ -16,6 +21,8 @@ What follows are the writeups of the 16 challenges we completed (and somethat we
 * Car Key Fob — Bugged challenge, unsolvable. Our writeup describing exhaustive coverage of what we attempted spurred the organizers to identify that they were testing a binary different than what they had deployed. They gave us a backdated solve to give us first solve on that challenge. Elapsed solve time on our part was multiple months.
 
 The cloakware-ctf team was composed of (alphabetically) Jonathan Beverley, Colin Dewinter, Koos Ellis and Ben Gardiner. However, this does not include the long list of people who have helped in one way or another during the multi month challenge: many colleagues at Irdeto gave us their time (and sometimes tools) over the course of the competition. And we also received a little help from some friends externally too (named with approval). Heartfelt thanks to all for your assistance over the past months! And also we would like to express special thanks to the support of our leadership at Irdeto for supporting us and committing resources to make competing possible.
+
+![FTWs](pics/slack_solves.png)
 
 # Categories
 ## Reverse Engineering
