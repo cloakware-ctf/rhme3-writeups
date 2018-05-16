@@ -142,7 +142,11 @@ How to figure out which binary? That's where the 'test' command comes in. This f
   4. Use [simavr](https://github.com/buserror/simavr) to simulate the function that generates the "randombit" arrays, for all 1000 binaries.
   5. Find out which one matches the string we got from the board.
 
-Ok, that's all in place now, all that's left is to simulate the correct binary, find out the code, pulse-dial it into the board, wait six hours, and use `stdbuf -o0` so that we actually get to see the flag.
+Ok, that's all in place now, all that's left is to simulate the correct binary, find out the code, pulse-dial it into the board, wait six hours and use `stdbuf -o0` so that we actually get to see the flag.
+
+At the time that we took on this challenge, we had only one RHME3 board and needed to time-share: we let the 6 hours run while driving the board+laptop to a team member's home, but we forgot that critical point about buffered I/O. Thanks to the laptop battery, the flag was still there in the device file buffer!
+
+![battery saves buffer](full_compromise/savedbythebattery.png)
 
 An easy 250 points. (lol wtf!)
 
