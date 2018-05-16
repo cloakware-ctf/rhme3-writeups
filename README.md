@@ -3,7 +3,7 @@
   * TODO: todo items remain below. (remove this one last)
   * TODO: collage?
 
-Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd in the and was the highest placing Canadian team; completing 16/19 challenges!
+Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd and was the highest placing Canadian team; completing 16/19 challenges!
 
 The team set out nearly a year ago to enter and compete in RHME3; when it was suggested that we submit a team for a prequals the 1st week of August. This was a busy time when team members couldn’t spend enough effort on the prequals and despite team members spending their family vacation time on the challenges, we were unsuccessful in securing a spot by the closing deadline of August 28th.
  
