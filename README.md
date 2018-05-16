@@ -301,7 +301,7 @@ If successful it will print the flag, if unsuccessful it will print some lovely 
 
 
 While they are doing the check, they raise an led for a few micro seconds, giving us a viable trigger to sync our fault injection to.
-This path was named the "Happy path", and made us very sad over the last few days of the competition.
+This path was named the "Happy path", and naturally made us very sad during the competition.
 
 
 To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over supplying.
@@ -314,11 +314,17 @@ Since our timing involved , our ability to glitch was limited.
 
 
 Through this method, we were able to successfully glitch a memory read on the amount of XXX printed. 
+This is important because the variable that holds the amount of X's to print is checked against zero to print the flag.
 
 
 ![XXX](benzinegate/XXX.png)
 
+The value of X's fluctuated constantly, and luckily/heartbreakingly we did manage to glitch it to be happy path!
 
+
+![noooooo](benzinegate/nooo.png)
+
+Simply glitching the variable wasn't enough, we need to glitch an INSTRUCTION not a memory load.
 
 
 # ¯\\_(ツ)\_/¯
