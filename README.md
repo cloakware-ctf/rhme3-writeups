@@ -288,7 +288,24 @@ Unfortunately, none of us knew enough about how second order attacks work to cod
 TODO
 
 ## Benzinegate
-TODO
+This is a simple CO exhaust level regulator. It sets the levels according to the regulations. Or does it? We suspect hidden functionality. Can you help us confirm?
+
+
+This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenous making us feel the most Hackerman
+![hackerman](benzinegate/hackerman.jpeg)
+
+Initial analysis showed that it was vulnerable to a buffer overflow in its input, which will then check our input against a random value.
+If successful it will print the flag, if unsuccessful it will print some lovely XXXX's to let you know how wrong you are. 
+While they are doing the check, they raise an led for a few micro seconds, giving us a viable trigger to sync our fault injection to.
+This path was named the "Happy path", and made us very sad over the last few days of the competition.
+
+To avoid damaging the parts, we believed pulling the power rail down to ground would be the best course of action.
+Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
+
+Our triggering setup involved raising the transistor gate high with a embedded device, pulling the device power rail low for fractions of a clock cycle.
+Since our ability to tune the device was limited to discrete NOP() processor lengths, our ability to glitch was limited.
+
+
 
 
 # ¯\\_(ツ)\_/¯
