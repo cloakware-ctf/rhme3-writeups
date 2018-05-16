@@ -235,7 +235,11 @@ Done.
 ## Back To The Future
 [Detailed Notes](back_to_the_future/notes.md)
 
-This challenge relied on the split CAN bus. Without it, conflicting speed messages kept preventing us from pinning the speedometer. If we saturate the bus enough that conflicting messages don't get through, we trip error states. So to pin the speed, we have our bridge script alter every speed message it sees to 88 mph.
+This challenge relied on the split CAN bus. Without it, conflicting speed messages kept preventing us from pinning the speedometer.
+
+![split can bus](back_to_the_future/splitcan.png)
+
+If we saturate the bus enough that conflicting messages don't get through, we trip error states. So to pin the speed, we have our bridge script alter every speed message it sees to 88 mph.
 
 That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
 
