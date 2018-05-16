@@ -288,7 +288,50 @@ Unfortunately, none of us knew enough about how second order attacks work to cod
 TODO
 
 ## Benzinegate
-TODO
+This is a simple CO exhaust level regulator. It sets the levels according to the regulations. Or does it? We suspect hidden functionality. Can you help us confirm?
+
+
+This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenous making us feel the most Hackerman.
+
+
+![hackerman](benzinegate/hackerman.jpeg)
+
+The challenge accepted a CO2 level as input, and reponded with "# Level Set".
+Initial analysis showed that it was vulnerable to a buffer overflow in its input, which we can then ROP attack into the hidden functionality.
+The issue is it wont print the flag unless the stack canary is correct.
+If unsuccessful it will print some lovely XXXX's to let you know how wrong you are compared to the canary. 
+
+
+While they are doing the canary check, they raise an LED for a few micro seconds, giving us a viable trigger to sync our fault injection.
+This path was named the "Happy path", and naturally made us very sad during the competition.
+
+
+To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over-supplying.
+Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
+![mosfet](benzinegate/mosfet.jpg)
+Our triggering setup involved raising the transistor gate high with a embedded device, thus sinking the device power rail low for fractions of a clock cycle.
+Since our timing involved adding and removing clock NOP() cycles after raising the pin high, our ability to tune the glitch was limited.
+
+
+![Voltage](benzinegate/Voltage_Drop.png)
+
+
+Through this method, we were able to successfully glitch a memory read on the amount of XXX printed. 
+This is important because the variable that holds the amount of X's to print is checked against zero to print the flag.
+
+
+![XXX](benzinegate/XXX.png)
+
+The value of X's fluctuated constantly, and luckily/heartbreakingly we did manage to glitch it to be happy path(0 X's)!
+
+
+![noooooo](benzinegate/nooo.png)
+
+Simply glitching the variable wasn't enough, we need to glitch an INSTRUCTION not a memory load.
+Most challenges have a Flag mask that need to be disabled, or else it will print out all 0xff's.
+
+
+Unfortunately, we were not able to get the branch instruction glitched. A sad end to this happy path.
 
 
 # ¯\\_(ツ)\_/¯
