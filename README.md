@@ -30,7 +30,7 @@
   * 300 [The Lockdown](#the-lockdown)
   * 500 [Benzinegate](#benzinegate)
 
-## ¯\\_(#ツ)\_/¯
+## ¯\\_(ツ)\_/¯
   * 100 [Race Of A Lifetime](#race-of-a-lifetime)
   * 100 [Phonic Frenzy 1](#phonic-frenzy-1)
   * 200 [Phonic Frenzy 2](#phonic-frenzy-2)
@@ -283,6 +283,7 @@ Second, the RNG-like block at the very beginning (not pictured) iterates eightee
 Unfortunately, none of us knew enough about how second order attacks work to code one up in time, and no off-the-shelf solution seemed to map to our needs.
 
 # Fault Injection
+
 ## The Lockdown
 TODO
 
@@ -290,7 +291,8 @@ TODO
 TODO
 
 
-# ¯\\_(#ツ)\_/¯
+# ¯\\_(ツ)\_/¯
+
 ## Race Of A Lifetime
 [Detailed Notes](race_of_a_lifetime/notes.md)
 
@@ -299,7 +301,38 @@ This is a simple "write a program that interacts with the board over serial". I 
 We expected a bunch of curve-balls to be thrown during this challenge, but none of them came, so we drove, sailed, and flew our way to victory. (After once flipping the sign as we crossed the terminator, oops).
 
 ## Phonic Frenzy 1
-TODO
+This challenge introduced us to the high levels of trolling that we were to expect from future challenges. Don't get us wrong, we like trolling as much as the next person -- and we fell for it hard too.
+
+After flashing the challenge binary we saw the serial console message "welcom[ing] us to the infotainment center" (thanks to phonic 2 I hope I never hear those words ever again in my life). We probed the board for other interesting signals and found interesting signals on D7, D8 and A[0..5]. The A signals are very much digital signals, of some unknown protocol. The D signals are very much analog, and look very much like audio (so much so that a son of one of our teamates called it, as well as another teamate -- though who called it first is still debated). Here's the first troll: there's digital signals on the A pins and analog signals on the D pins :)
+
+We created our first bodge cable of the challenge and connected the D7+D8 pins to the mic-in on an old netbook.
+
+![syncd capture of digital and audio signals](phonic_frenzy_1/Phonic Frenzy aligns.png)
+
+Audio quality was very poor; but it was clearly saying mostly the same text as what was printed on the serial console
+
+```
+Welcome to the Infotainment Center.
+Please connect all components properly
+and enter the serial number online to
+activate your in-car infotainment system.
+The system must be activated before proceeding.
+
+Thank you.
+
+The system will reboot now.
+```
+
+Except, before it said "the system will reboot now" (also something I never want to hear ever again, c.f. Phonic 2 below) the voice would read out a sequence of hexadecimal numbers.
+
+So at this point, we're thinking: _flag_. But some of the letters really sounded like *BAD* (Narrator: they weren't) so we thought we really needed to get a second piece of data (Narrator: they didn't) or change an input to the board before we would get the actual flag (Narrator: they actually already had it).
+
+We did it the hard way (also a theme of these writeups). So we reason: this is an infotainment center, right? So it's got to have video, right? (Narrator: wrong). We tried VGA, composite, component, EGA (and CGA???) as possible ways that the A[0..5] signals could be creating video. We learned about a bunch of neat projects that create bit-banged video from Atmel AVRs using resistor ladders to render video waveforms with color-depths. Amazing stuff, really... but totally irrelevant.
+
+There is no video.
+
+The breakthrough came when we finally backtracked; built a high-pass filter and listened again; this time the voice wasn't saying BAD. It wasn't clear what letter it was actually saying (but it wasn't 'BAD'). We analyzed a recording of the voice in the frequency domain to tell the difference between some tricky letters and (finally) got the flag.
+
 
 ## Phonic Frenzy 2
 TODO
