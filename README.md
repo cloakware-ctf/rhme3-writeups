@@ -291,7 +291,7 @@ TODO
 This is a simple CO exhaust level regulator. It sets the levels according to the regulations. Or does it? We suspect hidden functionality. Can you help us confirm?
 
 
-This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenous making us feel the most Hackerman
+This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenous making us feel the most Hackerman.
 
 
 ![hackerman](benzinegate/hackerman.jpeg)
@@ -304,10 +304,10 @@ While they are doing the check, they raise an led for a few micro seconds, givin
 This path was named the "Happy path", and made us very sad over the last few days of the competition.
 
 
-To avoid damaging the parts, we believed pulling the power rail down to ground would be the best course of action.
+To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over supplying.
 Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
-Our triggering setup involved raising the transistor gate high with a embedded device, pulling the device power rail low for fractions of a clock cycle.
-Since our ability to tune the device was limited to discrete NOP() processor lengths, our ability to glitch was limited.
+Our triggering setup involved raising the transistor gate high with a embedded device thus sinking the device power rail low for fractions of a clock cycle.
+Since our timing involved , our ability to glitch was limited.
 
 
 ![Voltage](benzinegate/Voltage_Drop.png)
@@ -316,7 +316,7 @@ Since our ability to tune the device was limited to discrete NOP() processor len
 Through this method, we were able to successfully glitch a memory read on the amount of XXX printed. 
 
 
-![XXX](benzinegate/XXX/png)
+![XXX](benzinegate/XXX.png)
 
 
 
