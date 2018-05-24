@@ -112,7 +112,6 @@ The simulator is awful. Useful notes:
   * Serial I/O just doesn't work. Set a breakpoint on print functions and a watch on the place the string will show up.
   * For input functions, break just before entry and manually key the desired string into the buffer the function will populate.
 
-
 ## Ransom and Ransom 2.0
 [Detailed Notes](ransom/notes.md)
 
@@ -248,10 +247,73 @@ If we saturate the bus enough that conflicting messages don't get through, we tr
 That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
 
 ## Auto-psy
+
 TODO
 
 # Side Channel Analysis
-  * TODO: overview
+
+Setting things up for side channel analysis was an awesome part of this challenge. One of our team members is a sucker for PCB re-work and so got to flex that muscle alot (maybe too much) in this phase. We warmed-up with a single VCC shunt on the riscure-provided uVCC header on the RHME3 and eventually reworked everything to the point of SMA connectors on two boards, one GND shunt and the other a VCC shunt with AVCC of the XMEGA separated.
+
+It was clear that riscure gave us a handy jumper for VCC/uVCC on the RHME3 target, but we noticed that this layout yieled combined measurement of both the VCC and AVCC pins of the XM EGA -- which is different that the very-nice documentation provided by the ChipWhisperer project of [its target board CW303](https://wiki.newae.com/images/a/a7/Cw303_schematic.png). We elected to do some more rework of the RHME3 target, planning for both VCC and GND shunts.
+
+![rework plan](pics/reworkplan.png)
+
+Because of the multiple points where VCC and GND are connected to the package, and uncertainty about the layout (could we actually just cut the traces leading to the legs of the package?) it seemed like we needed to go whole-hog and lift the pins. Because of the proximity of the VCC and GND pins on the XMEGA package (see red and blue marks in the picture below) on the RHME3 target, we really didn't think we could safely pin-lift to do both VCC and GND shunts at the same time. At this time in the competition we had only one target, we picked the VCC shunt method and went for it.
+
+![first victom](pics/firstvictim.png)
+
+It worked, in the sense that the system didn't release magic smoke after the rework. First up on our list of things to-do was figuring out how large a value of resistor we could put in series with the chip. We knew from RHME2 writeups that the voltage thresholds and Brown-out-detect would be setup for continuous monitoring -- we wanted to make sure that whatever signals we would get from the board would be of the largest amplitude possible.
+
+We observed, by powering the target with a bench supply, that the system would not boot if the voltage supplied was beloew 2.76V, also that after boot you could reduce teh voltage to 2.73V. At either of those limit cases the target would clear the target firmrware but never cleared the bootloader (lucky for us). We set out to find the largest resistor (of those I had on-hand) which would still let the target boot.
+
+![finding the acceptable shunt resistor](pics/findtheresistor.png)
+
+A 10R was the largest value we could use.
+
+Next up, we wanted to make sure we had a low noise floor, free of harmonics. We reasoned that we should power everything from USB battery packs, both of the ones our teamates had looked very free of harmonics. Rather than messing around with bleeding power through the USB adapter on board etc we just elected to make (what the internet told us was) an illegal calbe: splitting power from data.
+
+![breaking the rules](pics/illegalcable.png)
+
+There were a few more pieces to the setup: a picoscope 3000, a JTAGulator which we re-programmed to be our trigger generator on serial traffic. The results were OK, and probably would have been sufficient but we weren't capturing any flags yet.
+
+We were gifted a second RHME3 target by a friend (please see thank yous in the intro) and this enabled us to also try a GND shunt to see what (if any) difference it would make. It ended up being just-about as good...
+
+![the second victim](pics/secondvictim.png)
+
+Then we got a differential probe from NewAE Tech; we re-worked it (as it was designed to be) so that we had a 10R shunt resistor on the diff probe and connected that up to target:
+
+![side channel intensifies](pics/intensifies.png)
+
+![power consumption traces](pics/props.png)
+
+The signal quality was much improved and we were starting to get really close to some flags (see below in the writeups sections for each challenge for more details).
+
+![pretty clean](pics/results.png)
+
+#### Things That Didn't Work
+
+Of course, the above description of the setup is very 'linear' and does not capture the reality of the many many mistakes we made along the way. In this section, we'd like to examine some of the things that didn't work for us.
+
+* Changing the Brown-Out-Detect (BOD) settings: We were a little worried about fatally corrupting the fuses on the target, so we never even tried this until the last day. We could read the fuses settings with Atmel Studio and an ICE3 debugger; the values mostly made sense with the rest of our experiments. But (obviously) we weere not able to change the settings.
+
+![BOD in fuses](pics/boddisable.png)
+
+* Clock Injection: Inspired by https://www.cl.cam.ac.uk/~sps32/JCEN_sync_sca.pdf we setup our ChipWhisperer as a clock generator and connected that to the XMEGA through a passive adder, where the VCC shunt resistor was the other leg of the adder. Then we  used the CAN Opener target firmware, which did enable the greneration of an external clock signal for CAN_CLK, so we could observer if we ever got phase lock from the XMEGA onto the injected signal.
+  * different rails: we tried both AVCC, VCC and both AVCC+VCC pins of the XMEGA
+  * different harmonics: we tried searching for useful injection frequencies around x1 x2 and x4 of the XMEGA clock
+  * different modulation amplitudes: by changing the resistor adder leg as input of the injected clock (recall that the other leg was fixed because a larger value than 10R would cause a reboot) we tried various modulation amplitudes. At one point we did observe a lock, but it also triggered BOD !
+
+![clock injection attempt](pics/clockinjection.png)
+
+* Inspired by https://www.cl.cam.ac.uk/~sps32/JCEN_sync_sca.pdf We got a bare clock recovery board from NewAE tech and set out to get synchronous capture of our traces by doing clock recovery of the XMEGA target. We made quite a few mistakes along the way and despite plenty of help from friends (please see the intro section for thanks) we never did get clock recovery working on this target
+  * ordering 0402 instead of 0603 components (still assembled it anyways, just with extra cursing)
+  * ordering very very crappy decoupling caps
+  * not accounting for parasitic resistances in the filter design
+  * and as-yet unkown causes...
+
+![clock recovery attempt](pics/clockrecovery.png)
+
+But, don't get us wrong, these were all valid experiments and valueable learning experiences. We're glad we tried them out even if they didn't pan-out.
 
 ## It's A Kind Of Magic
 [Detailed Notes](its_a_ko_magic/notes.md)
@@ -283,7 +345,7 @@ I spent way too much time under the assumption that ten of the sixteen rounds we
 
 Honestly, I should have known. Doing a plaintext/ciphertext correlation with the traces showed strong spikes on a single "round", which doesn't make sense for a single AES round.
 
-Once that misconception was squared away, we went hunting for information how to break the ATXMEGA 128A4U hardware AES implementation, and we found a [ChipWhisperer tutorial on exactly that](https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE_Attack). Our ChipWhisperer was giving us grief, and implementing it in Inspector just wasn't coming together for us, so we turned to [Jlsca](https://github.com/Riscure/Jlsca). It is of course, a CPA toolkit written in Julia. Now, one thing needs to be said about Julia:
+Once that misconception was squared away, we went hunting for information how to break the ATXMEGA 128A4U hardware AES implementation, and with a little help from a friend (see intro sections) we found a [ChipWhisperer tutorial on exactly that](https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE_Attack). Our ChipWhisperer was giving us grief, and implementing it in Inspector just wasn't coming together for us, so we turned to [Jlsca](https://github.com/Riscure/Jlsca). It is of course, a CPA toolkit written in Julia. Now, one thing needs to be said about Julia:
 
 ![Arrays in Julia](the_imposters/JuliaArrays.png)
 
@@ -306,6 +368,7 @@ We didn't figure out what sort of masking was being used until very late in the 
 for Embedded Systems](https://orbilu.uni.lu/bitstream/10993/10582/1/splimaskanalysis.pdf) that seemed suspiciously similar. It was coincidence.
 
 Back to basics:
+
 ![RRE Autocorrelation](random_random_everywhere/RRE-first-two.png)
 
 From staring at the autocorrelations (first round of encryption above), we knew a fair amount about what was going on. First, before the plaintext receives its initial mask (location known from data correlations), there's a strange block that looks like and correlates to MixColumns. We know that attacks on MixColumns exist, so this is probably to generate the MixColumns output masks. A thing we know has to happen, if you're going to mask that step.
@@ -316,55 +379,58 @@ Unfortunately, none of us knew enough about how second order attacks work to cod
 
 # Fault Injection
 
-## The Lockdown
-TODO
-
 ## Benzinegate
 This is a simple CO exhaust level regulator. It sets the levels according to the regulations. Or does it? We suspect hidden functionality. Can you help us confirm?
 
-
-This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenous making us feel the most Hackerman.
-
+This challenge represents both the largest leap in our current expertise (Fault Injection) while simulatenously making us feel the most Hackerman.
 
 ![hackerman](benzinegate/hackerman.jpeg)
 
 The challenge accepted a CO2 level as input, and reponded with "# Level Set".
 Initial analysis showed that it was vulnerable to a buffer overflow in its input, which we can then ROP attack into the hidden functionality.
 The issue is it wont print the flag unless the stack canary is correct.
-If unsuccessful it will print some lovely XXXX's to let you know how wrong you are compared to the canary. 
-
+If unsuccessful it will print some lovely XXXX's to let you know how wrong you are compared to the canary.
 
 While they are doing the canary check, they raise an LED for a few micro seconds, giving us a viable trigger to sync our fault injection.
 This path was named the "Happy path", and naturally made us very sad during the competition.
 
+![SMA](pics/SMA.png)
 
-To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over-supplying.
-Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
+We prepared the victim for the operation, To avoid damaging the board, we believed pulling the power rail down to ground would be the best course of action instead of over-supplying. We started out with the cool ChipWhisperer (Lite) platform, creating a python driver for our target and configuring the CW to trigger a glitch at points in time which we tuned by overlaying non-glitched and glitched traces, then began running searches through the glitch-delay and glitch-width spaces.
+
+Unfortunately for us, [there is a bug in the CW](https://github.com/newaetech/chipwhisperer/issues/90) which results in sometimes having the logic line which controls the FET on-board the CW get stuck active <-- which then causes the FET to continuously draw current. It was just our bad luck that we would run into this issue ever overnight run ! We had some burnt resistors and eventually damaged the FET on-board the CW.
+
+We needed another option, we had some XMEGA 128 A3Us that we purchased to do dynamic analysis and known-key attacks. We repurposed one with a custom program to turn it into a variable delay single shot pulse generator and then connecting that to a FET. Raiding a discarded power converter we found a massive power mosfet that could switch in under 100 nanoseconds, the length of an AVR clock cycle.
+
 ![mosfet](benzinegate/mosfet.jpg)
-Our triggering setup involved raising the transistor gate high with a embedded device, thus sinking the device power rail low for fractions of a clock cycle.
-Since our timing involved adding and removing clock NOP() cycles after raising the pin high, our ability to tune the glitch was limited.
 
+We connected the two of them together, thus sinking the device power rail low for fractions of a clock cycle.
 
 ![Voltage](benzinegate/Voltage_Drop.png)
 
+Since our timing involved adding and removing clock NOP() cycles after raising the pin high, our ability to tune the glitch was limited. But it had the possibility to work, so we pressed on. By combining persistence display on the oscilloscope and alternating glitch/don't-glitch runs we could manually tune the delay and width of our pulses, this is because the target firmware gave us a pair of nice nop-sleds to time the position of the glitch visually (or so we thought!). We needed to tune the delay to get the glitch into the right point in time; but we also needed to tune the width to be somewhere in between having no effect at all and causing the board to reset.
 
-Through this method, we were able to successfully glitch a memory read on the amount of XXX printed. 
-This is important because the variable that holds the amount of X's to print is checked against zero to print the flag.
+![pov](benzinegate/pov.png)
 
+Through this method, we were able to successfully glitch a memory read on the amount of XXX printed. This is important because the variable that holds the amount of X's to print is checked against zero to print the flag.
 
 ![XXX](benzinegate/XXX.png)
 
 The value of X's fluctuated constantly, and luckily/heartbreakingly we did manage to glitch it to be happy path(0 X's)!
 
-
 ![noooooo](benzinegate/nooo.png)
 
-Simply glitching the variable wasn't enough, we need to glitch an INSTRUCTION not a memory load.
-Most challenges have a Flag mask that need to be disabled, or else it will print out all 0xff's.
+Alas, simply glitching the variable wasn't enough, we need to glitch an INSTRUCTION not a memory load. Most challenges have a Flag mask that need to be disabled, or else it will print out all 0xff's.
 
+That occurred with a couple hours left to the competition; we did not know how we could get an 'instruction' glitch working. Were not able to get the branch instruction glitched. A sad end to this happy path.
 
-Unfortunately, we were not able to get the branch instruction glitched. A sad end to this happy path.
+## The Lockdown
 
+Even though this was rated lower points than Benzinegate, our read of the target firmware (after it was released in the clear by Riscure) made us think that it would be harder to accomplish. The target appeared to require multiple glitches to get to the flag.
+
+We focused on benzinegate because of the higher points and ran out the clock on that challenge.
+
+We did not solve Lockdown
 
 # ¯\\_(ツ)\_/¯
 
