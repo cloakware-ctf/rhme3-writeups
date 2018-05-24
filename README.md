@@ -25,7 +25,7 @@ The cloakware-ctf team was composed of (alphabetically) Jonathan Beverley, Colin
 ![FTWs](pics/slack_solves.png)
 
 # Categories
-## Reverse Engineering
+## [Reverse Engineering](#reverse-engineering-1)
   *  50 [Ransom](#ransom-and-ransom-20)
   * 150 [Ransom 2.0](#ransom-and-ransom-20)
   * 250 [Full Compromise](#full-compromise)
@@ -41,7 +41,7 @@ The cloakware-ctf team was composed of (alphabetically) Jonathan Beverley, Colin
   * 250 [Back To The Future](#back-to-the-future)
   * 500 [Auto-psy](#auto-psy)
 
-## Side Channel Analysis
+## [Side Channel Analysis](#side-channel-analysis-1)
   * 200 [It's A Kind Of Magic](#its-a-kind-of-magic)
   * 350 [The Imposters](#the-imposters)
   * 500 [Random Random Everywhere](#random-random-everywhere)
