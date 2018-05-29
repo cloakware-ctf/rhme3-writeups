@@ -28,6 +28,19 @@ References:
 https://wiki.newae.com/Tutorial_A6_Replication_of_Ilya_Kizhvatov%27s_XMEGA%C2%AE_Attack
 http://www.iacr.org/phds/106_ilyakizhvatov_physicalsecuritycryptographica.pdf
 
+## Installing and Configuring Jlsca
+  1. Go to [Julia Install instruction](https://julialang.org/downloads/platform.html)
+  2. Get and install julia v6.0 or higher
+```julia
+Pkg.clone("https://github.com/Riscure/Jlsca")
+Pkg.add("IJulia")
+Pkg.add("PyPlot")
+Pkg.add("PyCall")
+using IJulia; notebook()
+```
+
+
+
 ## Results
 The class of attack used was based upon Ilya's work referenced above.
 When Ilya's attacks were fully operational It worked perfectly on the example traces, the imposters... not so much.
