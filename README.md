@@ -1,6 +1,6 @@
 
 # Introduction
-  * TODO: todo items remain below. (remove this one last)
+  * TODO: one todo item remains below. (remove this one last)
 
 Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd and was the highest placing Canadian team; completing 16/19 challenges!
 
@@ -247,8 +247,54 @@ If we saturate the bus enough that conflicting messages don't get through, we tr
 That still doesn't work, because something is triggering the "check engine" light. From outside experience, we know that that light often is a generic "something is wrong" light. To find out what's up with it, we tried every message we saw and several variants of them to see what toggled the engine light off. Eventually we found that the 0x19a message was it. We didn't find out what it meant, or where to put it, so instead, we fired one off every time we saw any message. That was enough, and a few seconds later the flag fell out.
 
 ## Auto-psy
+[Detailed Notes](auto_psy/notes.md)
 
-TODO
+Just by reading the description, one member of our team nailed exactly what this would be. [UDS](https://en.wikipedia.org/wiki/Unified_Diagnostic_Services). Our expectation was that we'd need use $27 to enable a security session, and then use $23 to dump the "key" from RAM. That's close, but not quite right...
+
+Connecting to the CAN BUS, and just listening, we see queries to 7DF, and 7E5. The former is like a broadcast request, intended to be used by a piece of diagnostic equipment. When send our own ODB-II request to that address, asking for ECU Names (Mode 09, PID 0A), we get the following list:
+    * 7D3/7DB: FlxCap_Ctrl
+    * 7E0/7E8: FlxCap_Gateway
+    * 7E5/7ED: FlxCap_PwrTrain_Ctrl
+
+(We also get the VIN: LJCPCBLCX11000237, which might be the Bat Mobile?)
+
+Now we know who's out there, it's time to do some SID enumeration to see what they're going to respond to. Note that only low PIDs respond to requests on 7DF, to talk to SIDs, we need to use the correct CAN id, so we have to hit each of the three one at a time. Fortunately, it turns out that the parser and error detection are fairly well written, so we get useful error codes back. From them, we learn that the following SIDs are enabled:
+
+* $10 Diagnostic Session Control. Set to `0` to be boring, or ``11`` to enable other SIDs.
+* $11 ECU Reset
+* $27 Security Access
+* $35 Request Upload. Note: "Upload" means it sends to us.
+* $36 Transfer Data
+* $37 Request Transfer Exit
+* $3e Tester Present
+
+First, the ECU needs to be set to "Programming Session", using a $10:2 message, then we go straight for $35, and get hit with a response ``0x33 securityAccessDenied``. Expected, but we had to try. That done, it's time to do things the obvious way. A $27:1 message receives a two-byte seed value back, a few quick tests show it expects a two-byte "key" back (it gives error ``0x13 incorrectMessageLengthOrInvalidFormat`` otherwise). Two-bytes is 65536 possibilities, or about four hours of brute force. The [security-access.py](auto_psy/security-access.py) script automates this. It ends by going into a loop that sends a $3e message every ten seconds to prevent the session from lapsing, but later analysis showed that to be unnecessary.
+
+Once in, $35 started working properly. The [rom-dump.py](auto_psy/rom-dump.py) script automates this process, iterating through the whole memory range and dumping 4k chunks. It doesn't handle errors well, and so provides bad chunks around 20% of the time. It's quick, so I re-ran it multiple times until I had full-sized chunks. A little stitching together, and we'd effectively added the **RE** tag to the challenge.
+
+Analysis quickly showed that SID a $A0:0 to 7D3 should drop the flag:
+```sh
+[0](~)> cansend can0 7d3#02.a0.00.22.30.00.00.04
+can0  7DB   [8]  10 29 E0 00 46 4C 41 47   '.)..FLAG'
+can0  7DB   [8]  21 3A 00 06 00 00 00 00   '!:......'
+can0  7DB   [8]  22 00 18 39 06 00 00 00   '"..9....'
+can0  7DB   [8]  23 00 00 00 00 00 00 00   '#.......'
+can0  7DB   [8]  24 00 00 00 00 00 00 00   '$.......'
+can0  7DB   [8]  25 00 00 00 00 00 00 00   '%.......'
+```
+Nope. Except, we obviously did the right thing, because we got a valid reply starting with "FLAG"... Some more reversing showed there was a subtle bug in the code. The code that XOR-"decrypts" the flag gets it from ROM, XORs it, and tries to put it back in ROM. Because the ATXMEGA is a Harvard architecture, RAM and ROM address spaces both start at 0x0, so ROM:0x232 and RAM:0x232 both look very similar in binary, so what the code actually does is write the FLAG to a bunch of memory-mapped I/O, and then print that I/O out over CAN.
+
+**However**, this image is the actual running image, not a sanitized one for RE. With a little more reversing, and judicious application of the simulator, the flag popped right out. Only problem? It didn't work.
+
+A quick telegram chat and a little forehead-desk later I learned that I'd been working on the pre-bugfix image. OOPS. Fortunately, all the knowledge transferred over. There are only three notable differences:
+
+1. The RAM/ROM mix-up is fixed so the flag will print properly.
+2. The Flag is zeroed out of the uploaded image (likely that there's two images, one running, one for download)
+3. 7D3/7DB is input masked.
+
+In combination, the latter two break the attack, and they mean that 7D3#$A0:0 isn't going to work. It's possible there's an exploit in the binary that could be exploited to get access anyway, but after spending the better part of a week trying and failing various paths, we decided on the one that had to work: We'd   patch into the SPI bus disable filtering ourselves.
+
+Then we woke up the next morning and had the flag. It turns out the organizers had decided that extracting the previous flag from the image was good enough for full points.
 
 # Side Channel Analysis
 
