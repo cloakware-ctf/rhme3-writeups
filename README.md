@@ -16,7 +16,7 @@ We still had a chance! We kept bugging them via email and eventually we did get 
 
 ![eureka](pics/rx.png)
 
-What follows are the writeups of the 16 challenges we completed (and somethat we didn't). Here's a couple of our favourites:
+What follows are the writeups of the 16 challenges we completed (and some that we didn't). Here's a couple of our favourites:
 * Full Compromise — Even when proper input was given to the device, it would verify the input for 6 hours before returning the flag
 * Car Key Fob — Bugged challenge, unsolvable. Our writeup describing exhaustive coverage of what we attempted spurred the organizers to identify that they were testing a binary different than what they had deployed. They gave us a backdated solve to give us first solve on that challenge. Elapsed solve time on our part was multiple months.
 
