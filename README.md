@@ -65,7 +65,7 @@ At the beginning of the challenge, we had some fun 'bootstrapping' our ability t
 Atmel come Microchip publishes specifications for most of the programming interface of their microprocessors as xml files, so-called `.atdf` files. Parsing these files to create useful IDB databases is an idea we stole shamelessly from a few cases of prior art:
   * https://github.com/abcminiuser/gdp/blob/c15f7f7bc545c321bd9956f0701e628b170e047f/devices/device_atmelstudio.py
   * https://github.com/wrightflyer/test/blob/fd17c7e0810f2fede0fd658406144d578b531b58/avrread.py
-  * avrports.fsx from the radare2 github issue on xmega
+  * avrports.fsx from the [radare2 github issue on xmega](https://github.com/radare/radare2/issues/5268#issuecomment-240503931)
 
 The script we created, `avr2idacfg.py` started from modifications to the `avrread.py` script by Cliff Lawsom. Whereas his script creates header files, our script creates an IDA `.cfg` file which needs to be installed into `./~idapro/avr2idacfg.py`. At which point, a new target will be available when opening a `.hex` file in IDA.
 
