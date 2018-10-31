@@ -344,7 +344,7 @@ Of course, the above description of the setup is very 'linear' and does not capt
 
 ![BOD in fuses](pics/boddisable.png)
 
-* Clock Injection: Inspired by https://www.cl.cam.ac.uk/~sps32/JCEN_sync_sca.pdf we setup our ChipWhisperer as a clock generator and connected that to the XMEGA through a passive adder, where the VCC shunt resistor was the other leg of the adder. Then we  used the CAN Opener target firmware, which did enable the greneration of an external clock signal for CAN_CLK, so we could observer if we ever got phase lock from the XMEGA onto the injected signal.
+* Clock Injection: Inspired by https://www.cl.cam.ac.uk/~sps32/JCEN_sync_sca.pdf we setup our ChipWhisperer as a clock generator and connected that to the XMEGA through a passive adder, where the VCC shunt resistor was the other leg of the adder. Then we  used the CAN Opener target firmware, which did enable the generation of an external clock signal for CAN_CLK, so we could observe if we ever got phase lock from the XMEGA onto the injected signal.
   * different rails: we tried both AVCC, VCC and both AVCC+VCC pins of the XMEGA
   * different harmonics: we tried searching for useful injection frequencies around x1 x2 and x4 of the XMEGA clock
   * different modulation amplitudes: by changing the resistor adder leg as input of the injected clock (recall that the other leg was fixed because a larger value than 10R would cause a reboot) we tried various modulation amplitudes. At one point we did observe a lock, but it also triggered BOD !
