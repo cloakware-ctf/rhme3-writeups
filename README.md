@@ -704,15 +704,63 @@ The jtagulator didn't want to go slow, so we cooked up [a patch](https://github.
 
 ![jtagulate!](car_key_fob_hardware_backdoor/jtagulate_it.png)
 
-
+The Riscure devs had put a fun trap into the challenge: it would issue a self-destruct.
 
 ![side effects](car_key_fob_hardware_backdoor/ckf-hw-backdoor_selfdestruct.png)
 
+```
+Self-destruct' 'triggered.\r\n5\r\n4\r\n3\r\n2\r\n1\r\nBOOM!!!\r\nFake' 'explosion.' 'I' 'hope' 'it' 'scared' 'you' 'away\r\n
+```
+
+We later learned that this was happening only when a particular bit was asserted during shift-in and latch (see below). But the net effect here was that any time we tried to JTAGulated the target, it would emit this self-destruct! Fun.
+
+#### Into Darkness
+
+We poked blindly at the target for some time; exploring with the long sentinel value.
+
+We were able to determine that the response needed to be shifted-in to the target (aka 'sent') during 'frame B' (called quad B below). Because the last frame, 'frame C' was too short. At this point we were still thinking of this as being a software implementation of a state-machine representing shift-registers in a virtual scan chain, i.e. emulating the electronics of it.
+
+> recap: each time we 'latch' some bits (ideally read the circuit into the SR, but practically this appears to also virtually write the virtual SR into the circuitry as well) we'll call that a frame. we've explored all the bits of frame A; it is 512 bits wide, there are some read-only bits, a couple bits that trigger self-destruct (with and without countdown) and finally also a bit that causes a 128bit randomized value to be emitted in frameB -- the instigate bit. We divide up each frame into 128bit quadwords, enumerating from MSB first: quadA, quadB, quadC, quadD. The read-only bits are spread across quadB and quadC. quadD contains the self-destruct bits; quadC contains the instigate bits.
+> 
+> When we shift bits during a frame, we also shift-out bits from the Shift Register; in frameB quadA shifted-out contains the randomized value, presumably a nonce. quads B,C,D contain the contents of what was shifted-in during frameA -- except as modified by the read-only bits which are stuck at 0.
+> 
+> In frameC, all the quads shifted-in during frameB will be shifted out almost (more in a sec); however, it is no longer possible to shift-in any data as bits shifted in will no longer propagate *through* the SR to the end of the chain and out again. In frameC t 512-25 clocks into frameC, the target prints `Test mode activated`. This is presumably a soft reset condition since this is what is printed when the target comes out of reset. (edited) 
+> 
+> questions I don't think I know the answer to, which I thought of in writing the summary: 1) does the SR still wrap-around in frameB ? 2) are the read-only bits still stuck at zero in frame C ?
+
+![reasonable frames](car_key_fob_hardware_backdoor/reasonable_frames.png)
+
+Looking-back, we were still very wrong about some things. But we had reverse engineered that there were three frames: A, B and C. Where frame A and B were 512 bits and frame C was only 384 bits. In frame A you could shift-in a bit asserted, the 'instigate' bit and in frame B you would receive a 16 bytes challenge shifted-out at bit offset 0. In frame B you could shift-in with a bit asserted and received `Authentication Failed`, the 'authenticate' bit. We had eliminated frameC as being anything but where the response would be shifted-out.
+
 ![the frames](car_key_fob_hardware_backdoor/wavedrom.png)
+
+So we were fairly certain that the response needed to be sent in frame B along with the authenticate bit set. But at what offset, and how should the response be calculated from the given challenge? We tried to put the response in various places, using a variety of combinations of algorithm, password-preparation, bit offset in the frame, password selected and frame. We developed an over-engineered piece of python which would search exhaustively through all the possible combinations even.
+
+[cr_methods.py](car_key_fob_hardware_backdoor/cr_methods.py)
+[frames_protocol.py](car_key_fob_hardware_backdoor.py)
+[send_many_responses.py](car_key_fob_hardware_backdoor/send_many_responses.py)
+
+#### PPS
+
+No one was getting anywhere on this challenge, it wasn't just us. We were bugging Riscure in DMs on Telegram (thank you, Alex), and aparently so were many others. Riscure revised the challenge description and added a 'PPS' as a hint.
+
+> PPS. The Encryption used by this key-fob is very Advanced.
+
+Which helped reduce the search space some, but we were already considering AES algorithms in our searches.
+
+#### More PPS
+
+We were given a hint that the password is a two-word combination from the list of combined length 16.
+
+At this point we were so sure we had the righ parameters that we would get the flag if we just completed an 8 hour search
+
+![on a plane](car_key_fob_hardware_backdoor/on_a_plane.png)
+
+So I kept the search running while I boarded my Delta flight home one night. Not the greatest idea I ever had... no, we did not get the flag.
 
 #### PPPS
 
-We got another hint:
+We got another hint on the challenge page:
 
 > PPPS. Remember that the bits in the output of the scan chain come in reverse order. Also, the location for the provided plaintext is different from the one where the challenge is received.
 
@@ -921,10 +969,12 @@ On April 9th (2018) we contacted Alex again:
 
 #### The Solution
 
-I honestly don't know :)
+Sorry, reader. I honestly don't know :)
 
 It turns out that the challenge binaries which were made available for download were different than the binaries that they tested for the challenge. This is somewhat understandable though -- recall that the challenges are individually encrypted for each board. SO... the testing we were doing against our RHME3 board was different than the verification that poor Alex was doing on his end. He eventually got back to us with the good/bad news:
 
 ![bug](car_key_fob_hardware_backdoor/there_was_a_bug.png)
 
-In the end we were given the solve and gold (retroactively) for all the efforts. I never went back to re-run the search against the challenge. Maybe someday I will... (probably not).
+In the end we were given the solve and gold (retroactively even) for all the efforts. I never went back to re-run the search against the challenge. We were still in the competion and had a shot, so we moved right-away into fault-injection. So I don't actually know what the solution is. One thing is for sure; the correct algorithm, bit-order, password-prep, bit offset and password-pair combination is somewhere in the massive search code we put together.
+
+This was alot of ups and downs and frustrations. Despite all that, I still enjoyed the challenge and I think riscure handled the situation as best they could. Special thanks to Alex Geana at Riscure for that. Maybe someday I will go back and re-run my search code on the patched binary... (probably not).
