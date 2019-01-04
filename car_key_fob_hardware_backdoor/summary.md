@@ -1,4 +1,5 @@
 ## Variants
+
 |    | bit order |
 |----|-----------|
 | 1a | get_trivial_responder |
