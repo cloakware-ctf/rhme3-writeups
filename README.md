@@ -1,6 +1,5 @@
 
 # Introduction
-  * TODO: one todo item remains below. (remove this one last)
 
 Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd and was the highest placing Canadian team; completing 16/19 challenges!
 
@@ -640,57 +639,55 @@ The silkscreen says AREF, but that pin is the last one in the set of pins creati
 
 In this challenge, we know that there are some pins which are being used to emulate a *scan chain* and that we need to figure out the challenge/response protocol in order to get the flag.
 
-```
-We reverse engineered the firmware of a key-fob we found. There is an indication that there is a backdoor in a hardware module through a scan-chain that provides access to all the cars. It appears to use pin 1, 2, 43, and 44 from the chip. It also has a challenge-response mechanism of 128-bits. A list of possible password candidates is found in the firmware and printed below.
-
-PS. The scan-chain is emulated in software. Therefore, the worst case branch takes around 0.54 ms, and therefore you shouldn't drive the clock faster than 1.8 khz.
-
-princess
-fob
-qwerty
-secr3t
-admin
-backdoor
-user
-password
-letmein
-passwd
-123456
-administrator
-car
-zxcvbn
-monkey
-hottie
-love
-userpass
-wachtwoord
-geheim
-secret
-manufacturer
-tire
-brake
-gas
-riscurino
-delft
-sanfransisco
-shanghai
-gears
-login
-welcome
-solo
-dragon
-zaq1zaq1
-iloveyou
-monkey
-football
-starwars
-startrek
-cheese
-pass
-riscure
-aes
-des
-```
+> We reverse engineered the firmware of a key-fob we found. There is an indication that there is a backdoor in a hardware module through a scan-chain that provides access to all the cars. It appears to use pin 1, 2, 43, and 44 from the chip. It also has a challenge-response mechanism of 128-bits. A list of possible password candidates is found in the firmware and printed below.
+> 
+> PS. The scan-chain is emulated in software. Therefore, the worst case branch takes around 0.54 ms, and therefore you shouldn't drive the clock faster than 1.8 khz.
+> 
+> princess
+> fob
+> qwerty
+> secr3t
+> admin
+> backdoor
+> user
+> password
+> letmein
+> passwd
+> 123456
+> administrator
+> car
+> zxcvbn
+> monkey
+> hottie
+> love
+> userpass
+> wachtwoord
+> geheim
+> secret
+> manufacturer
+> tire
+> brake
+> gas
+> riscurino
+> delft
+> sanfransisco
+> shanghai
+> gears
+> login
+> welcome
+> solo
+> dragon
+> zaq1zaq1
+> iloveyou
+> monkey
+> football
+> starwars
+> startrek
+> cheese
+> pass
+> riscure
+> aes
+> des
 
 (That challenge description changed a couple times over the course of the RHME3 competition, along with hints being added and corrected too, but let's start with this description). As mentioned above, this was a multi-month endeavour; there a mix of doing things the hard way, making dumb mistakes and also a bugged challenge.
 
@@ -700,7 +697,7 @@ Given the description of a bunch of pins on the RHME3 target as constituting a *
 
 ![what is this?](car_key_fob_hardware_backdoor/isthisajtag.png)
 
-The jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) -- which Joe says he's going to integrate in his own way :). We patched our jtagulator and jtagulated the RHME3 CKF HW Backdoor target.
+That clock rate limit is pretty slow, and the jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) -- which Joe says he's going to integrate in his own way :). We patched our jtagulator and jtagulated the RHME3 CKF HW Backdoor target.
 
 ![jtagulate!](car_key_fob_hardware_backdoor/jtagulate_it.png)
 
@@ -709,7 +706,14 @@ The Riscure devs had put a fun trap into the challenge: it would issue a self-de
 ![side effects](car_key_fob_hardware_backdoor/ckf-hw-backdoor_selfdestruct.png)
 
 ```
-Self-destruct' 'triggered.\r\n5\r\n4\r\n3\r\n2\r\n1\r\nBOOM!!!\r\nFake' 'explosion.' 'I' 'hope' 'it' 'scared' 'you' 'away\r\n
+Self-destruct triggered.
+5
+4
+3
+2
+1
+BOOM!!!
+Fake explosion. I hope it scared you away
 ```
 
 We later learned that this was happening only when a particular bit was asserted during shift-in and latch (see below). But the net effect here was that any time we tried to JTAGulated the target, it would emit this self-destruct! Fun.
@@ -961,7 +965,9 @@ There was no boundary scan implemented here, just that one LED control bit. Prob
 
 #### The Last Straw
 
-On April 9th (2018) we contacted Alex again:
+So, we were left with a search through roughly 384 offsets in frameB through a short (and known) list of password-pairs combined with only a couple variations of AES and bit orders. Which we searched through. Again. Still nothing.  
+
+On April 9th (2018) we contacted Alex again and kept working on side-channel analysis to try to figure out the actual AES key and offset.
 
 > Hi Alex, I'm sorry to report that we haven't been able to convert all your help into something useful . Lots of the known space searched, but no flags. We think that either 1) we need to do something special in packing the response to avoid the stuck bits (the ones that read-back zero after a latch) or 2) there is a password-preparation routine that needs to be applied to the concatenation of the two words from the list before using it as an AES key. We think we can figure out 2 by SCA on the target during the operations is performs when the challenge bit is set -- so far we're just getting slowed down by our tooling setup requiring the CW instead of the picoscope for this challenge. I hope to remove that restriction today and get a better look at AES during latch of the challenge bit.
 
@@ -971,7 +977,7 @@ On April 9th (2018) we contacted Alex again:
 
 Sorry, reader. I honestly don't know :)
 
-It turns out that the challenge binaries which were made available for download were different than the binaries that they tested for the challenge. This is somewhat understandable though -- recall that the challenges are individually encrypted for each board. SO... the testing we were doing against our RHME3 board was different than the verification that poor Alex was doing on his end. He eventually got back to us with the good/bad news:
+It turns out that the challenge binaries which were made available for download were different than the binaries that they tested for the challenge. This is somewhat understandable though -- recall that the challenges are individually encrypted for each board. SO... the testing we were doing against our RHME3 board was different than the verification that poor Alex was doing on his end. He eventually got back to us on April 13th with the good/bad news:
 
 ![bug](car_key_fob_hardware_backdoor/there_was_a_bug.png)
 
