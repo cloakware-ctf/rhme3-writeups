@@ -637,5 +637,73 @@ The silkscreen says AREF, but that pin is the last one in the set of pins creati
 ![spectral solve](phonic_frenzy_2/spectralsolve.png)
 
 ## Car Key Fob Hardware Backdoor
-TODO
 
+In this challenge, we know that there are some pins which are being used to emulate a *scan chain* and that we need to figure out the challenge/response protocol in order to get the flag.
+
+```
+We reverse engineered the firmware of a key-fob we found. There is an indication that there is a backdoor in a hardware module through a scan-chain that provides access to all the cars. It appears to use pin 1, 2, 43, and 44 from the chip. It also has a challenge-response mechanism of 128-bits. A list of possible password candidates is found in the firmware and printed below.
+
+PS. The scan-chain is emulated in software. Therefore, the worst case branch takes around 0.54 ms, and therefore you shouldn't drive the clock faster than 1.8 khz.
+
+princess
+fob
+qwerty
+secr3t
+admin
+backdoor
+user
+password
+letmein
+passwd
+123456
+administrator
+car
+zxcvbn
+monkey
+hottie
+love
+userpass
+wachtwoord
+geheim
+secret
+manufacturer
+tire
+brake
+gas
+riscurino
+delft
+sanfransisco
+shanghai
+gears
+login
+welcome
+solo
+dragon
+zaq1zaq1
+iloveyou
+monkey
+football
+starwars
+startrek
+cheese
+pass
+riscure
+aes
+des
+```
+
+(That challenge description changed a couple times over the course of the RHME3 competition, along with hints being added and corrected too, but let's start with this description). As mentioned above, this was a multi-month endeavour; there a mix of doing things the hard way, making dumb mistakes and also a bugged challenge.
+
+### In the beginning, there was JTAG (right?)
+
+Given the description of a bunch of pins on the RHME3 target as constituting a *scan chain* we did what any self-respecting HW reverse engineering practioner would do: jtagulate it.
+
+![what is this?](car_key_fob_hardware_backdoor/isthisajtag.png)
+
+The jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) -- which Joe says he's going to integrate in his own way :). We patched our jtagulator and jtagulated the RHME3 CKF HW Backdoor target.
+
+![jtagulate!](car_key_fob_hardware_backdoor/jtagulate_it.png)
+
+
+
+![side effects](car_key_fob_hardware_backdoor/ckf-hw-backdoor_selfdestruct.png)
