@@ -707,3 +707,5 @@ The jtagulator didn't want to go slow, so we cooked up [a patch](https://github.
 
 
 ![side effects](car_key_fob_hardware_backdoor/ckf-hw-backdoor_selfdestruct.png)
+
+![the frames](pics/wavedrom.png)
