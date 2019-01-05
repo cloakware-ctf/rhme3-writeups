@@ -1,6 +1,5 @@
 
 # Introduction
-  * TODO: one todo item remains below. (remove this one last)
 
 Throughout the past four months, members of the cloakware-ctf have been competing, part-time, on the rhme3 challenge (https://rhme.riscure.com/3/news). These challenges were extremely difficult, but also extremely fun. In the end, team Cloakware placed 3rd and was the highest placing Canadian team; completing 16/19 challenges!
 
@@ -637,5 +636,351 @@ The silkscreen says AREF, but that pin is the last one in the set of pins creati
 ![spectral solve](phonic_frenzy_2/spectralsolve.png)
 
 ## Car Key Fob Hardware Backdoor
-TODO
 
+In this challenge, we know that there are some pins which are being used to emulate a *scan chain* and that we need to figure out the challenge/response protocol in order to get the flag.
+
+> We reverse engineered the firmware of a key-fob we found. There is an indication that there is a backdoor in a hardware module through a scan-chain that provides access to all the cars. It appears to use pin 1, 2, 43, and 44 from the chip. It also has a challenge-response mechanism of 128-bits. A list of possible password candidates is found in the firmware and printed below.
+> 
+> PS. The scan-chain is emulated in software. Therefore, the worst case branch takes around 0.54 ms, and therefore you shouldn't drive the clock faster than 1.8 khz.
+> 
+> princess
+> fob
+> qwerty
+> secr3t
+> admin
+> backdoor
+> user
+> password
+> letmein
+> passwd
+> 123456
+> administrator
+> car
+> zxcvbn
+> monkey
+> hottie
+> love
+> userpass
+> wachtwoord
+> geheim
+> secret
+> manufacturer
+> tire
+> brake
+> gas
+> riscurino
+> delft
+> sanfransisco
+> shanghai
+> gears
+> login
+> welcome
+> solo
+> dragon
+> zaq1zaq1
+> iloveyou
+> monkey
+> football
+> starwars
+> startrek
+> cheese
+> pass
+> riscure
+> aes
+> des
+
+(That challenge description changed a couple times over the course of the RHME3 competition, along with hints being added and corrected too, but let's start with this description). As mentioned above, this was a multi-month endeavour; there a mix of doing things the hard way, making dumb mistakes and also a bugged challenge.
+
+### In the beginning, there was JTAG (right?)
+
+Given the description of a bunch of pins on the RHME3 target as constituting a *scan chain* we did what any self-respecting HW reverse engineering practioner would do: jtagulate it.
+
+![what is this?](car_key_fob_hardware_backdoor/isthisajtag.png)
+
+That clock rate limit is pretty slow, and the jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) -- which Joe says he's going to integrate in his own way :). We patched our jtagulator and jtagulated the RHME3 CKF HW Backdoor target.
+
+![jtagulate!](car_key_fob_hardware_backdoor/jtagulate_it.png)
+
+The Riscure devs had put a fun trap into the challenge: it would issue a self-destruct.
+
+![side effects](car_key_fob_hardware_backdoor/ckf-hw-backdoor_selfdestruct.png)
+
+```
+Self-destruct triggered.
+5
+4
+3
+2
+1
+BOOM!!!
+Fake explosion. I hope it scared you away
+```
+
+We later learned that this was happening only when a particular bit was asserted during shift-in and latch (see below). But the net effect here was that any time we tried to JTAGulated the target, it would emit this self-destruct! Fun.
+
+#### Into Darkness
+
+We poked blindly at the target for some time; exploring with the long sentinel value.
+
+We were able to determine that the response needed to be shifted-in to the target (aka 'sent') during 'frame B' (called quad B below). Because the last frame, 'frame C' was too short. At this point we were still thinking of this as being a software implementation of a state-machine representing shift-registers in a virtual scan chain, i.e. emulating the electronics of it.
+
+> recap: each time we 'latch' some bits (ideally read the circuit into the SR, but practically this appears to also virtually write the virtual SR into the circuitry as well) we'll call that a frame. we've explored all the bits of frame A; it is 512 bits wide, there are some read-only bits, a couple bits that trigger self-destruct (with and without countdown) and finally also a bit that causes a 128bit randomized value to be emitted in frameB -- the instigate bit. We divide up each frame into 128bit quadwords, enumerating from MSB first: quadA, quadB, quadC, quadD. The read-only bits are spread across quadB and quadC. quadD contains the self-destruct bits; quadC contains the instigate bits.
+> 
+> When we shift bits during a frame, we also shift-out bits from the Shift Register; in frameB quadA shifted-out contains the randomized value, presumably a nonce. quads B,C,D contain the contents of what was shifted-in during frameA -- except as modified by the read-only bits which are stuck at 0.
+> 
+> In frameC, all the quads shifted-in during frameB will be shifted out almost (more in a sec); however, it is no longer possible to shift-in any data as bits shifted in will no longer propagate *through* the SR to the end of the chain and out again. In frameC t 512-25 clocks into frameC, the target prints `Test mode activated`. This is presumably a soft reset condition since this is what is printed when the target comes out of reset. (edited) 
+> 
+> questions I don't think I know the answer to, which I thought of in writing the summary: 1) does the SR still wrap-around in frameB ? 2) are the read-only bits still stuck at zero in frame C ?
+
+![reasonable frames](car_key_fob_hardware_backdoor/reasonable_frames.png)
+
+Looking-back, we were still very wrong about some things. But we had reverse engineered that there were three frames: A, B and C. Where frame A and B were 512 bits and frame C was only 384 bits. In frame A you could shift-in a bit asserted, the 'instigate' bit and in frame B you would receive a 16 bytes challenge shifted-out at bit offset 0. In frame B you could shift-in with a bit asserted and received `Authentication Failed`, the 'authenticate' bit. We had eliminated frameC as being anything but where the response would be shifted-out.
+
+![the frames](car_key_fob_hardware_backdoor/wavedrom.png)
+
+So we were fairly certain that the response needed to be sent in frame B along with the authenticate bit set. But at what offset, and how should the response be calculated from the given challenge? We tried to put the response in various places, using a variety of combinations of algorithm, password-preparation, bit offset in the frame, password selected and frame. We developed an over-engineered piece of python which would search exhaustively through all the possible combinations even.
+
+[cr_methods.py](car_key_fob_hardware_backdoor/cr_methods.py)
+[frames_protocol.py](car_key_fob_hardware_backdoor.py)
+[send_many_responses.py](car_key_fob_hardware_backdoor/send_many_responses.py)
+
+#### PPS
+
+No one was getting anywhere on this challenge, it wasn't just us. We were bugging Riscure in DMs on Telegram (thank you, Alex), and aparently so were many others. Riscure revised the challenge description and added a 'PPS' as a hint.
+
+> PPS. The Encryption used by this key-fob is very Advanced.
+
+Which helped reduce the search space some, but we were already considering AES algorithms in our searches.
+
+#### More PPS
+
+We were given a hint that the password is a two-word combination from the list of combined length 16.
+
+At this point we were so sure we had the righ parameters that we would get the flag if we just completed an 8 hour search
+
+![on a plane](car_key_fob_hardware_backdoor/on_a_plane.png)
+
+So I kept the search running while I boarded my Delta flight home one night. Not the greatest idea I ever had... no, we did not get the flag.
+
+#### PPPS
+
+We got another hint on the challenge page:
+
+> PPPS. Remember that the bits in the output of the scan chain come in reverse order. Also, the location for the provided plaintext is different from the one where the challenge is received.
+
+Didn't help us much though since were were already 'searching' through all bit orders and bit positions that were possible without intersecting the 'stuck bits.'
+
+#### Stuck Bits ?
+
+We did notice that the data shifted-in in 'frame A' would shift-around to us in 'frame B' -- which is consistent with scan-chains. But *some* bits would get 'modified.' There were also some bits that were 'control' bits -- we referred to all of them roughly as stuck bits.
+
+We were wondering if these stuck bits were point us to where we shouldn't put our response to the challenge -- we operated under that assumption: that we needed to avoid these bits, because at least one of them would cause a self-detruct if set. But at this point, we were questioning everything.
+
+> Ben Gardiner [11:07 AM]
+> There are 1) stuck bits 2) control bits 3) self-destruct bits ; only quadC has control bits ; only quadD has self-destruct bits. we cannot ignore self-destruct bits. We could try to ignore control bits. We could try to ignore stuck bits.
+> 
+> quadB:
+> * ignore stuck bits (already done in other runs)
+> * avoid stuck bits (move to next password)
+> quadC:
+> * ignore control bits, ignore stuck bits
+> * avoid control bits (next password), ignore stuck bits
+> * ignore control bits, avoid stuck bits (next password)
+> * avoid both (next password)
+> quadD:
+> * ignore control bits, avoid self-destruct bits (already done in other runs)
+> * avoid both (next password)
+
+We tried all. And -- as you can probably guess by now -- nada.
+
+Also: Perhaps we were supposed to supply a response _in_ the bitfield containing some stuck bits; and if the target were using AES decrypt for the CR algorithm, then we would need plaintexts that had the bits avoided. We got a whole pile of challenges; assumed that they were aES ciphertexts and decrypted them with all possible passwords (which we now knew from the hints). But saw no pattern of bits unset in any of them. So it clearly wasn't the case that the response should overlap any stuck bits.
+
+#### The Writeup
+
+We were getting pretty frustrated and we weren't alone; Vtor (from the winning team in the end) was too.
+
+![seriously](car_key_fob_hardware_backdoor/someone_hi_five_this_man.png)
+
+On April 4th we contacted Alex @ Riscure because we had done all the obvious stuff and nothing was working.
+
+> darn. nothing came of a search through 6200 possibilities last night.
+> 
+> the code I'm using has evolved over the past couple months so it's going to take a bit to get you up to speed on it
+> 
+> [test_cr_methods.py](car_key_fob_hardware_backdoor/test_cr_methods.py)
+> 
+> first up: that is a test of the Challenge-Reponse methods I've implemented. Since the 'PS' added to the challenge I've been using only aes_ecb, decrypt.
+> 
+> the 'sequence' of what get's shifted-in, shifted-out is probably best captured in the following snippet:
+
+```python
+def try_frameB_response(password_bytes, password_prepare, message_responder, frame_responder, name=None):
+  serial_handler = reset_on_sd_serial_handler
+  serial_output = bytearray(b'')
+
+  if name is None:
+    name = str(password_bytes)+str(password_prepare)+str(message_responder)
+
+  log("\n%s" % name)
+
+  frameA_rx = quick_instigate_challenge(serial_handler)
+  if frameA_rx is None:
+    return None
+
+  challenge_sequence = single_frame_send_and_receive(bitstring.BitString(hex='00'*16))
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
+    return None
+  serial_output.extend(line)
+  log("challenge:  %s" % challenge_sequence.hex)
+
+  password_sequence = password_prepare(bitstring.BitString(password_bytes))
+  log("password prepared :  %s" % password_sequence.hex)
+
+  message_response_sequence = message_responder(password_sequence, challenge_sequence)
+  log("response :  %s" % message_response_sequence.hex)
+  frame_response_sequence = frame_responder(message_response_sequence, challenge_sequence)
+
+
+  pin_high(TRIG_OUT) # interesting stuff happens in frameB here
+
+  single_frame_send_and_receive(frame_response_sequence)
+  pin_low(TRIG_OUT) # interesting area over now
+
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
+    return None
+  serial_output.extend(line)
+
+  log("end frame")
+  single_clk_pulse()
+
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
+    return None
+  serial_output.extend(line)
+
+  result_sequence = single_frame_send_and_receive(bitstring.BitString(bin='0'*512))
+  log("end frame")
+  single_clk_pulse()
+  ok, line = get_and_handle_serial(serial_handler)
+  if not ok:
+    return None
+  serial_output.extend(line)
+
+  if len(serial_output.decode('utf-8').strip(' \t\n\r')) == 0:
+    log("WARNING: no output on serial")
+
+  if ((not 'Authentication failed' in serial_output.decode('utf-8')) and (not 'Self-destruct triggered' in serial_output.decode('utf-8'))) or (result_sequence != blanksss):
+    log("=====================================================================================")
+    log("FLAG (???)")
+    log("result   : %s" % result_sequence.hex)
+    log("=====================================================================================")
+    with open('flags.txt', 'a') as the_file:
+      the_file.write("\n%s\n" % name)
+      the_file.write("challenge: %s\n" % challenge_sequence.hex)
+      the_file.write("response : %s\n" % message_response_sequence.hex)
+      the_file.write("result   : %s\n" % result_sequence.hex)
+      the_file.write("serial   : %s\n" % serial_output)
+  return
+```
+
+> when I 'search' I call this function many times with varied parameters. Since the 'PS' was added and you clarified it was two words combined, password has only ever been one two-word combined list set to 16bytes and password_prepare has been only pad (which does nothing for 16byte passwords).
+> 
+> I can create variations of the challenge-response routines as you'll see in the tests; message_responder in the snipped is one of the basic routines wrapped in some combination of bit-reversal (I have reverse across the whole frame, bytewise reverse, wordwise, longwise and also reversing of those -wise reverses), argument swapping (e.g. ciphertext/key swap) and a 'trivial' wrapper which leaves the routine unchanged
+> 
+> frame_responder creates a 512bit sequence with the authenticate bit set (the bit after MSB-wise the challenge-instigate bit). It also writes the response into different areas depending on which version is instantiated. Last night, e.g. I was searching through the space of writing the response such that the 128bit sequence either started or ended at offsets 192,196,200,201,202,203,204.
+> 
+> [just_128bit.logicdata](car_key_fob_hardware_backdoor/just_128bit.logicdata)
+> 
+> here is a logic capture that is relevant. It is not from last nights run where I was putting the response into the offsets I mentioned; rather it is a capture of putting the response (all 0xCC...CC as a sample) into offset 0 MSB-wise.
+> 
+> finally; here is an example of how I call that frameB_response function; this is exploring putting the start of the response at 196; through some bitreversals but no argument swapping
+
+```python
+def try_frameB_offsets_dontforget196():
+  attempts = list()
+
+  for offset in [196]:
+    frame_responder = get_msb_offet_and_auth_responder(offset)
+    for variant_responder in [get_rev_responder, get_trivial_responder, get_bitswapped_responder, get_rev_bitswapped_responder]:
+      for argsorder_responder in [get_trivial_responder]:
+        for password_prepare in [pad_password]:
+          for operation in [decrypt]:
+            for cipher in [aes_ecb]:
+              passwords = get_16byte_pair_passwords()
+              passwords.extend(get_16byte_pair_password_repeats())
+              for password in passwords:
+                attempts.append([password, password_prepare, variant_responder(argsorder_responder(get_cipher_message_responder(operation, cipher))), frame_responder, str(frame_responder.__name__)+'(%d' % offset +')'+'/'+str(variant_responder.__name__)+'/'+str(argsorder_responder.__name__)+'/'+str(password_prepare.__name__)+'/'+str(operation.__name__)+'/'+str(cipher.__name__)+'/'+str(password)])
+
+  start = 0
+  for i in range(start, len(attempts)):
+    password, password_prepare, message_responder, frame_responder, name = attempts[i]
+    log("%d of %d" %(i, len(attempts)))
+    try_frameB_response(password, password_prepare, message_responder, frame_responder, name=name)
+    i = i + 1
+  return
+```
+
+> right... and here's a log of the search through the ~6200 last night
+> 
+> [send_many_responses.log](car_key_fob_hardware_backdoor/send_many_responses.log)
+> 
+> so... I hope that gives you enough detail to confirm/answer your questions. I still haven't tried some things: things 1) byte,word,long-wise swapping&reversing for lsb-offset, 2) argument swapping for any 3) other offsets overlapping with bit 203 (maybe they don't check the 'first' bit at all 4) word,long-wise swapping&reversing for msb-offset . also didn't try assuming the riscure tool reports bit numbers LSB-first. So I'm not out of options yet
+
+
+#### Side-Channel ?
+
+Left scratching our heads; we started thinking laterally: maybe we needed to use side channel analysis. We now knew (from the hints that were slowly released) that the target was performing AES-ECB as the challenge-response algorithm. We couldn't figure out what the key was or where to put it in the frame. a) Perhaps, with side channel analysis we could extract (via leakages) the key being used in AES for the response validation on the target? b) Perhaps we could detect the bit position where the response needed to be located by looking at input data correlations?
+
+We had alot of fun getting the setup for this one going. First I made a chipwhisperer module that could drive the target using the same python bitbanging. I wrote my bitbanging driver in python3 (like a sucker) so; what I did was create a CW driver that connected over TCP to a server-version of my python3 bitbanging code.
+
+Triggering is super-important when doing power analysis. The target is implementing some kind of state machine that triggers on CLK edges (because it is pretending to be SPI and that is what synchronous serial is). We wanted to look at power traces across an entire challenge-response sequence of transferring over 1024 bits, at a very low bitrate and we need to sample at a high rate to see the power traces. So we want to selectively trigger on one of a particular CLK edge in that over 1024 set. The chipwhispered has a logic-combining trigger mode, so I could add another GPIO line as 'gate' for triggering.
+
+a) This worked well; we explored the power traces of the target at the point where we 'latch-in' data.
+
+![triggered on latch](car_key_fob_hardware_backdoor/cw_traces_triggered_on_latch.png)
+
+We also explored the power traces at each of the CLK edges in the frame -- in case the response for comparison was being pre-computed.
+
+![triggered on CLK](car_key_fob_hardware_backdoor/cw_traces_clk_triggering.png)
+
+But I had to stop.
+
+![sorry](car_key_fob_hardware_backdoor/perfection_achieved.png)
+
+b) this method did discover _something_, just not the bit-offset where we need to put the response.
+
+![trailing_off_correlation.png](car_key_fob_hardware_backdoor/trailing_off_correlation.png)
+
+This is the input data correlation bitwise; the point in time we're looking at is right after we 'latch' the data into the target for 'frame B'. The large swings in correlation on bit 203 are suggesting that there is a time execution dependence on the value of bit 203. Offset 203 (as first or last bit) did not yield success with any of the response calculation methods in our arsenal at this point.
+
+#### The LED ?
+
+We discovered a fun fact; one of the bits shifted-in (bit 203 in quadB) were controlling the LED. This pushed me back to thinking about the SW scan-chain as implemented boundary scan. I connected up a logic analyzer to as many DIO pins as possible and ran a script to explore all the bits around the one that we knew controlled the LED. This -- of course -- turned up nothing, nada. I would repeat the process: move the probes to new pins and run the script again.
+
+![it was the LED](car_key_fob_hardware_backdoor/it_was_the_led.png)
+
+There was no boundary scan implemented here, just that one LED control bit. Probably put there just to troll people like me who *really wanted* it to be JTAG.
+
+#### The Last Straw
+
+So, we were left with a search through roughly 384 offsets in frameB through a short (and known) list of password-pairs combined with only a couple variations of AES and bit orders. Which we searched through. Again. Still nothing.  
+
+On April 9th (2018) we contacted Alex again and kept working on side-channel analysis to try to figure out the actual AES key and offset.
+
+> Hi Alex, I'm sorry to report that we haven't been able to convert all your help into something useful . Lots of the known space searched, but no flags. We think that either 1) we need to do something special in packing the response to avoid the stuck bits (the ones that read-back zero after a latch) or 2) there is a password-preparation routine that needs to be applied to the concatenation of the two words from the list before using it as an AES key. We think we can figure out 2 by SCA on the target during the operations is performs when the challenge bit is set -- so far we're just getting slowed down by our tooling setup requiring the CW instead of the picoscope for this challenge. I hope to remove that restriction today and get a better look at AES during latch of the challenge bit.
+
+[summay.md](car_key_fob_hardware_backdoor/summary.md)
+
+#### The Solution
+
+Sorry, reader. I honestly don't know :)
+
+It turns out that the challenge binaries which were made available for download were different than the binaries that they tested for the challenge. This is somewhat understandable though -- recall that the challenges are individually encrypted for each board. SO... the testing we were doing against our RHME3 board was different than the verification that poor Alex was doing on his end. He eventually got back to us on April 13th with the good/bad news:
+
+![bug](car_key_fob_hardware_backdoor/there_was_a_bug.png)
+
+In the end we were given the solve and gold (retroactively even) for all the efforts. I never went back to re-run the search against the challenge. We were still in the competion and had a shot, so we moved right-away into fault-injection. So I don't actually know what the solution is. One thing is for sure; the correct algorithm, bit-order, password-prep, bit offset and password-pair combination is somewhere in the massive search code we put together.
+
+This was alot of ups and downs and frustrations. Despite all that, I still enjoyed the challenge and I think riscure handled the situation as best they could. Special thanks to Alex Geana at Riscure for that. Maybe someday I will go back and re-run my search code on the patched binary... (probably not).
