@@ -693,11 +693,11 @@ In this challenge, we know that there are some pins which are being used to emul
 
 ### In the beginning, there was JTAG (right?)
 
-Given the description of a bunch of pins on the RHME3 target as constituting a *scan chain* we did what any self-respecting HW reverse engineering practioner would do: jtagulate it.
+Given the description of a bunch of pins on the RHME3 target as constituting a *scan chain* we did what any self-respecting HW reverser would do: jtagulate it.
 
 ![what is this?](car_key_fob_hardware_backdoor/isthisajtag.png)
 
-That clock rate limit is pretty slow, and the jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) -- which Joe says he's going to integrate in his own way :). We patched our jtagulator and jtagulated the RHME3 CKF HW Backdoor target.
+That clock rate limit is pretty slow, and the jtagulator didn't want to go slow, so we cooked up [a patch](https://github.com/grandideastudio/jtagulator/pull/16) and jtagulated the target.
 
 ![jtagulate!](car_key_fob_hardware_backdoor/jtagulate_it.png)
 
@@ -716,13 +716,35 @@ BOOM!!!
 Fake explosion. I hope it scared you away
 ```
 
-We later learned that this was happening only when a particular bit was asserted during shift-in and latch (see below). But the net effect here was that any time we tried to JTAGulated the target, it would emit this self-destruct! Fun.
+We later learned that this was happening only when a particular bit was asserted during shift-in and latch (see below). But the net effect here was that any time we tried to JTAGulate the target, it would emit this self-destruct! Fun.
+
+#### Scanning the Black Box
+
+So it wasn't JTAG, it was (more generically) just a scan chain. And there would be some kind of challenge-response implemented in this scan chain. Scan chains pre-date JTAG, at their most basic a scan chain is a collection of shift registers (which can be modeled as collections of flip-flops) clocked together and daisy-chained so the output of one is the input of the next. The interfaces to the scan chain would be a DATA-IN (aka MOSI / DI) pin, CLK, and LATCH (aka CS) and also a DATA-OUT (aka MISO / DO) pin which would be the output of the last shift register. And, for this challenge, there would be some kind of challenge-response mechanism (probably AES based b/c the XMEGA has accelerators for this).
+
+![guess of ckf architecture](car_key_fob_hardware_backdoor/guessed_architecture.png)
+
+This generic model of a scan chain fits nicely with one observation: when examining the logic captures during jtagulating there was a pattern on TDO after a long CLK pulse train that mimics the signals on what was then TMS; so quite likely TMS was some kind of MOSI line that was getting clocked 'around' the scan chain.
+
+![repeated pattern](car_key_fob_hardware_backdoor/ckf-hw-backdoor_confirmed_signal_voltages.png)
+
+This behaviour tells us which pins are CLK and DATA-IN and DATA-OUT. The remaining pin is LATCH. But how deep is the scan chain? We wrote some python to use an FTDI MPSSE cable to bitbang SPI-ish operations to test the scan chain;
+ 
+[test_shift_depth.py](car_key_fob_hardware_backdoor/test_shift_depth.py)
+
+Which told us the scan chain was of depth 512. Then we needed to know how to execute a latch (latching would propagate the shift register contents into the attached circuitry -- if this were an HW scan chain). The self-destruct message was -- we presumed -- being emitted after a latch, so we examined the logic captures to infer how to latch.
+
+Finally; now that we knew how to 'latch' data into whatever virtual circuitry was connected to the virtual shift registers, we wanted to explore what, if any, changes would be made to the shift register contents on latch.
+
+We found that the values were unchanged when we latched. There would be some control bits which would invoke changes when set and latched-in. This was clear in at least the case of the 'self destruct' message. We began to search for these bits by scanning through 512 possible bits. 
 
 #### Into Darkness
 
-We poked blindly at the target for some time; exploring with the long sentinel value.
+We poked blindly at the target for some time. At this point we were still thinking of this as being a software implementation of a state-machine representing shift-registers in a virtual scan chain, i.e. emulating the electronics of it.
 
-We were able to determine that the response needed to be shifted-in to the target (aka 'sent') during 'frame B' (called quad B below). Because the last frame, 'frame C' was too short. At this point we were still thinking of this as being a software implementation of a state-machine representing shift-registers in a virtual scan chain, i.e. emulating the electronics of it.
+![reasonable frames](car_key_fob_hardware_backdoor/reasonable_frames.png)
+
+But we did eventually establish *some* understanding of the multi-frame 'protocol' that we would later spend months brute-forcing. Here's a slack chat quote for reference:
 
 > recap: each time we 'latch' some bits (ideally read the circuit into the SR, but practically this appears to also virtually write the virtual SR into the circuitry as well) we'll call that a frame. we've explored all the bits of frame A; it is 512 bits wide, there are some read-only bits, a couple bits that trigger self-destruct (with and without countdown) and finally also a bit that causes a 128bit randomized value to be emitted in frameB -- the instigate bit. We divide up each frame into 128bit quadwords, enumerating from MSB first: quadA, quadB, quadC, quadD. The read-only bits are spread across quadB and quadC. quadD contains the self-destruct bits; quadC contains the instigate bits.
 > 
@@ -732,16 +754,16 @@ We were able to determine that the response needed to be shifted-in to the targe
 > 
 > questions I don't think I know the answer to, which I thought of in writing the summary: 1) does the SR still wrap-around in frameB ? 2) are the read-only bits still stuck at zero in frame C ?
 
-![reasonable frames](car_key_fob_hardware_backdoor/reasonable_frames.png)
-
-Looking-back, we were still very wrong about some things. But we had reverse engineered that there were three frames: A, B and C. Where frame A and B were 512 bits and frame C was only 384 bits. In frame A you could shift-in a bit asserted, the 'instigate' bit and in frame B you would receive a 16 bytes challenge shifted-out at bit offset 0. In frame B you could shift-in with a bit asserted and received `Authentication Failed`, the 'authenticate' bit. We had eliminated frameC as being anything but where the response would be shifted-out.
+Looking-back, we were still very wrong about some things. But we had reverse engineered that there were three frames: A, B and C. Where frame A and B were 512 bits and frame C was only 384 bits. In frame A you could shift-in a bit asserted that we called the 'instigate' bit and, if set, in frame B you would receive a 16 bytes challenge offset 0. Also, in frame B you could shift-in a bit asserted and received `Authentication Failed` after latch, we called this the 'authenticate' bit. We had eliminated frameC as being anything but where the response would be shifted-out (after probing extensively for clues as to why it was only 384 bits deep).
 
 ![the frames](car_key_fob_hardware_backdoor/wavedrom.png)
 
 So we were fairly certain that the response needed to be sent in frame B along with the authenticate bit set. But at what offset, and how should the response be calculated from the given challenge? We tried to put the response in various places, using a variety of combinations of algorithm, password-preparation, bit offset in the frame, password selected and frame. We developed an over-engineered piece of python which would search exhaustively through all the possible combinations even.
 
 [cr_methods.py](car_key_fob_hardware_backdoor/cr_methods.py)
+
 [frames_protocol.py](car_key_fob_hardware_backdoor.py)
+
 [send_many_responses.py](car_key_fob_hardware_backdoor/send_many_responses.py)
 
 #### PPS
@@ -774,9 +796,8 @@ Didn't help us much though since were were already 'searching' through all bit o
 
 We did notice that the data shifted-in in 'frame A' would shift-around to us in 'frame B' -- which is consistent with scan-chains. But *some* bits would get 'modified.' There were also some bits that were 'control' bits -- we referred to all of them roughly as stuck bits.
 
-We were wondering if these stuck bits were point us to where we shouldn't put our response to the challenge -- we operated under that assumption: that we needed to avoid these bits, because at least one of them would cause a self-detruct if set. But at this point, we were questioning everything.
+We were wondering if these stuck bits were pointing us to where we shouldn't put our response to the challenge -- we operated under that assumption: that we needed to avoid these bits, because at least one of them would cause a self-destruct if set. But at this point, we were questioning everything. Here's a chat quote:
 
-> Ben Gardiner [11:07 AM]
 > There are 1) stuck bits 2) control bits 3) self-destruct bits ; only quadC has control bits ; only quadD has self-destruct bits. we cannot ignore self-destruct bits. We could try to ignore control bits. We could try to ignore stuck bits.
 > 
 > quadB:
@@ -803,7 +824,7 @@ We were getting pretty frustrated and we weren't alone; Vtor (from the winning t
 
 On April 4th we contacted Alex @ Riscure because we had done all the obvious stuff and nothing was working.
 
-> darn. nothing came of a search through 6200 possibilities last night.
+> [...] nothing came of a search through 6200 possibilities last night.
 > 
 > the code I'm using has evolved over the past couple months so it's going to take a bit to get you up to speed on it
 > 
@@ -926,8 +947,7 @@ def try_frameB_offsets_dontforget196():
 > 
 > [send_many_responses.log](car_key_fob_hardware_backdoor/send_many_responses.log)
 > 
-> so... I hope that gives you enough detail to confirm/answer your questions. I still haven't tried some things: things 1) byte,word,long-wise swapping&reversing for lsb-offset, 2) argument swapping for any 3) other offsets overlapping with bit 203 (maybe they don't check the 'first' bit at all 4) word,long-wise swapping&reversing for msb-offset . also didn't try assuming the riscure tool reports bit numbers LSB-first. So I'm not out of options yet
-
+> so... I hope that gives you enough detail to confirm/answer your questions. I still haven't tried some things: things 1) byte,word,long-wise swapping&reversing for lsb-offset, 2) argument swapping for any 3) other offsets overlapping with bit 203 (maybe they don't check the 'first' bit at all 4) word,long-wise swapping&reversing for msb-offset . also didn't try assuming the riscure tool reports bit numbers LSB-first. So I'm not out of options yet.
 
 #### Side-Channel ?
 
@@ -935,7 +955,7 @@ Left scratching our heads; we started thinking laterally: maybe we needed to use
 
 We had alot of fun getting the setup for this one going. First I made a chipwhisperer module that could drive the target using the same python bitbanging. I wrote my bitbanging driver in python3 (like a sucker) so; what I did was create a CW driver that connected over TCP to a server-version of my python3 bitbanging code.
 
-Triggering is super-important when doing power analysis. The target is implementing some kind of state machine that triggers on CLK edges (because it is pretending to be SPI and that is what synchronous serial is). We wanted to look at power traces across an entire challenge-response sequence of transferring over 1024 bits, at a very low bitrate and we need to sample at a high rate to see the power traces. So we want to selectively trigger on one of a particular CLK edge in that over 1024 set. The chipwhispered has a logic-combining trigger mode, so I could add another GPIO line as 'gate' for triggering.
+Triggering is super-important when doing power analysis. The target is implementing some kind of state machine that triggers on CLK edges (because it is pretending to be SPI and that is what synchronous serial is). We wanted to look at power traces across an entire challenge-response sequence of transferring over 1024 bits, at a very low bitrate and we need to sample at a high rate to see the power traces. So we want to selectively trigger on one of a particular CLK edge in that over 1024 set. The chipwhisperer has a logic-combining trigger mode, so I could add another GPIO line as 'gate' for triggering.
 
 a) This worked well; we explored the power traces of the target at the point where we 'latch-in' data.
 
@@ -971,7 +991,7 @@ On April 9th (2018) we contacted Alex again and kept working on side-channel ana
 
 > Hi Alex, I'm sorry to report that we haven't been able to convert all your help into something useful . Lots of the known space searched, but no flags. We think that either 1) we need to do something special in packing the response to avoid the stuck bits (the ones that read-back zero after a latch) or 2) there is a password-preparation routine that needs to be applied to the concatenation of the two words from the list before using it as an AES key. We think we can figure out 2 by SCA on the target during the operations is performs when the challenge bit is set -- so far we're just getting slowed down by our tooling setup requiring the CW instead of the picoscope for this challenge. I hope to remove that restriction today and get a better look at AES during latch of the challenge bit.
 
-[summay.md](car_key_fob_hardware_backdoor/summary.md)
+[summary.md](car_key_fob_hardware_backdoor/summary.md)
 
 #### The Solution
 
@@ -981,6 +1001,6 @@ It turns out that the challenge binaries which were made available for download 
 
 ![bug](car_key_fob_hardware_backdoor/there_was_a_bug.png)
 
-In the end we were given the solve and gold (retroactively even) for all the efforts. I never went back to re-run the search against the challenge. We were still in the competion and had a shot, so we moved right-away into fault-injection. So I don't actually know what the solution is. One thing is for sure; the correct algorithm, bit-order, password-prep, bit offset and password-pair combination is somewhere in the massive search code we put together.
+In the end we were given the solve and gold (retroactively even) for all the efforts. I never went back to re-run the search against the challenge. We were still in the competition and had a shot, so we moved right-away into fault-injection. So I don't actually know what the solution is. One thing is for sure; the correct algorithm, bit-order, password-prep, bit offset and password-pair combination is somewhere in the massive search code we put together.
 
-This was alot of ups and downs and frustrations. Despite all that, I still enjoyed the challenge and I think riscure handled the situation as best they could. Special thanks to Alex Geana at Riscure for that. Maybe someday I will go back and re-run my search code on the patched binary... (probably not).
+There were a lot of ups, downs and frustrations. Despite all that, I still enjoyed the challenge and I think Riscure handled the situation as best they could. Special thanks to Alex Geana at Riscure for that. Maybe someday I will go back and re-run my search code on the patched binary... (probably not).
